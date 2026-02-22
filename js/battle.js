@@ -1,0 +1,904 @@
+// ============================================================
+// battle.js — Dragon Quest-style turn-based battle system
+// ============================================================
+
+var BattleSystem = {
+
+  // Start a new battle
+  startBattle: function(game, enemyIds) {
+    var enemies = [];
+    for (var i = 0; i < enemyIds.length; i++) {
+      var template = ENEMIES[enemyIds[i]];
+      enemies.push({
+        id: enemyIds[i],
+        name: template.name + (enemyIds.length > 1 && enemyIds.filter(function(e) { return e === enemyIds[i]; }).length > 1 ? String.fromCharCode(65 + i) : ''),
+        hp: template.hp,
+        maxHp: template.hp,
+        atk: template.atk,
+        def: template.def,
+        spd: template.spd,
+        int: template.int,
+        exp: template.exp,
+        gold: template.gold,
+        color: template.color,
+        shape: template.shape,
+        boss: template.boss || false,
+        skills: template.skills || [],
+        alive: true,
+        buffs: {},
+      });
+    }
+
+    game.battle = {
+      enemies: enemies,
+      phase: 'start',        // start, command, targeting, spellSelect, itemSelect, execute, result, win, lose, levelup
+      currentChar: 0,        // Which party member is selecting command
+      commandIndex: 0,       // Cursor in command menu
+      targetIndex: 0,        // Cursor in target selection
+      spellIndex: 0,         // Cursor in spell list
+      itemIndex: 0,          // Cursor in item list
+      commands: [],           // Queued commands [{actor, action, target}]
+      turnQueue: [],          // Ordered list of actions for execution
+      currentAction: 0,      // Which action is being executed
+      messages: [],           // Messages to display
+      messageTimer: 0,
+      animTimer: 0,
+      flashEnemy: -1,
+      flashParty: -1,
+      totalExp: 0,
+      totalGold: 0,
+      levelUps: [],
+      levelUpIndex: 0,
+      escapeAttempts: 0,
+    };
+    game.state = 'battle';
+    game.battle.messages = [this.getEncounterMessage(enemies)];
+    game.battle.messageTimer = 60;
+  },
+
+  getEncounterMessage: function(enemies) {
+    var names = [];
+    for (var i = 0; i < enemies.length; i++) {
+      if (names.indexOf(enemies[i].name) === -1) names.push(enemies[i].name);
+    }
+    return names.join('と ') + 'が あらわれた！';
+  },
+
+  // Main battle update
+  update: function(game) {
+    var b = game.battle;
+    if (!b) return;
+
+    if (b.messageTimer > 0) {
+      b.messageTimer--;
+      return;
+    }
+
+    switch (b.phase) {
+      case 'start':
+        b.phase = 'command';
+        b.currentChar = 0;
+        b.commandIndex = 0;
+        this.skipDeadChars(game);
+        b.commands = [];
+        break;
+      case 'execute':
+        this.executeNextAction(game);
+        break;
+      case 'win':
+        this.handleWin(game);
+        break;
+      case 'lose':
+        // Game over handled by main.js
+        break;
+      case 'levelup':
+        // Wait for input
+        break;
+    }
+  },
+
+  // Handle input during battle
+  handleInput: function(game, key) {
+    var b = game.battle;
+    if (!b) return;
+
+    // Skip message display
+    if (b.messageTimer > 0) {
+      if (key === 'confirm') b.messageTimer = 0;
+      return;
+    }
+
+    switch (b.phase) {
+      case 'command':
+        this.handleCommandInput(game, key);
+        break;
+      case 'targeting':
+        this.handleTargetInput(game, key);
+        break;
+      case 'spellSelect':
+        this.handleSpellInput(game, key);
+        break;
+      case 'itemSelect':
+        this.handleItemInput(game, key);
+        break;
+      case 'execute':
+        if (key === 'confirm') b.messageTimer = 0;
+        break;
+      case 'win':
+        if (key === 'confirm') b.messageTimer = 0;
+        break;
+      case 'levelup':
+        if (key === 'confirm') {
+          b.levelUpIndex++;
+          if (b.levelUpIndex >= b.levelUps.length) {
+            game.state = 'map';
+            game.battle = null;
+            // Check for boss victory
+            if (game.pendingBoss) {
+              game.flags[game.pendingBoss.flag] = true;
+              game.pendingBoss = null;
+              game.state = 'ending';
+            }
+          }
+        }
+        break;
+      case 'lose':
+        if (key === 'confirm') {
+          game.state = 'gameover';
+        }
+        break;
+    }
+  },
+
+  handleCommandInput: function(game, key) {
+    var b = game.battle;
+    var commands = ['たたかう', 'じゅもん', 'どうぐ', 'ぼうぎょ', 'にげる'];
+
+    if (key === 'up') {
+      b.commandIndex = (b.commandIndex - 1 + commands.length) % commands.length;
+    } else if (key === 'down') {
+      b.commandIndex = (b.commandIndex + 1) % commands.length;
+    } else if (key === 'confirm') {
+      switch (b.commandIndex) {
+        case 0: // Attack
+          b.phase = 'targeting';
+          b.targetIndex = 0;
+          b.pendingAction = 'attack';
+          break;
+        case 1: // Magic
+          var spells = this.getAvailableSpells(game.party[b.currentChar]);
+          if (spells.length > 0) {
+            b.phase = 'spellSelect';
+            b.spellIndex = 0;
+          }
+          break;
+        case 2: // Item
+          if (game.inventory.length > 0) {
+            b.phase = 'itemSelect';
+            b.itemIndex = 0;
+          }
+          break;
+        case 3: // Defend
+          b.commands.push({
+            actor: b.currentChar,
+            actorType: 'party',
+            action: 'defend',
+          });
+          this.nextCharCommand(game);
+          break;
+        case 4: // Run
+          b.commands.push({
+            actorType: 'party',
+            action: 'run',
+          });
+          this.startExecution(game);
+          break;
+      }
+    }
+  },
+
+  handleTargetInput: function(game, key) {
+    var b = game.battle;
+    var aliveEnemies = b.enemies.filter(function(e) { return e.alive; });
+
+    if (key === 'left' || key === 'up') {
+      b.targetIndex = (b.targetIndex - 1 + aliveEnemies.length) % aliveEnemies.length;
+    } else if (key === 'right' || key === 'down') {
+      b.targetIndex = (b.targetIndex + 1) % aliveEnemies.length;
+    } else if (key === 'confirm') {
+      var targetIdx = 0;
+      var count = 0;
+      for (var i = 0; i < b.enemies.length; i++) {
+        if (b.enemies[i].alive) {
+          if (count === b.targetIndex) { targetIdx = i; break; }
+          count++;
+        }
+      }
+      if (b.pendingAction === 'attack') {
+        b.commands.push({
+          actor: b.currentChar,
+          actorType: 'party',
+          action: 'attack',
+          target: targetIdx,
+          targetType: 'enemy',
+        });
+      } else if (b.pendingAction === 'spell') {
+        b.commands.push({
+          actor: b.currentChar,
+          actorType: 'party',
+          action: 'spell',
+          spellId: b.pendingSpell,
+          target: targetIdx,
+          targetType: 'enemy',
+        });
+      } else if (b.pendingAction === 'item') {
+        b.commands.push({
+          actor: b.currentChar,
+          actorType: 'party',
+          action: 'item',
+          itemId: b.pendingItem,
+          target: targetIdx,
+          targetType: 'enemy',
+        });
+      }
+      this.nextCharCommand(game);
+    } else if (key === 'cancel') {
+      b.phase = 'command';
+    }
+  },
+
+  handleSpellInput: function(game, key) {
+    var b = game.battle;
+    var spells = this.getAvailableSpells(game.party[b.currentChar]);
+    if (key === 'up') {
+      b.spellIndex = (b.spellIndex - 1 + spells.length) % spells.length;
+    } else if (key === 'down') {
+      b.spellIndex = (b.spellIndex + 1) % spells.length;
+    } else if (key === 'confirm') {
+      var spell = SPELLS[spells[b.spellIndex].id];
+      if (game.party[b.currentChar].mp >= spell.mp) {
+        b.pendingSpell = spells[b.spellIndex].id;
+        if (spell.target === 'enemy') {
+          b.phase = 'targeting';
+          b.targetIndex = 0;
+          b.pendingAction = 'spell';
+        } else if (spell.target === 'ally') {
+          // Target party member — select ally
+          b.pendingAction = 'spellAlly';
+          b.phase = 'allyTarget';
+          b.targetIndex = 0;
+        } else {
+          // All enemies, party buff, etc.
+          b.commands.push({
+            actor: b.currentChar,
+            actorType: 'party',
+            action: 'spell',
+            spellId: spells[b.spellIndex].id,
+            target: -1,
+            targetType: spell.target === 'allEnemy' ? 'allEnemy' : 'party',
+          });
+          this.nextCharCommand(game);
+        }
+      }
+    } else if (key === 'cancel') {
+      b.phase = 'command';
+    }
+  },
+
+  handleItemInput: function(game, key) {
+    var b = game.battle;
+    if (key === 'up') {
+      b.itemIndex = (b.itemIndex - 1 + game.inventory.length) % game.inventory.length;
+    } else if (key === 'down') {
+      b.itemIndex = (b.itemIndex + 1) % game.inventory.length;
+    } else if (key === 'confirm') {
+      var invItem = game.inventory[b.itemIndex];
+      var item = ITEMS[invItem.id];
+      b.pendingItem = invItem.id;
+      if (item.target === 'enemy') {
+        b.phase = 'targeting';
+        b.targetIndex = 0;
+        b.pendingAction = 'item';
+      } else {
+        // Use on party — auto-target first needing member or self
+        b.commands.push({
+          actor: b.currentChar,
+          actorType: 'party',
+          action: 'item',
+          itemId: invItem.id,
+          target: this.findHealTarget(game),
+          targetType: 'ally',
+        });
+        this.nextCharCommand(game);
+      }
+    } else if (key === 'cancel') {
+      b.phase = 'command';
+    }
+  },
+
+  findHealTarget: function(game) {
+    var lowest = 0;
+    var lowestRatio = 1;
+    for (var i = 0; i < game.party.length; i++) {
+      if (game.party[i].alive && game.party[i].hp / game.party[i].maxHp < lowestRatio) {
+        lowestRatio = game.party[i].hp / game.party[i].maxHp;
+        lowest = i;
+      }
+    }
+    return lowest;
+  },
+
+  getAvailableSpells: function(char) {
+    var charDef = CHARACTERS[char.classId];
+    var available = [];
+    for (var i = 0; i < charDef.spells.length; i++) {
+      if (char.level >= charDef.spells[i].learnLevel) {
+        available.push(charDef.spells[i]);
+      }
+    }
+    return available;
+  },
+
+  skipDeadChars: function(game) {
+    var b = game.battle;
+    while (b.currentChar < game.party.length && !game.party[b.currentChar].alive) {
+      b.currentChar++;
+    }
+  },
+
+  nextCharCommand: function(game) {
+    var b = game.battle;
+    b.currentChar++;
+    b.commandIndex = 0;
+    this.skipDeadChars(game);
+    if (b.currentChar >= game.party.length) {
+      this.startExecution(game);
+    } else {
+      b.phase = 'command';
+    }
+  },
+
+  // Build turn order and start executing
+  startExecution: function(game) {
+    var b = game.battle;
+
+    // Add enemy actions
+    for (var i = 0; i < b.enemies.length; i++) {
+      if (b.enemies[i].alive) {
+        var action = this.getEnemyAction(b.enemies[i], game);
+        b.commands.push(action);
+      }
+    }
+
+    // Sort by speed
+    b.turnQueue = b.commands.slice().sort(function(a, b2) {
+      var spdA = a.actorType === 'party' ? game.party[a.actor].spd : game.battle.enemies[a.actor].spd;
+      var spdB = b2.actorType === 'party' ? game.party[b2.actor].spd : game.battle.enemies[b2.actor].spd;
+      return (spdB + Math.random() * 4) - (spdA + Math.random() * 4);
+    });
+
+    b.currentAction = 0;
+    b.phase = 'execute';
+    b.messages = [];
+    b.messageTimer = 0;
+  },
+
+  getEnemyAction: function(enemy, game) {
+    var idx = game.battle.enemies.indexOf(enemy);
+
+    // Boss AI
+    if (enemy.boss && enemy.hp < enemy.maxHp * 0.3 && enemy.skills.indexOf('enemyHeal') >= 0 && Math.random() < 0.4) {
+      return { actor: idx, actorType: 'enemy', action: 'spell', spellId: 'enemyHeal', target: idx, targetType: 'self' };
+    }
+    if (enemy.skills.length > 0 && Math.random() < 0.35) {
+      var skill = enemy.skills[Math.floor(Math.random() * enemy.skills.length)];
+      var spell = SPELLS[skill];
+      if (spell.target === 'partyAll') {
+        return { actor: idx, actorType: 'enemy', action: 'spell', spellId: skill, target: -1, targetType: 'partyAll' };
+      } else {
+        var t = this.randomAlivePartyMember(game);
+        return { actor: idx, actorType: 'enemy', action: 'spell', spellId: skill, target: t, targetType: 'ally' };
+      }
+    }
+    // Default: attack random alive party member
+    var target = this.randomAlivePartyMember(game);
+    return { actor: idx, actorType: 'enemy', action: 'attack', target: target, targetType: 'ally' };
+  },
+
+  randomAlivePartyMember: function(game) {
+    var alive = [];
+    for (var i = 0; i < game.party.length; i++) {
+      if (game.party[i].alive) alive.push(i);
+    }
+    return alive[Math.floor(Math.random() * alive.length)];
+  },
+
+  // Execute the next action in the turn queue
+  executeNextAction: function(game) {
+    var b = game.battle;
+    if (b.currentAction >= b.turnQueue.length) {
+      // All actions done — check win/lose, then new round
+      if (this.checkWin(game)) return;
+      if (this.checkLose(game)) return;
+      // Decrease buff durations
+      this.tickBuffs(game);
+      b.phase = 'command';
+      b.currentChar = 0;
+      b.commandIndex = 0;
+      this.skipDeadChars(game);
+      b.commands = [];
+      return;
+    }
+
+    var cmd = b.turnQueue[b.currentAction];
+    b.currentAction++;
+
+    // Check if actor is still alive
+    if (cmd.actorType === 'party' && !game.party[cmd.actor].alive) return this.executeNextAction(game);
+    if (cmd.actorType === 'enemy' && !b.enemies[cmd.actor].alive) return this.executeNextAction(game);
+
+    // Handle run
+    if (cmd.action === 'run') {
+      b.escapeAttempts++;
+      var anyBoss = b.enemies.some(function(e) { return e.boss && e.alive; });
+      if (anyBoss) {
+        b.messages = ['しかし 逃げられない！'];
+        b.messageTimer = 40;
+      } else if (Math.random() < 0.5 + b.escapeAttempts * 0.1) {
+        b.messages = ['うまく逃げ切れた！'];
+        b.messageTimer = 40;
+        b.phase = 'run';
+        setTimeout(function() { game.state = 'map'; game.battle = null; }, 800);
+      } else {
+        b.messages = ['しかし 回り込まれてしまった！'];
+        b.messageTimer = 40;
+      }
+      return;
+    }
+
+    // Handle defend
+    if (cmd.action === 'defend') {
+      var defender = cmd.actorType === 'party' ? game.party[cmd.actor] : b.enemies[cmd.actor];
+      defender.defending = true;
+      b.messages = [defender.name + 'は 身を守っている。'];
+      b.messageTimer = 30;
+      return;
+    }
+
+    // Handle attack
+    if (cmd.action === 'attack') {
+      this.executeAttack(game, cmd);
+      return;
+    }
+
+    // Handle spell
+    if (cmd.action === 'spell') {
+      this.executeSpell(game, cmd);
+      return;
+    }
+
+    // Handle item
+    if (cmd.action === 'item') {
+      this.executeItem(game, cmd);
+      return;
+    }
+
+    this.executeNextAction(game);
+  },
+
+  executeAttack: function(game, cmd) {
+    var b = game.battle;
+    var attacker, defender, attackerName, defenderName;
+
+    if (cmd.actorType === 'party') {
+      attacker = game.party[cmd.actor];
+      defender = b.enemies[cmd.target];
+      if (!defender || !defender.alive) {
+        // Retarget to first alive enemy
+        for (var i = 0; i < b.enemies.length; i++) {
+          if (b.enemies[i].alive) { defender = b.enemies[i]; break; }
+        }
+        if (!defender || !defender.alive) return this.executeNextAction(game);
+      }
+    } else {
+      attacker = b.enemies[cmd.actor];
+      defender = game.party[cmd.target];
+      if (!defender || !defender.alive) {
+        cmd.target = this.randomAlivePartyMember(game);
+        defender = game.party[cmd.target];
+        if (!defender) return this.executeNextAction(game);
+      }
+    }
+
+    var atk = this.getEffectiveStat(attacker, 'atk');
+    var def = this.getEffectiveStat(defender, 'def');
+    if (defender.defending) def = Math.floor(def * 1.5);
+    var damage = Math.max(1, Math.floor(atk / 2 - def / 4 + (Math.random() * 5 - 2)));
+    defender.hp = Math.max(0, defender.hp - damage);
+
+    b.messages = [attacker.name + 'の こうげき！', defender.name + 'に ' + damage + 'の ダメージ！'];
+    if (cmd.actorType === 'party') b.flashEnemy = cmd.target;
+    else b.flashParty = cmd.target;
+    b.messageTimer = 45;
+
+    if (defender.hp <= 0) {
+      defender.alive = false;
+      defender.hp = 0;
+      b.messages.push(defender.name + 'を たおした！');
+      b.messageTimer = 55;
+    }
+
+    setTimeout(function() { b.flashEnemy = -1; b.flashParty = -1; }, 300);
+  },
+
+  executeSpell: function(game, cmd) {
+    var b = game.battle;
+    var spell = SPELLS[cmd.spellId];
+    var caster = cmd.actorType === 'party' ? game.party[cmd.actor] : b.enemies[cmd.actor];
+
+    // Deduct MP for party members
+    if (cmd.actorType === 'party') {
+      if (caster.mp < spell.mp) {
+        b.messages = [caster.name + 'は MPが 足りない！'];
+        b.messageTimer = 30;
+        return;
+      }
+      caster.mp -= spell.mp;
+    }
+
+    b.messages = [caster.name + 'は ' + spell.name + 'を となえた！'];
+
+    if (spell.type === 'magic' || spell.type === 'physical') {
+      if (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy') {
+        var targets = cmd.actorType === 'party' ? b.enemies : game.party;
+        for (var i = 0; i < targets.length; i++) {
+          if (targets[i].alive) {
+            var dmg = this.calcSpellDamage(caster, targets[i], spell);
+            targets[i].hp = Math.max(0, targets[i].hp - dmg);
+            b.messages.push(targets[i].name + 'に ' + dmg + 'の ダメージ！');
+            if (targets[i].hp <= 0) {
+              targets[i].alive = false;
+              targets[i].hp = 0;
+              b.messages.push(targets[i].name + 'を たおした！');
+            }
+          }
+        }
+      } else if (cmd.targetType === 'partyAll') {
+        for (var j = 0; j < game.party.length; j++) {
+          if (game.party[j].alive) {
+            var dmg2 = this.calcSpellDamage(caster, game.party[j], spell);
+            game.party[j].hp = Math.max(0, game.party[j].hp - dmg2);
+            b.messages.push(game.party[j].name + 'に ' + dmg2 + 'の ダメージ！');
+            if (game.party[j].hp <= 0) {
+              game.party[j].alive = false;
+              game.party[j].hp = 0;
+              b.messages.push(game.party[j].name + 'は たおれた…');
+            }
+          }
+        }
+      } else {
+        var target = cmd.actorType === 'party' ? b.enemies[cmd.target] : game.party[cmd.target];
+        if (!target || !target.alive) {
+          if (cmd.actorType === 'party') {
+            for (var k = 0; k < b.enemies.length; k++) { if (b.enemies[k].alive) { target = b.enemies[k]; break; } }
+          } else {
+            target = game.party[this.randomAlivePartyMember(game)];
+          }
+        }
+        if (target && target.alive) {
+          var dmg3 = this.calcSpellDamage(caster, target, spell);
+          if (spell.type === 'physical') {
+            dmg3 = Math.max(1, Math.floor(this.getEffectiveStat(caster, 'atk') * spell.power / 2 - this.getEffectiveStat(target, 'def') / 4));
+          }
+          target.hp = Math.max(0, target.hp - dmg3);
+          b.messages.push(target.name + 'に ' + dmg3 + 'の ダメージ！');
+          if (spell.stun && Math.random() < spell.stun) {
+            b.messages.push(target.name + 'は しびれて 動けない！');
+          }
+          if (target.hp <= 0) {
+            target.alive = false;
+            target.hp = 0;
+            var defeatMsg = cmd.actorType === 'party' ? (target.name + 'を たおした！') : (target.name + 'は たおれた…');
+            b.messages.push(defeatMsg);
+          }
+        }
+      }
+    } else if (spell.type === 'heal') {
+      var healTarget;
+      if (cmd.targetType === 'self') {
+        healTarget = caster;
+      } else {
+        healTarget = game.party[cmd.target] || game.party[this.findHealTarget(game)];
+      }
+      if (healTarget && healTarget.alive) {
+        var heal = spell.power + Math.floor(Math.random() * 10 - 5);
+        healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + heal);
+        b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
+      }
+    } else if (spell.type === 'buff') {
+      b.messages.push('味方全体の ' + (spell.stat === 'atk' ? 'こうげき力' : 'しゅび力') + 'が あがった！');
+      for (var m = 0; m < game.party.length; m++) {
+        if (game.party[m].alive) {
+          if (!game.party[m].buffs) game.party[m].buffs = {};
+          game.party[m].buffs[spell.stat] = { mult: spell.mult, turns: spell.turns };
+        }
+      }
+    }
+    b.messageTimer = 20 + b.messages.length * 15;
+  },
+
+  executeItem: function(game, cmd) {
+    var b = game.battle;
+    var item = ITEMS[cmd.itemId];
+    var user = game.party[cmd.actor];
+
+    // Remove item from inventory
+    for (var i = 0; i < game.inventory.length; i++) {
+      if (game.inventory[i].id === cmd.itemId) {
+        game.inventory[i].count--;
+        if (game.inventory[i].count <= 0) game.inventory.splice(i, 1);
+        break;
+      }
+    }
+
+    b.messages = [user.name + 'は ' + item.name + 'を つかった！'];
+
+    if (item.type === 'heal') {
+      var target = game.party[cmd.target] || game.party[0];
+      var heal = item.power;
+      target.hp = Math.min(target.maxHp, target.hp + heal);
+      b.messages.push(target.name + 'の HPが ' + heal + ' かいふくした！');
+    } else if (item.type === 'healMp') {
+      var tgt = game.party[cmd.target] || game.party[0];
+      tgt.mp = Math.min(tgt.maxMp, tgt.mp + item.power);
+      b.messages.push(tgt.name + 'の MPが ' + item.power + ' かいふくした！');
+    } else if (item.type === 'damage') {
+      var enemy = b.enemies[cmd.target];
+      if (enemy && enemy.alive) {
+        enemy.hp = Math.max(0, enemy.hp - item.power);
+        b.messages.push(enemy.name + 'に ' + item.power + 'の ダメージ！');
+        if (enemy.hp <= 0) {
+          enemy.alive = false;
+          enemy.hp = 0;
+          b.messages.push(enemy.name + 'を たおした！');
+        }
+      }
+    } else if (item.type === 'revive') {
+      // Find first dead party member
+      for (var j = 0; j < game.party.length; j++) {
+        if (!game.party[j].alive) {
+          game.party[j].alive = true;
+          game.party[j].hp = Math.floor(game.party[j].maxHp * item.power);
+          b.messages.push(game.party[j].name + 'は 生き返った！');
+          break;
+        }
+      }
+    }
+    b.messageTimer = 20 + b.messages.length * 15;
+  },
+
+  calcSpellDamage: function(caster, target, spell) {
+    var intStat = caster.int || caster.atk;
+    var base = spell.power + Math.floor(intStat * 0.5);
+    var def = this.getEffectiveStat(target, 'def');
+    return Math.max(1, Math.floor(base - def / 6 + (Math.random() * 8 - 4)));
+  },
+
+  getEffectiveStat: function(char, stat) {
+    var base = char[stat] || 0;
+    // Equipment bonuses are already included in char stats
+    if (char.buffs && char.buffs[stat]) {
+      base = Math.floor(base * char.buffs[stat].mult);
+    }
+    return base;
+  },
+
+  tickBuffs: function(game) {
+    var all = game.party.concat(game.battle.enemies);
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].buffs) {
+        for (var stat in all[i].buffs) {
+          all[i].buffs[stat].turns--;
+          if (all[i].buffs[stat].turns <= 0) delete all[i].buffs[stat];
+        }
+      }
+      all[i].defending = false;
+    }
+  },
+
+  checkWin: function(game) {
+    var b = game.battle;
+    var allDead = b.enemies.every(function(e) { return !e.alive; });
+    if (allDead) {
+      var totalExp = 0, totalGold = 0;
+      for (var i = 0; i < b.enemies.length; i++) {
+        totalExp += b.enemies[i].exp;
+        totalGold += b.enemies[i].gold;
+      }
+      b.totalExp = totalExp;
+      b.totalGold = totalGold;
+      b.messages = ['戦闘に 勝利した！', totalExp + 'の 経験値を 獲得！', totalGold + 'ゴールド 手に入れた！'];
+      game.gold += totalGold;
+      b.phase = 'win';
+      b.messageTimer = 60;
+      return true;
+    }
+    return false;
+  },
+
+  checkLose: function(game) {
+    var allDead = game.party.every(function(p) { return !p.alive; });
+    if (allDead) {
+      game.battle.messages = ['全滅してしまった…'];
+      game.battle.phase = 'lose';
+      game.battle.messageTimer = 60;
+      return true;
+    }
+    return false;
+  },
+
+  handleWin: function(game) {
+    var b = game.battle;
+    // Award EXP and check level ups
+    b.levelUps = [];
+    for (var i = 0; i < game.party.length; i++) {
+      if (game.party[i].alive) {
+        game.party[i].exp += b.totalExp;
+        var leveledUp = this.checkLevelUp(game.party[i]);
+        if (leveledUp) b.levelUps.push(leveledUp);
+      }
+    }
+    if (b.levelUps.length > 0) {
+      b.phase = 'levelup';
+      b.levelUpIndex = 0;
+    } else {
+      game.state = 'map';
+      game.battle = null;
+      if (game.pendingBoss) {
+        game.flags[game.pendingBoss.flag] = true;
+        game.pendingBoss = null;
+        game.state = 'ending';
+      }
+    }
+  },
+
+  checkLevelUp: function(char) {
+    var needed = expForLevel(char.level + 1);
+    if (char.exp >= needed) {
+      char.level++;
+      var charDef = CHARACTERS[char.classId];
+      var oldStats = { hp: char.maxHp, mp: char.maxMp, atk: char.atk, def: char.def, spd: char.spd, int: char.int };
+      char.maxHp += charDef.growth.hp + Math.floor(Math.random() * 3);
+      char.maxMp += charDef.growth.mp + Math.floor(Math.random() * 2);
+      char.atk += charDef.growth.atk + Math.floor(Math.random() * 2);
+      char.def += charDef.growth.def + Math.floor(Math.random() * 2);
+      char.spd += charDef.growth.spd + Math.floor(Math.random() * 1);
+      char.int += charDef.growth.int + Math.floor(Math.random() * 2);
+      char.hp = char.maxHp;
+      char.mp = char.maxMp;
+
+      // Check for new spells
+      var newSpell = null;
+      for (var i = 0; i < charDef.spells.length; i++) {
+        if (charDef.spells[i].learnLevel === char.level) {
+          newSpell = SPELLS[charDef.spells[i].id].name;
+        }
+      }
+
+      return {
+        name: char.name,
+        level: char.level,
+        oldStats: oldStats,
+        newStats: { hp: char.maxHp, mp: char.maxMp, atk: char.atk, def: char.def, spd: char.spd, int: char.int },
+        newSpell: newSpell,
+      };
+    }
+    return null;
+  },
+
+  // ===== BATTLE RENDERING =====
+  render: function(ctx, game, canvasW, canvasH) {
+    var b = game.battle;
+    if (!b) return;
+
+    // Black background
+    ctx.fillStyle = '#111122';
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    // Draw ground
+    var groundY = canvasH * 0.45;
+    ctx.fillStyle = '#2a2a3a';
+    ctx.fillRect(0, groundY, canvasW, canvasH - groundY);
+
+    // Draw enemies
+    var aliveEnemies = [];
+    for (var i = 0; i < b.enemies.length; i++) {
+      if (b.enemies[i].alive) aliveEnemies.push({ enemy: b.enemies[i], index: i });
+    }
+    var spacing = canvasW / (aliveEnemies.length + 1);
+    for (var j = 0; j < aliveEnemies.length; j++) {
+      var ex = spacing * (j + 1);
+      var ey = groundY - 20;
+      var scale = aliveEnemies[j].enemy.boss ? 1.8 : 1;
+      // Flash effect
+      if (b.flashEnemy === aliveEnemies[j].index) {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillRect(ex - 40, ey - 60, 80, 80);
+      }
+      UI.drawEnemy(ctx, aliveEnemies[j].enemy, ex, ey, scale);
+
+      // Target cursor
+      if ((b.phase === 'targeting') && j === b.targetIndex) {
+        ctx.fillStyle = '#ff0';
+        ctx.beginPath();
+        ctx.moveTo(ex, ey - 50 * scale - 20);
+        ctx.lineTo(ex - 8, ey - 50 * scale - 32);
+        ctx.lineTo(ex + 8, ey - 50 * scale - 32);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // Party status panel (right side)
+    UI.drawWindow(ctx, canvasW - 220, canvasH - 200, 215, 120);
+    for (var k = 0; k < game.party.length; k++) {
+      var py = canvasH - 190 + k * 36;
+      var px = canvasW - 206;
+      var p = game.party[k];
+      var nameColor = p.alive ? '#fff' : '#888';
+      if (b.flashParty === k) nameColor = '#f44';
+      UI.drawText(ctx, p.name, px, py, nameColor, UI.FONT_SMALL);
+      UI.drawText(ctx, 'HP ' + p.hp + '/' + p.maxHp, px + 72, py, p.hp <= p.maxHp * 0.25 ? '#f44' : '#fff', UI.FONT_SMALL);
+      UI.drawText(ctx, 'MP ' + p.mp + '/' + p.maxMp, px + 72, py + 16, '#aaf', UI.FONT_SMALL);
+    }
+
+    // Command menu (during command phase)
+    if (b.phase === 'command') {
+      var charName = game.party[b.currentChar].name;
+      UI.drawWindow(ctx, 10, canvasH - 200, 160, 30);
+      UI.drawText(ctx, charName + 'の ばん', 22, canvasH - 192);
+      UI.drawMenu(ctx, 10, canvasH - 166, 160,
+        ['たたかう', 'じゅもん', 'どうぐ', 'ぼうぎょ', 'にげる'],
+        b.commandIndex);
+    }
+
+    // Spell selection
+    if (b.phase === 'spellSelect') {
+      var spells = this.getAvailableSpells(game.party[b.currentChar]);
+      var spellNames = spells.map(function(s) {
+        var sp = SPELLS[s.id];
+        return sp.name + ' ' + sp.mp + 'MP';
+      });
+      UI.drawMenu(ctx, 10, canvasH - 200, 220, spellNames, b.spellIndex);
+    }
+
+    // Item selection
+    if (b.phase === 'itemSelect') {
+      var itemNames = game.inventory.map(function(inv) {
+        return ITEMS[inv.id].name + ' x' + inv.count;
+      });
+      UI.drawMenu(ctx, 10, canvasH - 200, 200, itemNames, b.itemIndex);
+    }
+
+    // Message window
+    if (b.messages.length > 0) {
+      UI.drawMessageWindow(ctx, b.messages, canvasW, canvasH);
+    }
+
+    // Level up display
+    if (b.phase === 'levelup' && b.levelUpIndex < b.levelUps.length) {
+      var lu = b.levelUps[b.levelUpIndex];
+      UI.drawWindow(ctx, 100, 80, 440, 200);
+      UI.drawText(ctx, lu.name + 'は レベル ' + lu.level + 'に あがった！', 120, 95, '#ffd700');
+      var stats = ['hp', 'mp', 'atk', 'def', 'spd', 'int'];
+      var statNames = ['HP', 'MP', 'ATK', 'DEF', 'SPD', 'INT'];
+      for (var s = 0; s < stats.length; s++) {
+        var diff = lu.newStats[stats[s]] - lu.oldStats[stats[s]];
+        UI.drawText(ctx, statNames[s] + ': ' + lu.oldStats[stats[s]] + ' → ' + lu.newStats[stats[s]] + ' (+' + diff + ')', 120, 125 + s * 22, '#fff', UI.FONT_SMALL);
+      }
+      if (lu.newSpell) {
+        UI.drawText(ctx, lu.newSpell + 'を おぼえた！', 120, 260, '#8ff');
+      }
+    }
+  },
+};
