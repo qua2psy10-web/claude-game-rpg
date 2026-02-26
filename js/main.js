@@ -57,7 +57,26 @@ function initGame() {
 
 // ===== CREATE NEW GAME =====
 function newGame() {
+  // Full reset of all game state
   game.party = [];
+  game.inventory = [{ id: 'herb', count: 5 }];
+  game.equipInventory = [];
+  game.gold = 100;
+  game.currentMap = 'millhaven';
+  game.playerX = 8;
+  game.playerY = 12;
+  game.facing = 'down';
+  game.steps = 0;
+  game.flags = {};
+  game.battle = null;
+  game.currentNPC = null;
+  game.pendingBoss = null;
+  game.menuState = null;
+  game.shopState = null;
+  game.innState = null;
+  game.transitionTimer = 0;
+  moveTimer = 0;
+
   var charIds = ['sam', 'dario', 'sundar'];
   for (var i = 0; i < charIds.length; i++) {
     var def = CHARACTERS[charIds[i]];
@@ -84,15 +103,6 @@ function newGame() {
       color: def.color,
     });
   }
-  game.inventory = [{ id: 'herb', count: 5 }];
-  game.equipInventory = [];
-  game.gold = 100;
-  game.currentMap = 'millhaven';
-  game.playerX = 8;
-  game.playerY = 12;
-  game.facing = 'down';
-  game.flags = {};
-  game.steps = 0;
 
   game.dialogue = [
     'ここは ミルヘイブン村。',
@@ -260,15 +270,7 @@ function updateMap(dt) {
     return;
   }
 
-  // Movement (with hold-to-repeat)
-  moveTimer++;
-  if (moveTimer >= MOVE_DELAY && isMoving()) {
-    var dir = getMoveDir();
-    if (dir) {
-      MapSystem.movePlayer(game, dir.dx, dir.dy);
-      moveTimer = 0;
-    }
-  }
+  // Movement: first press via keysPressed, hold-repeat via moveTimer
   if (input === 'up' || input === 'down' || input === 'left' || input === 'right') {
     var dirs = { up: { dx: 0, dy: -1 }, down: { dx: 0, dy: 1 }, left: { dx: -1, dy: 0 }, right: { dx: 1, dy: 0 } };
     var d = dirs[input];
@@ -276,6 +278,17 @@ function updateMap(dt) {
       MapSystem.movePlayer(game, d.dx, d.dy);
       moveTimer = 0;
     }
+  } else if (isMoving()) {
+    moveTimer++;
+    if (moveTimer >= MOVE_DELAY) {
+      var dir = getMoveDir();
+      if (dir) {
+        MapSystem.movePlayer(game, dir.dx, dir.dy);
+        moveTimer = 0;
+      }
+    }
+  } else {
+    moveTimer = 0;
   }
 }
 

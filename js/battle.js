@@ -174,15 +174,30 @@ var BattleSystem = {
           break;
         case 1: // Magic
           var spells = this.getAvailableSpells(game.party[b.currentChar]);
-          if (spells.length > 0) {
-            b.phase = 'spellSelect';
-            b.spellIndex = 0;
+          if (spells.length === 0) {
+            b.messages = ['じゅもんを おぼえていない！'];
+            b.messageTimer = 30;
+          } else {
+            var canCast = false;
+            for (var si = 0; si < spells.length; si++) {
+              if (game.party[b.currentChar].mp >= SPELLS[spells[si].id].mp) { canCast = true; break; }
+            }
+            if (!canCast) {
+              b.messages = ['MPが 足りない！'];
+              b.messageTimer = 30;
+            } else {
+              b.phase = 'spellSelect';
+              b.spellIndex = 0;
+            }
           }
           break;
         case 2: // Item
           if (game.inventory.length > 0) {
             b.phase = 'itemSelect';
             b.itemIndex = 0;
+          } else {
+            b.messages = ['どうぐを もっていない！'];
+            b.messageTimer = 30;
           }
           break;
         case 3: // Defend
@@ -287,6 +302,9 @@ var BattleSystem = {
           });
           this.nextCharCommand(game);
         }
+      } else {
+        b.messages = ['MPが 足りない！'];
+        b.messageTimer = 30;
       }
     } else if (key === 'cancel') {
       b.phase = 'command';
@@ -424,6 +442,8 @@ var BattleSystem = {
       var spell = SPELLS[skill];
       if (spell.target === 'partyAll') {
         return { actor: idx, actorType: 'enemy', action: 'spell', spellId: skill, target: -1, targetType: 'partyAll' };
+      } else if (spell.target === 'self') {
+        return { actor: idx, actorType: 'enemy', action: 'spell', spellId: skill, target: idx, targetType: 'self' };
       } else {
         var t = this.randomAlivePartyMember(game);
         return { actor: idx, actorType: 'enemy', action: 'spell', spellId: skill, target: t, targetType: 'ally' };
@@ -881,7 +901,7 @@ var BattleSystem = {
     }
 
     // Command menu (during command phase)
-    if (b.phase === 'command') {
+    if (b.phase === 'command' && b.currentChar < game.party.length) {
       var charName = game.party[b.currentChar].name;
       UI.drawWindow(ctx, 10, canvasH - 200, 160, 30);
       UI.drawText(ctx, charName + 'の ばん', 22, canvasH - 192);
@@ -891,7 +911,7 @@ var BattleSystem = {
     }
 
     // Spell selection
-    if (b.phase === 'spellSelect') {
+    if (b.phase === 'spellSelect' && b.currentChar < game.party.length) {
       var spells = this.getAvailableSpells(game.party[b.currentChar]);
       var spellNames = spells.map(function(s) {
         var sp = SPELLS[s.id];
