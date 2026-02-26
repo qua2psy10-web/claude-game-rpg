@@ -88,6 +88,10 @@ var BattleSystem = {
       case 'win':
         this.handleWin(game);
         break;
+      case 'run':
+        game.state = 'map';
+        game.battle = null;
+        break;
       case 'lose':
         // Game over handled by main.js
         break;
@@ -120,6 +124,9 @@ var BattleSystem = {
         break;
       case 'itemSelect':
         this.handleItemInput(game, key);
+        break;
+      case 'allyTarget':
+        this.handleAllyTargetInput(game, key);
         break;
       case 'execute':
         if (key === 'confirm') b.messageTimer = 0;
@@ -188,6 +195,7 @@ var BattleSystem = {
           break;
         case 4: // Run
           b.commands.push({
+            actor: b.currentChar,
             actorType: 'party',
             action: 'run',
           });
@@ -282,6 +290,27 @@ var BattleSystem = {
       }
     } else if (key === 'cancel') {
       b.phase = 'command';
+    }
+  },
+
+  handleAllyTargetInput: function(game, key) {
+    var b = game.battle;
+    if (key === 'up') {
+      b.targetIndex = (b.targetIndex - 1 + game.party.length) % game.party.length;
+    } else if (key === 'down') {
+      b.targetIndex = (b.targetIndex + 1) % game.party.length;
+    } else if (key === 'confirm') {
+      b.commands.push({
+        actor: b.currentChar,
+        actorType: 'party',
+        action: 'spell',
+        spellId: b.pendingSpell,
+        target: b.targetIndex,
+        targetType: 'ally',
+      });
+      this.nextCharCommand(game);
+    } else if (key === 'cancel') {
+      b.phase = 'spellSelect';
     }
   },
 
@@ -448,7 +477,6 @@ var BattleSystem = {
         b.messages = ['うまく逃げ切れた！'];
         b.messageTimer = 40;
         b.phase = 'run';
-        setTimeout(function() { game.state = 'map'; game.battle = null; }, 800);
       } else {
         b.messages = ['しかし 回り込まれてしまった！'];
         b.messageTimer = 40;
@@ -870,6 +898,18 @@ var BattleSystem = {
         return sp.name + ' ' + sp.mp + 'MP';
       });
       UI.drawMenu(ctx, 10, canvasH - 200, 220, spellNames, b.spellIndex);
+    }
+
+    // Ally target selection
+    if (b.phase === 'allyTarget') {
+      UI.drawWindow(ctx, 10, canvasH - 200, 180, game.party.length * 26 + 20);
+      UI.drawText(ctx, 'だれに？', 22, canvasH - 192, '#ffd700');
+      for (var at = 0; at < game.party.length; at++) {
+        var aty = canvasH - 166 + at * 26;
+        if (at === b.targetIndex) UI.drawText(ctx, UI.CURSOR, 22, aty);
+        var atColor = game.party[at].alive ? '#fff' : '#888';
+        UI.drawText(ctx, game.party[at].name + ' HP' + game.party[at].hp + '/' + game.party[at].maxHp, 44, aty, atColor, UI.FONT_SMALL);
+      }
     }
 
     // Item selection
