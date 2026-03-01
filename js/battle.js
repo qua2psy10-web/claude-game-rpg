@@ -140,11 +140,12 @@ var BattleSystem = {
           if (b.levelUpIndex >= b.levelUps.length) {
             game.state = 'map';
             game.battle = null;
-            // Check for boss victory
             if (game.pendingBoss) {
               game.flags[game.pendingBoss.flag] = true;
               game.pendingBoss = null;
               game.state = 'ending';
+            } else {
+              if (typeof saveGame === 'function') saveGame();
             }
           }
         }
@@ -806,6 +807,8 @@ var BattleSystem = {
         game.flags[game.pendingBoss.flag] = true;
         game.pendingBoss = null;
         game.state = 'ending';
+      } else {
+        if (typeof saveGame === 'function') saveGame();
       }
     }
   },

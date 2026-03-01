@@ -114,7 +114,69 @@ function newGame() {
   game.state = 'dialogue';
 }
 
-// ===== INPUT HELPERS =====
+// ===== SAVE/LOAD SYSTEM =====
+var SAVE_KEY = 'eldrasia_save';
+
+function saveGame() {
+  try {
+    var data = {
+      party: game.party,
+      inventory: game.inventory,
+      equipInventory: game.equipInventory,
+      gold: game.gold,
+      currentMap: game.currentMap,
+      playerX: game.playerX,
+      playerY: game.playerY,
+      facing: game.facing,
+      steps: game.steps,
+      flags: game.flags,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function loadGame() {
+  try {
+    var raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    var data = JSON.parse(raw);
+    game.party = data.party;
+    game.inventory = data.inventory || [];
+    game.equipInventory = data.equipInventory || [];
+    game.gold = data.gold || 0;
+    game.currentMap = data.currentMap || 'millhaven';
+    game.playerX = data.playerX || 8;
+    game.playerY = data.playerY || 12;
+    game.facing = data.facing || 'down';
+    game.steps = data.steps || 0;
+    game.flags = data.flags || {};
+    game.battle = null;
+    game.currentNPC = null;
+    game.pendingBoss = null;
+    game.menuState = null;
+    game.shopState = null;
+    game.innState = null;
+    game.transitionTimer = 0;
+    moveTimer = 0;
+    game.state = 'map';
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+function getSaveInfo() {
+  try {
+    var raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) {
+    return null;
+  }
+}
+
+
 function getInput() {
   var input = null;
   if (keysPressed['ArrowUp'] || keysPressed['w']) input = 'up';
@@ -190,13 +252,15 @@ function update(dt) {
 // ===== TITLE SCREEN =====
 function updateTitle() {
   var input = getInput();
+  var hasSave = !!getSaveInfo();
   if (input === 'up') game.titleIndex = (game.titleIndex - 1 + 2) % 2;
   if (input === 'down') game.titleIndex = (game.titleIndex + 1) % 2;
   if (input === 'confirm') {
     if (game.titleIndex === 0) {
       newGame();
+    } else if (game.titleIndex === 1 && hasSave) {
+      loadGame();
     }
-    // Index 1 = nothing (no save system for now)
   }
 }
 
@@ -234,15 +298,24 @@ function renderTitle(ctx) {
 
   // Menu
   ctx.textAlign = 'left';
-  UI.drawWindow(ctx, 230, 280, 180, 80);
-  var items = ['はじめから', 'つづきから'];
-  for (var j = 0; j < items.length; j++) {
+  var saveInfo = getSaveInfo();
+  var menuH = saveInfo ? 108 : 80;
+  UI.drawWindow(ctx, 220, 280, 200, menuH);
+  var menuItems = ['はじめから', 'つづきから'];
+  for (var j = 0; j < menuItems.length; j++) {
     var ty = 296 + j * 28;
     if (j === game.titleIndex) {
       var blink2 = Math.floor(Date.now() / 500) % 2 === 0;
-      if (blink2) UI.drawText(ctx, UI.CURSOR, 244, ty);
+      if (blink2) UI.drawText(ctx, UI.CURSOR, 234, ty);
     }
-    UI.drawText(ctx, items[j], 268, ty, j === 1 ? '#666' : '#fff');
+    var itemColor = (j === 1 && !saveInfo) ? '#555' : '#fff';
+    UI.drawText(ctx, menuItems[j], 258, ty, itemColor);
+  }
+  if (saveInfo) {
+    var mapName = MAPS[saveInfo.currentMap] ? MAPS[saveInfo.currentMap].name : '？';
+    var leadLv = saveInfo.party && saveInfo.party[0] ? 'Lv.' + saveInfo.party[0].level : '';
+    var goldStr = (saveInfo.gold || 0) + 'G';
+    UI.drawText(ctx, mapName + '  ' + leadLv + '  ' + goldStr, 238, 356, '#aaa', UI.FONT_SMALL);
   }
 
   // Footer
@@ -353,9 +426,9 @@ function updateMenu() {
     var menuItems = ['どうぐ', 'そうび', 'つよさ', 'とじる'];
     if (input === 'up') ms.index = (ms.index - 1 + menuItems.length) % menuItems.length;
     if (input === 'down') ms.index = (ms.index + 1) % menuItems.length;
-    if (input === 'cancel') { game.state = 'map'; game.menuState = null; return; }
+    if (input === 'cancel') { saveGame(); game.state = 'map'; game.menuState = null; return; }
     if (input === 'confirm') {
-      if (ms.index === 3) { game.state = 'map'; game.menuState = null; return; }
+      if (ms.index === 3) { saveGame(); game.state = 'map'; game.menuState = null; return; }
       if (ms.index === 0) ms.subState = 'items';
       if (ms.index === 1) { ms.subState = 'equipChar'; ms.charIndex = 0; }
       if (ms.index === 2) { ms.subState = 'stats'; ms.charIndex = 0; }
@@ -676,6 +749,7 @@ function updateInn() {
         game.party[i].mp = game.party[i].maxMp;
         game.party[i].alive = true;
       }
+      saveGame();
       game.dialogue = ['おやすみなさい…', '…………', 'HP と MP が 全回復した！'];
       game.dialogueIndex = 0;
       game.state = 'dialogue';
