@@ -54,6 +54,7 @@ var BattleSystem = {
     game.state = 'battle';
     game.battle.messages = [this.getEncounterMessage(enemies)];
     game.battle.messageTimer = 60;
+    SoundSystem.battleStart();
   },
 
   getEncounterMessage: function(enemies) {
@@ -164,8 +165,10 @@ var BattleSystem = {
 
     if (key === 'up') {
       b.commandIndex = (b.commandIndex - 1 + commands.length) % commands.length;
+      SoundSystem.cursor();
     } else if (key === 'down') {
       b.commandIndex = (b.commandIndex + 1) % commands.length;
+      SoundSystem.cursor();
     } else if (key === 'confirm') {
       switch (b.commandIndex) {
         case 0: // Attack
@@ -227,8 +230,10 @@ var BattleSystem = {
 
     if (key === 'left' || key === 'up') {
       b.targetIndex = (b.targetIndex - 1 + aliveEnemies.length) % aliveEnemies.length;
+      SoundSystem.cursor();
     } else if (key === 'right' || key === 'down') {
       b.targetIndex = (b.targetIndex + 1) % aliveEnemies.length;
+      SoundSystem.cursor();
     } else if (key === 'confirm') {
       var targetIdx = 0;
       var count = 0;
@@ -276,8 +281,10 @@ var BattleSystem = {
     var spells = this.getAvailableSpells(game.party[b.currentChar]);
     if (key === 'up') {
       b.spellIndex = (b.spellIndex - 1 + spells.length) % spells.length;
+      SoundSystem.cursor();
     } else if (key === 'down') {
       b.spellIndex = (b.spellIndex + 1) % spells.length;
+      SoundSystem.cursor();
     } else if (key === 'confirm') {
       var spell = SPELLS[spells[b.spellIndex].id];
       if (game.party[b.currentChar].mp >= spell.mp) {
@@ -316,8 +323,10 @@ var BattleSystem = {
     var b = game.battle;
     if (key === 'up') {
       b.targetIndex = (b.targetIndex - 1 + game.party.length) % game.party.length;
+      SoundSystem.cursor();
     } else if (key === 'down') {
       b.targetIndex = (b.targetIndex + 1) % game.party.length;
+      SoundSystem.cursor();
     } else if (key === 'confirm') {
       b.commands.push({
         actor: b.currentChar,
@@ -337,8 +346,10 @@ var BattleSystem = {
     var b = game.battle;
     if (key === 'up') {
       b.itemIndex = (b.itemIndex - 1 + game.inventory.length) % game.inventory.length;
+      SoundSystem.cursor();
     } else if (key === 'down') {
       b.itemIndex = (b.itemIndex + 1) % game.inventory.length;
+      SoundSystem.cursor();
     } else if (key === 'confirm') {
       var invItem = game.inventory[b.itemIndex];
       var item = ITEMS[invItem.id];
@@ -498,6 +509,7 @@ var BattleSystem = {
         b.messages = ['うまく逃げ切れた！'];
         b.messageTimer = 40;
         b.phase = 'run';
+        SoundSystem.escape();
       } else {
         b.messages = ['しかし 回り込まれてしまった！'];
         b.messageTimer = 40;
@@ -566,8 +578,13 @@ var BattleSystem = {
     defender.hp = Math.max(0, defender.hp - damage);
 
     b.messages = [attacker.name + 'の こうげき！', defender.name + 'に ' + damage + 'の ダメージ！'];
-    if (cmd.actorType === 'party') b.flashEnemy = cmd.target;
-    else b.flashParty = cmd.target;
+    if (cmd.actorType === 'party') {
+      b.flashEnemy = cmd.target;
+      SoundSystem.attack();
+    } else {
+      b.flashParty = cmd.target;
+      SoundSystem.damage();
+    }
     b.messageTimer = 45;
 
     if (defender.hp <= 0) {
@@ -575,6 +592,7 @@ var BattleSystem = {
       defender.hp = 0;
       b.messages.push(defender.name + 'を たおした！');
       b.messageTimer = 55;
+      if (cmd.actorType === 'party') SoundSystem.enemyDie();
     }
 
     setTimeout(function() { b.flashEnemy = -1; b.flashParty = -1; }, 300);
@@ -597,6 +615,17 @@ var BattleSystem = {
 
     b.messages = [caster.name + 'は ' + spell.name + 'を となえた！'];
 
+    // 呪文の効果音
+    if (spell.type === 'heal') {
+      SoundSystem.heal();
+    } else if (spell.type === 'buff') {
+      SoundSystem.buff();
+    } else if (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy' || cmd.targetType === 'partyAll') {
+      SoundSystem.bigSpell();
+    } else {
+      SoundSystem.spell();
+    }
+
     if (spell.type === 'magic' || spell.type === 'physical') {
       if (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy') {
         var targets = cmd.actorType === 'party' ? b.enemies : game.party;
@@ -613,6 +642,7 @@ var BattleSystem = {
           }
         }
       } else if (cmd.targetType === 'partyAll') {
+        SoundSystem.damage();
         for (var j = 0; j < game.party.length; j++) {
           if (game.party[j].alive) {
             var dmg2 = this.calcSpellDamage(caster, game.party[j], spell);
@@ -770,6 +800,7 @@ var BattleSystem = {
       game.gold += totalGold;
       b.phase = 'win';
       b.messageTimer = 60;
+      SoundSystem.victory();
       return true;
     }
     return false;
@@ -781,6 +812,7 @@ var BattleSystem = {
       game.battle.messages = ['全滅してしまった…'];
       game.battle.phase = 'lose';
       game.battle.messageTimer = 60;
+      SoundSystem.gameOver();
       return true;
     }
     return false;
@@ -827,6 +859,7 @@ var BattleSystem = {
       char.int += charDef.growth.int + Math.floor(Math.random() * 2);
       char.hp = char.maxHp;
       char.mp = char.maxMp;
+      SoundSystem.levelUp();
 
       // Check for new spells
       var newSpell = null;

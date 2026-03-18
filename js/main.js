@@ -42,9 +42,12 @@ function initGame() {
     innState: null,
   };
 
+  SoundSystem.init();
+
   document.addEventListener('keydown', function(e) {
     if (!keysDown[e.key]) keysPressed[e.key] = true;
     keysDown[e.key] = true;
+    SoundSystem.resume(); // ブラウザのAutoplay制限対応
     e.preventDefault();
   });
   document.addEventListener('keyup', function(e) {
@@ -253,12 +256,14 @@ function update(dt) {
 function updateTitle() {
   var input = getInput();
   var hasSave = !!getSaveInfo();
-  if (input === 'up') game.titleIndex = (game.titleIndex - 1 + 2) % 2;
-  if (input === 'down') game.titleIndex = (game.titleIndex + 1) % 2;
+  if (input === 'up') { game.titleIndex = (game.titleIndex - 1 + 2) % 2; SoundSystem.cursor(); }
+  if (input === 'down') { game.titleIndex = (game.titleIndex + 1) % 2; SoundSystem.cursor(); }
   if (input === 'confirm') {
     if (game.titleIndex === 0) {
+      SoundSystem.confirm();
       newGame();
     } else if (game.titleIndex === 1 && hasSave) {
+      SoundSystem.confirm();
       loadGame();
     }
   }
@@ -424,11 +429,11 @@ function updateMenu() {
   if (!ms.subState) {
     // Main menu
     var menuItems = ['どうぐ', 'そうび', 'つよさ', 'とじる'];
-    if (input === 'up') ms.index = (ms.index - 1 + menuItems.length) % menuItems.length;
-    if (input === 'down') ms.index = (ms.index + 1) % menuItems.length;
-    if (input === 'cancel') { saveGame(); game.state = 'map'; game.menuState = null; return; }
+    if (input === 'up') { ms.index = (ms.index - 1 + menuItems.length) % menuItems.length; SoundSystem.cursor(); }
+    if (input === 'down') { ms.index = (ms.index + 1) % menuItems.length; SoundSystem.cursor(); }
+    if (input === 'cancel') { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
     if (input === 'confirm') {
-      if (ms.index === 3) { saveGame(); game.state = 'map'; game.menuState = null; return; }
+      if (ms.index === 3) { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
       if (ms.index === 0) ms.subState = 'items';
       if (ms.index === 1) { ms.subState = 'equipChar'; ms.charIndex = 0; }
       if (ms.index === 2) { ms.subState = 'stats'; ms.charIndex = 0; }
@@ -749,6 +754,7 @@ function updateInn() {
         game.party[i].mp = game.party[i].maxMp;
         game.party[i].alive = true;
       }
+      SoundSystem.inn();
       saveGame();
       game.dialogue = ['おやすみなさい…', '…………', 'HP と MP が 全回復した！'];
       game.dialogueIndex = 0;

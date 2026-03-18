@@ -153,6 +153,7 @@ var MapSystem = {
       case 'chest':
         if (!game.flags[ev.flag]) {
           game.flags[ev.flag] = true;
+          SoundSystem.chest();
           if (ev.itemType === 'weapon') {
             this.giveEquipment(game, ev.item, 'weapon');
           } else if (ev.itemType === 'armor') {
