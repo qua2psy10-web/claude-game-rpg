@@ -66,6 +66,7 @@ var SoundSystem = (function() {
     init: init,
     resume: resume,
     isReady: function() { return !!ctx; },
+    getCtx: function() { return ctx; },    // AudioContextを共有 (MusicSystem用)
     toggleMute: function() { muted = !muted; return muted; },
     isMuted: function() { return muted; },
 

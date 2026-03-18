@@ -43,6 +43,7 @@ function initGame() {
   };
 
   SoundSystem.init();
+  MusicSystem.init(SoundSystem.getCtx());
 
   document.addEventListener('keydown', function(e) {
     if (!keysDown[e.key]) keysPressed[e.key] = true;
@@ -204,6 +205,33 @@ function getMoveDir() {
   return null;
 }
 
+// ===== BGM MANAGEMENT =====
+var _currentBgm = null;
+
+function getMapBgm(mapId) {
+  // 村・ショップ系 → タウン曲、それ以外 → フィールド曲
+  var townMaps = ['millhaven', 'itemShop', 'weaponShop', 'armorShop'];
+  return (townMaps.indexOf(mapId) >= 0) ? 'town' : 'field';
+}
+
+function setBgm(name) {
+  if (_currentBgm === name) return;
+  _currentBgm = name;
+  if (name === null) { MusicSystem.stop(); return; }
+  MusicSystem.changeTo(name);
+}
+
+function updateBgm() {
+  var s = game.state;
+  if (s === 'title')                                          return setBgm('title');
+  if (s === 'battle')                                         return setBgm('battle');
+  if (s === 'gameover' || s === 'ending')                     return setBgm(null);
+  if (s === 'map' || s === 'menu'     || s === 'dialogue' ||
+      s === 'shop' || s === 'inn'     || s === 'mapTransition') {
+    return setBgm(getMapBgm(game.currentMap));
+  }
+}
+
 // ===== MAIN GAME LOOP =====
 function gameLoop(timestamp) {
   var dt = timestamp - lastTime;
@@ -218,6 +246,7 @@ function gameLoop(timestamp) {
 
 // ===== UPDATE =====
 function update(dt) {
+  updateBgm();
   switch (game.state) {
     case 'title':
       updateTitle();
