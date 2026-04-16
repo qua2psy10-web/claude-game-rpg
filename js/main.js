@@ -42,9 +42,13 @@ function initGame() {
     innState: null,
   };
 
+  SoundSystem.init();
+  MusicSystem.init(SoundSystem.getCtx());
+
   document.addEventListener('keydown', function(e) {
     if (!keysDown[e.key]) keysPressed[e.key] = true;
     keysDown[e.key] = true;
+    SoundSystem.resume(); // ブラウザのAutoplay制限対応
     e.preventDefault();
   });
   document.addEventListener('keyup', function(e) {
@@ -57,7 +61,26 @@ function initGame() {
 
 // ===== CREATE NEW GAME =====
 function newGame() {
+  // Full reset of all game state
   game.party = [];
+  game.inventory = [{ id: 'herb', count: 5 }];
+  game.equipInventory = [];
+  game.gold = 100;
+  game.currentMap = 'millhaven';
+  game.playerX = 8;
+  game.playerY = 12;
+  game.facing = 'down';
+  game.steps = 0;
+  game.flags = {};
+  game.battle = null;
+  game.currentNPC = null;
+  game.pendingBoss = null;
+  game.menuState = null;
+  game.shopState = null;
+  game.innState = null;
+  game.transitionTimer = 0;
+  moveTimer = 0;
+
   var charIds = ['sam', 'dario', 'sundar'];
   for (var i = 0; i < charIds.length; i++) {
     var def = CHARACTERS[charIds[i]];
@@ -84,15 +107,6 @@ function newGame() {
       color: def.color,
     });
   }
-  game.inventory = [{ id: 'herb', count: 5 }];
-  game.equipInventory = [];
-  game.gold = 100;
-  game.currentMap = 'millhaven';
-  game.playerX = 8;
-  game.playerY = 12;
-  game.facing = 'down';
-  game.flags = {};
-  game.steps = 0;
 
   game.dialogue = [
     'ここは ミルヘイブン村。',
@@ -104,7 +118,69 @@ function newGame() {
   game.state = 'dialogue';
 }
 
-// ===== INPUT HELPERS =====
+// ===== SAVE/LOAD SYSTEM =====
+var SAVE_KEY = 'eldrasia_save';
+
+function saveGame() {
+  try {
+    var data = {
+      party: game.party,
+      inventory: game.inventory,
+      equipInventory: game.equipInventory,
+      gold: game.gold,
+      currentMap: game.currentMap,
+      playerX: game.playerX,
+      playerY: game.playerY,
+      facing: game.facing,
+      steps: game.steps,
+      flags: game.flags,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function loadGame() {
+  try {
+    var raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    var data = JSON.parse(raw);
+    game.party = data.party;
+    game.inventory = data.inventory || [];
+    game.equipInventory = data.equipInventory || [];
+    game.gold = data.gold || 0;
+    game.currentMap = data.currentMap || 'millhaven';
+    game.playerX = data.playerX || 8;
+    game.playerY = data.playerY || 12;
+    game.facing = data.facing || 'down';
+    game.steps = data.steps || 0;
+    game.flags = data.flags || {};
+    game.battle = null;
+    game.currentNPC = null;
+    game.pendingBoss = null;
+    game.menuState = null;
+    game.shopState = null;
+    game.innState = null;
+    game.transitionTimer = 0;
+    moveTimer = 0;
+    game.state = 'map';
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+function getSaveInfo() {
+  try {
+    var raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) {
+    return null;
+  }
+}
+
+
 function getInput() {
   var input = null;
   if (keysPressed['ArrowUp'] || keysPressed['w']) input = 'up';
@@ -129,6 +205,33 @@ function getMoveDir() {
   return null;
 }
 
+// ===== BGM MANAGEMENT =====
+var _currentBgm = null;
+
+function getMapBgm(mapId) {
+  // 村・ショップ系 → タウン曲、それ以外 → フィールド曲
+  var townMaps = ['millhaven', 'itemShop', 'weaponShop', 'armorShop'];
+  return (townMaps.indexOf(mapId) >= 0) ? 'town' : 'field';
+}
+
+function setBgm(name) {
+  if (_currentBgm === name) return;
+  _currentBgm = name;
+  if (name === null) { MusicSystem.stop(); return; }
+  MusicSystem.changeTo(name);
+}
+
+function updateBgm() {
+  var s = game.state;
+  if (s === 'title')                                          return setBgm('title');
+  if (s === 'battle')                                         return setBgm('battle');
+  if (s === 'gameover' || s === 'ending')                     return setBgm(null);
+  if (s === 'map' || s === 'menu'     || s === 'dialogue' ||
+      s === 'shop' || s === 'inn'     || s === 'mapTransition') {
+    return setBgm(getMapBgm(game.currentMap));
+  }
+}
+
 // ===== MAIN GAME LOOP =====
 function gameLoop(timestamp) {
   var dt = timestamp - lastTime;
@@ -143,6 +246,7 @@ function gameLoop(timestamp) {
 
 // ===== UPDATE =====
 function update(dt) {
+  updateBgm();
   switch (game.state) {
     case 'title':
       updateTitle();
@@ -180,13 +284,17 @@ function update(dt) {
 // ===== TITLE SCREEN =====
 function updateTitle() {
   var input = getInput();
-  if (input === 'up') game.titleIndex = (game.titleIndex - 1 + 2) % 2;
-  if (input === 'down') game.titleIndex = (game.titleIndex + 1) % 2;
+  var hasSave = !!getSaveInfo();
+  if (input === 'up') { game.titleIndex = (game.titleIndex - 1 + 2) % 2; SoundSystem.cursor(); }
+  if (input === 'down') { game.titleIndex = (game.titleIndex + 1) % 2; SoundSystem.cursor(); }
   if (input === 'confirm') {
     if (game.titleIndex === 0) {
+      SoundSystem.confirm();
       newGame();
+    } else if (game.titleIndex === 1 && hasSave) {
+      SoundSystem.confirm();
+      loadGame();
     }
-    // Index 1 = nothing (no save system for now)
   }
 }
 
@@ -224,15 +332,24 @@ function renderTitle(ctx) {
 
   // Menu
   ctx.textAlign = 'left';
-  UI.drawWindow(ctx, 230, 280, 180, 80);
-  var items = ['はじめから', 'つづきから'];
-  for (var j = 0; j < items.length; j++) {
+  var saveInfo = getSaveInfo();
+  var menuH = saveInfo ? 108 : 80;
+  UI.drawWindow(ctx, 220, 280, 200, menuH);
+  var menuItems = ['はじめから', 'つづきから'];
+  for (var j = 0; j < menuItems.length; j++) {
     var ty = 296 + j * 28;
     if (j === game.titleIndex) {
       var blink2 = Math.floor(Date.now() / 500) % 2 === 0;
-      if (blink2) UI.drawText(ctx, UI.CURSOR, 244, ty);
+      if (blink2) UI.drawText(ctx, UI.CURSOR, 234, ty);
     }
-    UI.drawText(ctx, items[j], 268, ty, j === 1 ? '#666' : '#fff');
+    var itemColor = (j === 1 && !saveInfo) ? '#555' : '#fff';
+    UI.drawText(ctx, menuItems[j], 258, ty, itemColor);
+  }
+  if (saveInfo) {
+    var mapName = MAPS[saveInfo.currentMap] ? MAPS[saveInfo.currentMap].name : '？';
+    var leadLv = saveInfo.party && saveInfo.party[0] ? 'Lv.' + saveInfo.party[0].level : '';
+    var goldStr = (saveInfo.gold || 0) + 'G';
+    UI.drawText(ctx, mapName + '  ' + leadLv + '  ' + goldStr, 238, 356, '#aaa', UI.FONT_SMALL);
   }
 
   // Footer
@@ -260,15 +377,7 @@ function updateMap(dt) {
     return;
   }
 
-  // Movement (with hold-to-repeat)
-  moveTimer++;
-  if (moveTimer >= MOVE_DELAY && isMoving()) {
-    var dir = getMoveDir();
-    if (dir) {
-      MapSystem.movePlayer(game, dir.dx, dir.dy);
-      moveTimer = 0;
-    }
-  }
+  // Movement: first press via keysPressed, hold-repeat via moveTimer
   if (input === 'up' || input === 'down' || input === 'left' || input === 'right') {
     var dirs = { up: { dx: 0, dy: -1 }, down: { dx: 0, dy: 1 }, left: { dx: -1, dy: 0 }, right: { dx: 1, dy: 0 } };
     var d = dirs[input];
@@ -276,6 +385,17 @@ function updateMap(dt) {
       MapSystem.movePlayer(game, d.dx, d.dy);
       moveTimer = 0;
     }
+  } else if (isMoving()) {
+    moveTimer++;
+    if (moveTimer >= MOVE_DELAY) {
+      var dir = getMoveDir();
+      if (dir) {
+        MapSystem.movePlayer(game, dir.dx, dir.dy);
+        moveTimer = 0;
+      }
+    }
+  } else {
+    moveTimer = 0;
   }
 }
 
@@ -338,11 +458,11 @@ function updateMenu() {
   if (!ms.subState) {
     // Main menu
     var menuItems = ['どうぐ', 'そうび', 'つよさ', 'とじる'];
-    if (input === 'up') ms.index = (ms.index - 1 + menuItems.length) % menuItems.length;
-    if (input === 'down') ms.index = (ms.index + 1) % menuItems.length;
-    if (input === 'cancel') { game.state = 'map'; game.menuState = null; return; }
+    if (input === 'up') { ms.index = (ms.index - 1 + menuItems.length) % menuItems.length; SoundSystem.cursor(); }
+    if (input === 'down') { ms.index = (ms.index + 1) % menuItems.length; SoundSystem.cursor(); }
+    if (input === 'cancel') { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
     if (input === 'confirm') {
-      if (ms.index === 3) { game.state = 'map'; game.menuState = null; return; }
+      if (ms.index === 3) { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
       if (ms.index === 0) ms.subState = 'items';
       if (ms.index === 1) { ms.subState = 'equipChar'; ms.charIndex = 0; }
       if (ms.index === 2) { ms.subState = 'stats'; ms.charIndex = 0; }
@@ -663,6 +783,8 @@ function updateInn() {
         game.party[i].mp = game.party[i].maxMp;
         game.party[i].alive = true;
       }
+      SoundSystem.inn();
+      saveGame();
       game.dialogue = ['おやすみなさい…', '…………', 'HP と MP が 全回復した！'];
       game.dialogueIndex = 0;
       game.state = 'dialogue';
