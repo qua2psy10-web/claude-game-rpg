@@ -820,6 +820,7 @@ var BattleSystem = {
 
   handleWin: function(game) {
     var b = game.battle;
+    if (typeof updateScoreAfterBattle === 'function') updateScoreAfterBattle(b);
     // Award EXP and check level ups
     b.levelUps = [];
     for (var i = 0; i < game.party.length; i++) {
