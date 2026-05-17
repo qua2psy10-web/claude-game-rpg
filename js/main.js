@@ -1007,5 +1007,44 @@ function render() {
   }
 }
 
+// ===== END GAME BUTTON =====
+function endGameAndSave() {
+  // Always update and persist the score
+  if (game && game.gold > gameScore.highGold) gameScore.highGold = game.gold;
+  saveScore();
+
+  // Save game position when in a safe state (not mid-battle)
+  var safeStates = ['map', 'menu', 'dialogue', 'inn', 'shop', 'mapTransition'];
+  if (game && safeStates.indexOf(game.state) >= 0) saveGame();
+
+  // Return to title screen
+  MusicSystem.stop();
+  _currentBgm = null;
+  if (game) {
+    game.state = 'title';
+    game.titleIndex = 0;
+    game.battle = null;
+    game.menuState = null;
+  }
+
+  // Brief on-screen toast
+  var toast = document.createElement('div');
+  toast.textContent = 'セーブしました';
+  toast.style.cssText = [
+    'position:fixed', 'top:50%', 'left:50%',
+    'transform:translate(-50%,-50%)',
+    'background:#1a1a3a', 'color:#ffd700',
+    'border:2px solid #ffd700', 'border-radius:5px',
+    'padding:12px 32px', 'font-family:monospace',
+    'font-size:18px', 'z-index:9999',
+    'pointer-events:none', 'transition:opacity 0.8s',
+  ].join(';');
+  document.body.appendChild(toast);
+  setTimeout(function() {
+    toast.style.opacity = '0';
+    setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 800);
+  }, 1000);
+}
+
 // ===== START =====
 window.onload = initGame;
