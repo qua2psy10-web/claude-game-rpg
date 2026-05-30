@@ -44,6 +44,7 @@ function initGame() {
 
   SoundSystem.init();
   MusicSystem.init(SoundSystem.getCtx());
+  loadScore();
 
   document.addEventListener('keydown', function(e) {
     if (!keysDown[e.key]) keysPressed[e.key] = true;
@@ -121,6 +122,45 @@ function newGame() {
 // ===== SAVE/LOAD SYSTEM =====
 var SAVE_KEY = 'eldrasia_save';
 
+// ===== SCORE SYSTEM (persists across new games and browser closes) =====
+var SCORE_KEY = 'eldrasia_score';
+var gameScore = { enemiesDefeated: 0, battlesWon: 0, bossesDefeated: 0, totalExp: 0, highGold: 0, playTime: 0 };
+
+function loadScore() {
+  try {
+    var raw = localStorage.getItem(SCORE_KEY);
+    if (raw) {
+      var s = JSON.parse(raw);
+      gameScore.enemiesDefeated = s.enemiesDefeated || 0;
+      gameScore.battlesWon     = s.battlesWon     || 0;
+      gameScore.bossesDefeated = s.bossesDefeated || 0;
+      gameScore.totalExp       = s.totalExp       || 0;
+      gameScore.highGold       = s.highGold       || 0;
+      gameScore.playTime       = s.playTime       || 0;
+    }
+  } catch(e) {}
+}
+
+function saveScore() {
+  try { localStorage.setItem(SCORE_KEY, JSON.stringify(gameScore)); } catch(e) {}
+}
+
+function updateScoreAfterBattle(b) {
+  var enemyCount = 0, bossCount = 0;
+  for (var i = 0; i < b.enemies.length; i++) {
+    if (!b.enemies[i].alive) {
+      enemyCount++;
+      if (b.enemies[i].boss) bossCount++;
+    }
+  }
+  gameScore.enemiesDefeated += enemyCount;
+  gameScore.bossesDefeated  += bossCount;
+  gameScore.battlesWon++;
+  gameScore.totalExp += b.totalExp;
+  if (game.gold > gameScore.highGold) gameScore.highGold = game.gold;
+  saveScore();
+}
+
 function saveGame() {
   try {
     var data = {
@@ -137,6 +177,8 @@ function saveGame() {
       savedAt: Date.now(),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    if (game.gold > gameScore.highGold) gameScore.highGold = game.gold;
+    saveScore();
   } catch(e) {}
 }
 
@@ -236,6 +278,8 @@ function updateBgm() {
 function gameLoop(timestamp) {
   var dt = timestamp - lastTime;
   lastTime = timestamp;
+
+  if (game.state !== 'title') gameScore.playTime += dt / 1000;
 
   update(dt);
   render();
@@ -350,6 +394,18 @@ function renderTitle(ctx) {
     var leadLv = saveInfo.party && saveInfo.party[0] ? 'Lv.' + saveInfo.party[0].level : '';
     var goldStr = (saveInfo.gold || 0) + 'G';
     UI.drawText(ctx, mapName + '  ' + leadLv + '  ' + goldStr, 238, 356, '#aaa', UI.FONT_SMALL);
+  }
+
+  // Score records (right of menu, shown once any battle has been won)
+  if (gameScore.battlesWon > 0) {
+    UI.drawWindow(ctx, 430, 280, 196, 130);
+    UI.drawText(ctx, '【記録】', 446, 292, '#ffd700', UI.FONT_SMALL);
+    UI.drawText(ctx, '戦闘勝利: ' + gameScore.battlesWon + '回', 446, 310, '#aaa', UI.FONT_SMALL);
+    UI.drawText(ctx, '倒した敵: ' + gameScore.enemiesDefeated + '体', 446, 328, '#aaa', UI.FONT_SMALL);
+    UI.drawText(ctx, '最高所持金: ' + gameScore.highGold + 'G', 446, 346, '#ffd700', UI.FONT_SMALL);
+    UI.drawText(ctx, 'ボス討伐: ' + gameScore.bossesDefeated + '体', 446, 364, gameScore.bossesDefeated > 0 ? '#f88' : '#555', UI.FONT_SMALL);
+    var ptSec = Math.floor(gameScore.playTime), ptMin = Math.floor(ptSec / 60); ptSec %= 60;
+    UI.drawText(ctx, 'プレイ: ' + ptMin + ':' + (ptSec < 10 ? '0' : '') + ptSec, 446, 382, '#aaa', UI.FONT_SMALL);
   }
 
   // Footer
@@ -883,12 +939,19 @@ function renderEnding(ctx) {
     ctx.fillText(lines[j], CANVAS_W / 2, 170 + j * 32);
   }
 
+  // Score summary
+  var ptSec = Math.floor(gameScore.playTime), ptMin = Math.floor(ptSec / 60); ptSec %= 60;
+  ctx.fillStyle = '#8ac';
+  ctx.font = '14px monospace';
+  ctx.fillText('倒した敵: ' + gameScore.enemiesDefeated + '体  勝利: ' + gameScore.battlesWon + '戦  最高所持金: ' + gameScore.highGold + 'G', CANVAS_W / 2, 380);
+  ctx.fillText('プレイ時間: ' + ptMin + ':' + (ptSec < 10 ? '0' : '') + ptSec, CANVAS_W / 2, 402);
+
   ctx.fillStyle = '#888';
   ctx.font = '14px monospace';
-  ctx.fillText('ありがとう ございました！', CANVAS_W / 2, 400);
+  ctx.fillText('ありがとう ございました！', CANVAS_W / 2, 424);
   ctx.fillStyle = '#666';
   ctx.font = '12px monospace';
-  ctx.fillText('Enterキーで タイトルに もどる', CANVAS_W / 2, 440);
+  ctx.fillText('Enterキーで タイトルに もどる', CANVAS_W / 2, 456);
   ctx.textAlign = 'left';
 }
 
@@ -942,6 +1005,45 @@ function render() {
       renderEnding(ctx);
       break;
   }
+}
+
+// ===== END GAME BUTTON =====
+function endGameAndSave() {
+  // Always update and persist the score
+  if (game && game.gold > gameScore.highGold) gameScore.highGold = game.gold;
+  saveScore();
+
+  // Save game position when in a safe state (not mid-battle)
+  var safeStates = ['map', 'menu', 'dialogue', 'inn', 'shop', 'mapTransition'];
+  if (game && safeStates.indexOf(game.state) >= 0) saveGame();
+
+  // Return to title screen
+  MusicSystem.stop();
+  _currentBgm = null;
+  if (game) {
+    game.state = 'title';
+    game.titleIndex = 0;
+    game.battle = null;
+    game.menuState = null;
+  }
+
+  // Brief on-screen toast
+  var toast = document.createElement('div');
+  toast.textContent = 'セーブしました';
+  toast.style.cssText = [
+    'position:fixed', 'top:50%', 'left:50%',
+    'transform:translate(-50%,-50%)',
+    'background:#1a1a3a', 'color:#ffd700',
+    'border:2px solid #ffd700', 'border-radius:5px',
+    'padding:12px 32px', 'font-family:monospace',
+    'font-size:18px', 'z-index:9999',
+    'pointer-events:none', 'transition:opacity 0.8s',
+  ].join(';');
+  document.body.appendChild(toast);
+  setTimeout(function() {
+    toast.style.opacity = '0';
+    setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 800);
+  }, 1000);
 }
 
 // ===== START =====
