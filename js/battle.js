@@ -138,6 +138,28 @@ var BattleSystem = {
     var rgb = cf.tint, i;
     ctx.save();
 
+    // Heal: a pillar of light descends on the caster while sparkles stream upward into it
+    if (cf.spellId === 'enemyHeal') {
+      var hlt = t - (cf.ed - 200);
+      if (hlt > 0 && hlt < 700) {
+        var hlp = hlt / 700, hla = Math.sin(Math.PI * hlp);
+        var hbw = 30 * (caster.sscale || 1) * (0.6 + 0.4 * hla);
+        var hlg = ctx.createLinearGradient(caster.sx - hbw, 0, caster.sx + hbw, 0);
+        hlg.addColorStop(0, 'rgba(120,255,170,0)');
+        hlg.addColorStop(0.5, 'rgba(210,255,225,' + (0.8 * hla) + ')');
+        hlg.addColorStop(1, 'rgba(120,255,170,0)');
+        ctx.fillStyle = hlg;
+        ctx.fillRect(caster.sx - hbw, 0, hbw * 2, caster.sfoot + 4);
+        ctx.fillStyle = '#d8ffe4';
+        for (i = 0; i < 14; i++) {
+          ctx.globalAlpha = hla;
+          ctx.fillRect(caster.sx + (this.fxRnd(i + 2400) - 0.5) * 70 * (caster.sscale || 1),
+                       caster.sfoot - hlp * (30 + this.fxRnd(i + 2500) * 90), 3, 7);
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+
     // Travel phase (last 260 ms of the charge)
     var tp = (t - (cf.ed - 260)) / 260;
     if (tp > 0 && tp < 1 && cf.side === 'party') {
@@ -164,6 +186,17 @@ var BattleSystem = {
         ctx.beginPath();
         ctx.ellipse(caster.sx, caster.sy, tp * w * 0.9, tp * h * 0.7, 0, 0, Math.PI * 2);
         ctx.stroke();
+        // Dark tendrils snake out from the caster toward every party member
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(200,110,255,0.85)';
+        for (i = 0; i < 3; i++) {
+          var ttx = caster.sx + (w - 150 - caster.sx) * tp, tty = caster.sy + (h - 178 + i * 36 - caster.sy) * tp;
+          ctx.beginPath();
+          ctx.moveTo(caster.sx, caster.sy);
+          ctx.quadraticCurveTo((caster.sx + ttx) / 2 + Math.sin(now / 60 + i * 2) * 40,
+                               (caster.sy + tty) / 2 - 40 + Math.cos(now / 50 + i) * 30, ttx, tty);
+          ctx.stroke();
+        }
       }
     }
 
@@ -172,6 +205,21 @@ var BattleSystem = {
     if (lt >= 0 && lt < 380 && cf.side === 'party') {
       var ip = lt / 380;
       if (cf.spellId === 'enemyFire') {
+        if (cf.targetIdx >= 0) {                       // fireball explodes on the target's row
+          var bx0 = w - 150, by0 = h - 178 + cf.targetIdx * 36;
+          var br = 20 + ip * 80;
+          var bgx = ctx.createRadialGradient(bx0, by0, 2, bx0, by0, br);
+          bgx.addColorStop(0, 'rgba(255,250,200,' + (0.95 * (1 - ip)) + ')');
+          bgx.addColorStop(0.5, 'rgba(255,140,40,' + (0.7 * (1 - ip)) + ')');
+          bgx.addColorStop(1, 'rgba(255,60,0,0)');
+          ctx.fillStyle = bgx;
+          ctx.fillRect(bx0 - br, by0 - br, br * 2, br * 2);
+          ctx.strokeStyle = 'rgba(255,200,120,' + (0.8 * (1 - ip)) + ')';
+          ctx.lineWidth = 4 * (1 - ip) + 1;
+          ctx.beginPath();
+          ctx.arc(bx0, by0, 10 + ip * 110, 0, Math.PI * 2);
+          ctx.stroke();
+        }
         ctx.fillStyle = 'rgba(255,120,30,' + (0.4 * (1 - ip)) + ')';
         ctx.fillRect(0, 0, w, h);
         for (i = 0; i < 22; i++) {                     // embers raining down
@@ -997,9 +1045,9 @@ var BattleSystem = {
     b.messages = [caster.name + 'は ' + spell.name + 'を となえた！'];
 
     // Enemy casters charge up first; effect, shake and numbers land after ed ms
-    var ed = cmd.actorType === 'enemy' ? this.ENEMY_CAST_DELAY : 0;
+    var ed = cmd.actorType === 'enemy' ? (caster.boss ? this.ENEMY_CAST_DELAY + 250 : this.ENEMY_CAST_DELAY) : 0;
     var tint = this.ENEMY_CAST_TINT[cmd.spellId] || '200,200,255';
-    if (ed) b.enemyCast = { idx: cmd.actor, t0: Date.now(), dur: ed + 350, tint: tint, spellId: cmd.spellId, ed: ed };
+    if (ed) b.enemyCast = { idx: cmd.actor, t0: Date.now(), dur: ed + 350, tint: tint, spellId: cmd.spellId, ed: ed, boss: !!caster.boss };
 
     // 呪文のビジュアルエフェクト
     var fxSide = 'enemy', fxIdx = -1;
@@ -1108,6 +1156,7 @@ var BattleSystem = {
         var heal = spell.power + Math.floor(Math.random() * 10 - 5);
         healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + heal);
         this.pop(game, healTarget, heal, 'heal', ed);
+        if (ed) healTarget.hpBarUntil = Date.now() + ed + 2000;
         b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
       }
     } else if (spell.type === 'buff') {
@@ -2078,6 +2127,18 @@ var BattleSystem = {
       }
     }
     this.renderBackdrop(ctx, canvasW, canvasH, groundY);
+    // Boss casts: the camera pushes in on the caster
+    var zfx = b.enemyCast;
+    if (zfx && zfx.boss && b.enemies[zfx.idx] && b.enemies[zfx.idx].sx !== undefined) {
+      var zct = (now - zfx.t0) / zfx.dur;
+      if (zct >= 0 && zct < 1) {
+        var zc = 1 + 0.07 * Math.sin(Math.PI * Math.min(1, zct / 0.95));
+        var zx = b.enemies[zfx.idx].sx, zy = b.enemies[zfx.idx].sy;
+        ctx.translate(zx, zy);
+        ctx.scale(zc, zc);
+        ctx.translate(-zx, -zy);
+      }
+    }
     // The scene dims while an enemy gathers magic
     var dimFx = b.enemyCast;
     if (dimFx) {
@@ -2402,6 +2463,22 @@ var BattleSystem = {
           ctx.fillStyle = ag;
           ctx.fillRect(ex - ar * 2, ey - ar * 2, ar * 4, ar * 4);
           ctx.fillStyle = 'rgba(' + castFx.tint + ',' + (0.9 * (1 - ct * 0.4)) + ')';
+          // Rune glyphs orbit the caster (fire / dark / heal)
+          var runeCh = { enemyFire: '炎', enemyDark: '闇', enemyHeal: '癒' }[castFx.spellId];
+          if (runeCh) {
+            ctx.save();
+            ctx.font = 'bold 18px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgb(' + castFx.tint + ')';
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = 'rgba(255,255,255,' + (0.9 * ramp) + ')';
+            for (var rg = 0; rg < 4; rg++) {
+              var rang = now / 420 + rg * Math.PI / 2;
+              ctx.fillText(runeCh, ex + Math.cos(rang) * 46 * scale, ey - 20 * scale + Math.sin(rang) * 16 * scale - ramp * 10);
+            }
+            ctx.restore();
+          }
           for (var os = 0; os < 7; os++) {
             var oa = now / 180 + os * Math.PI * 2 / 7;
             var orad = ar * (1.4 - ramp * 0.5);
@@ -2536,9 +2613,10 @@ var BattleSystem = {
       // Enemy HP bar: appears when hit; the pale trail lags behind the real value
       if (en.hpShown === undefined) en.hpShown = en.maxHp;
       en.hpShown += (en.hp - en.hpShown) * 0.1;
-      if (en.hitAt && now - en.hitAt < 2600) {
+      var barUntil = Math.max(en.hitAt ? en.hitAt + 2600 : 0, en.hpBarUntil || 0);
+      if (now < barUntil) {
         var bw2 = 56 * scale, bx = ex - bw2 / 2, by = footY + 8;
-        var fade2 = now - en.hitAt > 2200 ? 1 - (now - en.hitAt - 2200) / 400 : 1;
+        var fade2 = barUntil - now < 400 ? (barUntil - now) / 400 : 1;
         var ratio = Math.max(0, en.hp / en.maxHp), trail = Math.max(0, en.hpShown / en.maxHp);
         ctx.save();
         ctx.globalAlpha = Math.max(0, fade2);
