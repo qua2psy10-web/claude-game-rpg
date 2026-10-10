@@ -842,7 +842,8 @@ var BattleSystem = {
       b.messages = ['戦闘に 勝利した！', totalExp + 'の 経験値を 獲得！', totalGold + 'ゴールド 手に入れた！'];
       game.gold += totalGold;
       b.phase = 'win';
-      b.messageTimer = 60;
+      b.winStart = Date.now();
+      b.messageTimer = 150;   // long enough to enjoy the victory scene
       SoundSystem.victory();
       return true;
     }
@@ -922,6 +923,64 @@ var BattleSystem = {
       };
     }
     return null;
+  },
+
+  // Victory scene: golden rays, VICTORY! banner and confetti
+  renderVictory: function(ctx, w, h, t) {
+    var cx = w / 2, cy = h * 0.3, i;
+    ctx.save();
+
+    // Rotating light rays
+    var rayA = Math.min(1, t / 300) * 0.2;
+    ctx.fillStyle = 'rgba(255,225,120,' + rayA + ')';
+    for (i = 0; i < 12; i++) {
+      var a0 = i * Math.PI / 6 + t / 2500;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, w, a0, a0 + Math.PI / 20);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Confetti
+    var cols = ['#ffd700', '#ff6b6b', '#6bd6ff', '#9dff8a', '#ff9bf0'];
+    for (i = 0; i < 70; i++) {
+      var start = this.fxRnd(i + 300) * 700;
+      var tt = t - start;
+      if (tt < 0) continue;
+      var speed = 0.12 + this.fxRnd(i + 400) * 0.1;
+      var x = this.fxRnd(i) * w + Math.sin(tt / 300 + i) * 14;
+      var y = -20 + tt * speed;
+      if (y > h) continue;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(tt / 150 + i);
+      ctx.fillStyle = cols[i % cols.length];
+      ctx.fillRect(-4, -2, 8, 4);
+      ctx.restore();
+    }
+
+    // Banner pops in with overshoot, then settles
+    var q = Math.min(1, t / 450);
+    var sc = 1 + 2.7 * Math.pow(q - 1, 3) + 1.7 * Math.pow(q - 1, 2);   // easeOutBack
+    var fadeOut = t > 2200 ? Math.max(0, 1 - (t - 2200) / 300) : 1;
+    ctx.globalAlpha = Math.min(1, t / 150) * fadeOut;
+    ctx.translate(cx, h * 0.2);
+    ctx.scale(sc, sc);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 58px monospace';
+    var tg = ctx.createLinearGradient(0, -30, 0, 30);
+    tg.addColorStop(0, '#fff6b0');
+    tg.addColorStop(0.5, '#ffd700');
+    tg.addColorStop(1, '#e08a00');
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#3a1a00';
+    ctx.strokeText('VICTORY!', 0, 0);
+    ctx.fillStyle = tg;
+    ctx.fillText('VICTORY!', 0, 0);
+    ctx.restore();
   },
 
   easeOutBounce: function(t) {
@@ -1310,6 +1369,11 @@ var BattleSystem = {
     ctx.fillStyle = vg;
     ctx.fillRect(-10, -10, canvasW + 20, canvasH + 20);
     ctx.restore();
+
+    // Victory scene (drawn under the message windows)
+    if (b.phase === 'win' && b.winStart) {
+      this.renderVictory(ctx, canvasW, canvasH, now - b.winStart);
+    }
 
     // Battle-start iris wipe: black closes in, then opens from the centre
     var wipeT = (now - (b.introStart || 0)) / 500;
