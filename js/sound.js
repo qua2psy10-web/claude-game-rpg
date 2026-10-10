@@ -222,6 +222,13 @@ var SoundSystem = (function() {
 
     // ── ゲームオーバー ────────────────────────────────────────
 
+    thud: function() {                   // 敵の着地: 短い低音
+      resume();
+      var t = ctx.currentTime;
+      osc(120, 'sine', 0.35, t, 0.12, 50);
+      noise(0.25, t, 0.08, 300);
+    },
+
     bossAppear: function() {            // ボス出現: 低い地響きと衝撃
       resume();
       var t = ctx.currentTime;

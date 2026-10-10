@@ -1726,6 +1726,14 @@ var BattleSystem = {
         var delay = en.boss ? 700 : j * 200;
         introQ = Math.max(0, Math.min(1, (now - b.introStart - delay) / (en.boss ? 1100 : 620)));
         if (introQ <= 0) continue;
+        // Regular enemies: a small thud and jolt on touchdown
+        if (!en.landAt && introQ >= 0.364) {
+          en.landAt = now;
+          if (!en.boss) {
+            this.shake(game, 3, 140);
+            SoundSystem.thud();
+          }
+        }
         // Boss slam: heavy shake, rumble and a shockwave ring when it lands
         if (en.boss && b.bossIntro && introQ >= 0.364 && !b.bossLandAt) {
           b.bossLandAt = now;
@@ -1748,6 +1756,34 @@ var BattleSystem = {
       var drop = (1 - this.easeOutBounce(introQ)) * 150;
       var ey = footY - 22 * scale + bob - drop;
       ctx.globalAlpha = Math.min(1, introQ * 3);
+
+      // Summoning beam while falling, then a flash and ground ripple on touchdown
+      if (b.introStart && !en.boss) {
+        if (introQ < 0.364) {
+          var bw = 16 * scale, bf = introQ / 0.364;
+          var bg = ctx.createLinearGradient(ex - bw, 0, ex + bw, 0);
+          bg.addColorStop(0, 'rgba(200,220,255,0)');
+          bg.addColorStop(0.5, 'rgba(230,240,255,' + (0.35 * bf) + ')');
+          bg.addColorStop(1, 'rgba(200,220,255,0)');
+          ctx.fillStyle = bg;
+          ctx.fillRect(ex - bw, 0, bw * 2, footY);
+        }
+        if (en.landAt) {
+          var lt = (now - en.landAt) / 320;
+          if (lt < 1) {
+            var fg = ctx.createRadialGradient(ex, footY - 10, 2, ex, footY - 10, 46 * scale);
+            fg.addColorStop(0, 'rgba(255,255,255,' + (0.55 * (1 - lt)) + ')');
+            fg.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = fg;
+            ctx.fillRect(ex - 50 * scale, footY - 56 * scale, 100 * scale, 100 * scale);
+            ctx.strokeStyle = 'rgba(255,255,255,' + (0.7 * (1 - lt)) + ')';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(ex, footY + 2, 10 + lt * 60 * scale, 3 + lt * 12 * scale, 0, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+      }
 
       // Boss aura
       if (en.boss) {
@@ -1823,9 +1859,34 @@ var BattleSystem = {
           }
         }
       }
+      // Entrance squash & stretch: elongated while falling, squashed on impact
+      var introSX = 1, introSY = 1;
+      if (b.introStart && introQ < 1) {
+        if (introQ < 0.364) {
+          var sf = introQ / 0.364;
+          introSY = 1 + 0.3 * sf;
+          introSX = 1 - 0.15 * sf;
+        } else if (en.landAt) {
+          var sl = (now - en.landAt) / 260;
+          if (sl < 1) { introSX = 1 + 0.3 * (1 - sl); introSY = 1 - 0.3 * (1 - sl); }
+        }
+      }
+      // Afterimages trail behind the falling enemy
+      if (b.introStart && introQ < 0.364) {
+        var baseA = ctx.globalAlpha;
+        for (var gh = 1; gh <= 2; gh++) {
+          ctx.save();
+          ctx.globalAlpha = baseA * 0.22 / gh;
+          ctx.translate(ex, footY + lungeDy);
+          ctx.scale(lungeK * introSX, lungeK * introSY);
+          ctx.translate(-ex, -footY);
+          UI.drawEnemy(ctx, en, ex, ey - gh * 28, scale);
+          ctx.restore();
+        }
+      }
       ctx.save();
       ctx.translate(ex, footY + lungeDy);
-      ctx.scale(lungeK, lungeK);
+      ctx.scale(lungeK * introSX, lungeK * introSY);
       ctx.translate(-ex, -footY);
       UI.drawEnemy(ctx, en, ex, ey, scale);
       ctx.restore();
@@ -1837,6 +1898,25 @@ var BattleSystem = {
       }
 
       ctx.globalAlpha = 1;
+
+      // Name plate fades in under each regular enemy after it lands
+      if (b.introStart && !en.boss && en.landAt) {
+        var nt = now - en.landAt;
+        if (nt > 150 && nt < 1700) {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, (nt - 150) / 200) * (nt > 1300 ? 1 - (nt - 1300) / 400 : 1);
+          ctx.font = 'bold 13px monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.lineJoin = 'round';
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = '#000';
+          ctx.strokeText(en.name, ex, footY + 20);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(en.name, ex, footY + 20);
+          ctx.restore();
+        }
+      }
 
       // Target cursor
       if (b.phase === 'targeting' && j === b.targetIndex) {
