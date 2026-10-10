@@ -259,14 +259,28 @@ function getMapBgm(mapId) {
 function setBgm(name) {
   if (_currentBgm === name) return;
   _currentBgm = name;
-  if (name === null) { MusicSystem.stop(); return; }
+  if (name === null) { MusicSystem.fadeOut(0.4); return; }
   MusicSystem.changeTo(name);
+}
+
+// Battle music: silence for the victory/defeat/escape scenes, a dedicated track for bosses
+// (which slams in when the boss lands rather than during the build-up)
+function getBattleBgm() {
+  var b = game.battle;
+  if (!b) return 'battle';
+  var ph = b.phase;
+  if (ph === 'win' || ph === 'levelup' || ph === 'lose' || ph === 'run') return null;
+  if (b.bossIntro) {
+    var intro = Date.now() - b.introStart;
+    return (b.bossLandAt || intro > 2200) ? 'boss' : null;
+  }
+  return 'battle';
 }
 
 function updateBgm() {
   var s = game.state;
   if (s === 'title')                                          return setBgm('title');
-  if (s === 'battle')                                         return setBgm('battle');
+  if (s === 'battle')                                         return setBgm(getBattleBgm());
   if (s === 'gameover' || s === 'ending')                     return setBgm(null);
   if (s === 'map' || s === 'menu'     || s === 'dialogue' ||
       s === 'shop' || s === 'inn'     || s === 'mapTransition') {
