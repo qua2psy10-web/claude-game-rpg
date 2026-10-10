@@ -25,3 +25,31 @@ canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
+
+#gameControls {
+  background: #0d0d1f;
+  border-top: 2px solid #222;
+  padding: 7px;
+  text-align: right;
+}
+
+#endGameBtn {
+  background: #1a1a3a;
+  color: #ffd700;
+  border: 2px solid #334;
+  border-radius: 3px;
+  padding: 5px 18px;
+  font-family: monospace;
+  font-size: 13px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+#endGameBtn:hover {
+  background: #252548;
+  border-color: #ffd700;
+}
+
+#endGameBtn:active {
+  background: #0a0a18;
+}
