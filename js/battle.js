@@ -1997,6 +1997,16 @@ var BattleSystem = {
       var amp = (b.shakeMag || 0) * Math.min(1, shakeLeft / (b.shakeDur || 1));
       ctx.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
     }
+    // Camera push-in: the scene starts slightly zoomed and settles as the enemies arrive
+    if (b.introStart) {
+      var zt = (now - b.introStart) / 800;
+      if (zt < 1) {
+        var zm = 1 + 0.09 * (1 - zt) * (1 - zt);
+        ctx.translate(canvasW / 2, canvasH * 0.45);
+        ctx.scale(zm, zm);
+        ctx.translate(-canvasW / 2, -canvasH * 0.45);
+      }
+    }
     this.renderBackdrop(ctx, canvasW, canvasH, groundY);
     // The scene dims while an enemy gathers magic
     var dimFx = b.enemyCast;
@@ -2027,6 +2037,11 @@ var BattleSystem = {
       var footY = groundY + (back ? 46 : 84) + (en.boss ? 10 : 0);
       var bob = Math.sin(now / 420 + j * 1.7) * 3;
 
+      // Each species enters its own way: wolf dashes in, bat swoops, skeleton claws up from the
+      // floor, mage warps in; everything else (and the boss) drops from above
+      var estyle = en.boss ? 'drop' : ({ wolf: 'dash', bat: 'swoop', skeleton: 'rise', mage: 'warp' }[en.shape] || 'drop');
+      var landQ = { drop: 0.364, dash: 0.55, swoop: 0.62, rise: 0.62, warp: 0.6 }[estyle];
+
       // Entrance: each enemy drops in, bounces and kicks up dust (bosses arrive last, slower)
       var introQ = 1;
       if (b.introStart) {
@@ -2034,9 +2049,9 @@ var BattleSystem = {
         introQ = Math.max(0, Math.min(1, (now - b.introStart - delay) / (en.boss ? 1100 : 620)));
         if (introQ <= 0) continue;
         // Regular enemies: a small thud and jolt on touchdown
-        if (!en.landAt && introQ >= 0.364) {
+        if (!en.landAt && introQ >= landQ) {
           en.landAt = now;
-          if (!en.boss) {
+          if (!en.boss && estyle !== 'warp' && estyle !== 'swoop') {
             this.shake(game, 3, 140);
             SoundSystem.thud();
           }
@@ -2060,13 +2075,36 @@ var BattleSystem = {
           }
         }
       }
-      var drop = (1 - this.easeOutBounce(introQ)) * 150;
+      var drop = 0, introDx = 0, introRot = 0, riseQ = 1, warpQ = 1, dashE = 1;
+      var sgn = ex < canvasW / 2 ? -1 : 1;                       // enter from the nearer screen edge
+      var edgeDist = (sgn < 0 ? ex : canvasW - ex) + 80;
+      if (estyle === 'drop') {
+        drop = (1 - this.easeOutBounce(introQ)) * 150;
+      } else if (introQ < 1) {
+        if (estyle === 'dash') {
+          var dq = Math.min(1, introQ / 0.55);
+          dashE = 1 - Math.pow(1 - dq, 3);
+          introDx = sgn * (1 - dashE) * edgeDist;
+          introRot = -sgn * 0.12 * (1 - dashE);               // leans into the run
+        } else if (estyle === 'swoop') {
+          var swq = Math.min(1, introQ / 0.62);
+          introDx = sgn * (1 - swq) * 260;
+          drop = (1 - swq) * 190 + Math.sin(swq * Math.PI * 3) * 26 * (1 - swq);
+          introRot = Math.sin(swq * 16) * 0.25 * (1 - swq);   // flapping wobble
+        } else if (estyle === 'rise') {
+          riseQ = Math.min(1, introQ / 0.62);
+          drop = -(1 - riseQ) * 46 * scale;                   // starts below the floor line
+        } else if (estyle === 'warp') {
+          warpQ = Math.min(1, introQ / 0.6);
+        }
+      }
       var ey = footY - 22 * scale + bob - drop;
       ctx.globalAlpha = Math.min(1, introQ * 3);
+      if (estyle === 'warp' && warpQ < 1) ctx.globalAlpha = warpQ * (0.5 + 0.5 * Math.abs(Math.sin(now / 40)));   // flickers into existence
 
       // Summoning beam while falling, then a flash and ground ripple on touchdown
       if (b.introStart && !en.boss) {
-        if (introQ < 0.364) {
+        if (estyle === 'drop' && introQ < 0.364) {
           var bw = 16 * scale, bf = introQ / 0.364;
           var bg = ctx.createLinearGradient(ex - bw, 0, ex + bw, 0);
           bg.addColorStop(0, 'rgba(200,220,255,0)');
@@ -2092,6 +2130,58 @@ var BattleSystem = {
         }
       }
 
+      // Species-specific entrance effects
+      if (b.introStart && introQ < 1 && !en.boss) {
+        var fxi;
+        if (estyle === 'dash') {                               // dust kicked up behind the runner
+          for (fxi = 0; fxi < 6; fxi++) {
+            var dtq = Math.max(0, Math.min(1, introQ / 0.55) - fxi * 0.06);
+            var dte = 1 - Math.pow(1 - dtq, 3);
+            ctx.fillStyle = 'rgba(205,195,180,' + (0.45 * (1 - fxi / 6)) + ')';
+            ctx.beginPath();
+            ctx.arc(ex + sgn * (1 - dte) * edgeDist, footY + 4 - fxi, (6 + fxi * 3) * scale * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (estyle === 'rise') {                        // bone chips fly out of the cracked floor
+          ctx.fillStyle = '#c9c0a4';
+          for (fxi = 0; fxi < 10; fxi++) {
+            var cx2 = ex + (this.fxRnd(fxi + 1800) - 0.5) * 60 * scale * (0.4 + riseQ);
+            var cy2 = footY - Math.sin(riseQ * Math.PI) * (20 + this.fxRnd(fxi + 1900) * 50) * scale;
+            ctx.globalAlpha = 1 - riseQ;
+            ctx.fillRect(cx2, cy2, 4, 4);
+          }
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = 'rgba(30,20,30,' + (0.6 * (1 - riseQ)) + ')';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          for (fxi = 0; fxi < 5; fxi++) {                       // cracks radiating along the floor
+            var ca = -0.7 + fxi * 0.35;
+            ctx.moveTo(ex, footY + 3);
+            ctx.lineTo(ex + Math.cos(ca + Math.PI / 2) * 40 * scale * riseQ * (fxi % 2 ? 1 : -1), footY + 3 + Math.abs(Math.sin(ca)) * 6);
+          }
+          ctx.stroke();
+        } else if (estyle === 'warp') {                        // rune circle and energy converging
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, warpQ * 2) * (1 - Math.max(0, warpQ - 0.8) / 0.2);
+          ctx.strokeStyle = 'rgb(190,130,255)';
+          ctx.shadowColor = '#b080ff';
+          ctx.shadowBlur = 10;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 5]);
+          ctx.lineDashOffset = now / 30;
+          ctx.beginPath();
+          ctx.ellipse(ex, footY + 2, 40 * scale * (0.5 + 0.5 * warpQ), 10 * scale * (0.5 + 0.5 * warpQ), 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+          ctx.fillStyle = '#e0c8ff';
+          for (fxi = 0; fxi < 14; fxi++) {
+            var wa = fxi / 14 * Math.PI * 2 + warpQ * 3;
+            var wr = (1 - warpQ) * 90 * scale;
+            ctx.fillRect(ex + Math.cos(wa) * wr - 2, ey + Math.sin(wa) * wr * 0.7 - 2, 4, 4);
+          }
+        }
+      }
+
       // Boss aura
       if (en.boss) {
         var aura = ctx.createRadialGradient(ex, ey, 10, ex, ey, 120);
@@ -2104,7 +2194,7 @@ var BattleSystem = {
       // Ground shadow (shrinks as the enemy bobs up)
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.beginPath();
-      ctx.ellipse(ex, footY + 2, (30 * scale - bob) * (0.4 + 0.6 * introQ), 7 * scale * (0.4 + 0.6 * introQ), 0, 0, Math.PI * 2);
+      ctx.ellipse(ex + introDx, footY + 2, (30 * scale - bob) * (0.4 + 0.6 * introQ), 7 * scale * (0.4 + 0.6 * introQ), 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Landing dust puff
@@ -2210,7 +2300,7 @@ var BattleSystem = {
       }
       // Entrance squash & stretch: elongated while falling, squashed on impact
       var introSX = 1, introSY = 1;
-      if (b.introStart && introQ < 1) {
+      if (b.introStart && introQ < 1 && estyle === 'drop') {
         if (introQ < 0.364) {
           var sf = introQ / 0.364;
           introSY = 1 + 0.3 * sf;
@@ -2219,6 +2309,11 @@ var BattleSystem = {
           var sl = (now - en.landAt) / 260;
           if (sl < 1) { introSX = 1 + 0.3 * (1 - sl); introSY = 1 - 0.3 * (1 - sl); }
         }
+      }
+      if (estyle === 'warp' && warpQ < 1) {                   // warp-ins start larger and settle
+        var wk = 1 + 0.3 * (1 - warpQ);
+        introSX *= wk;
+        introSY *= wk;
       }
       // Hit reaction: white flash, shaking recoil and squash that settle over 0.5s
       var hitDx = 0, hitBright = false, hitT = -1;
@@ -2236,7 +2331,7 @@ var BattleSystem = {
         }
       }
       // Afterimages trail behind the falling enemy
-      if (b.introStart && introQ < 0.364) {
+      if (b.introStart && estyle === 'drop' && introQ < 0.364) {
         var baseA = ctx.globalAlpha;
         for (var gh = 1; gh <= 2; gh++) {
           ctx.save();
@@ -2266,9 +2361,15 @@ var BattleSystem = {
       }
       ctx.save();
       if (hitBright) ctx.filter = 'brightness(5)';
-      ctx.translate(ex + hitDx, footY + lungeDy);
+      ctx.translate(ex + hitDx + introDx, footY + lungeDy);
       ctx.scale(lungeK * introSX, lungeK * introSY);
+      if (introRot) ctx.rotate(introRot);
       ctx.translate(-ex, -footY);
+      if (estyle === 'rise' && riseQ < 1) {                   // hide the part still below the floor
+        ctx.beginPath();
+        ctx.rect(ex - 90 * scale, footY - 140 * scale, 180 * scale, 142 * scale);
+        ctx.clip();
+      }
       UI.drawEnemy(ctx, en, ex, ey, scale);
       ctx.restore();
 
