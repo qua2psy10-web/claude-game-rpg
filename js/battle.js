@@ -57,6 +57,15 @@ var BattleSystem = {
     SoundSystem.battleStart();
   },
 
+  // Trigger a screen shake: mag in px, dur in ms
+  shake: function(game, mag, dur) {
+    var b = game.battle;
+    if (!b) return;
+    b.shakeMag = mag;
+    b.shakeDur = dur;
+    b.shakeUntil = Date.now() + dur;
+  },
+
   getEncounterMessage: function(enemies) {
     var names = [];
     for (var i = 0; i < enemies.length; i++) {
@@ -581,9 +590,11 @@ var BattleSystem = {
     if (cmd.actorType === 'party') {
       b.flashEnemy = cmd.target;
       SoundSystem.attack();
+      this.shake(game, 5, 260);
     } else {
       b.flashParty = cmd.target;
       SoundSystem.damage();
+      this.shake(game, 9, 340);
     }
     b.messageTimer = 45;
 
@@ -627,6 +638,8 @@ var BattleSystem = {
     }
 
     if (spell.type === 'magic' || spell.type === 'physical') {
+      var bigHit = (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy' || cmd.targetType === 'partyAll');
+      this.shake(game, bigHit ? 12 : 7, bigHit ? 450 : 300);
       if (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy') {
         var targets = cmd.actorType === 'party' ? b.enemies : game.party;
         for (var i = 0; i < targets.length; i++) {
@@ -953,6 +966,13 @@ var BattleSystem = {
 
     var groundY = Math.floor(canvasH * 0.42);
     var now = Date.now();
+    // Screen shake (scene only; UI windows stay steady)
+    ctx.save();
+    var shakeLeft = (b.shakeUntil || 0) - now;
+    if (shakeLeft > 0) {
+      var amp = (b.shakeMag || 0) * Math.min(1, shakeLeft / (b.shakeDur || 1));
+      ctx.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
+    }
     this.renderBackdrop(ctx, canvasW, canvasH, groundY);
 
     // Draw enemies in 3D-ish depth (alternating rows, back row smaller & higher)
@@ -1021,7 +1041,8 @@ var BattleSystem = {
     vg.addColorStop(0, 'rgba(0,0,0,0)');
     vg.addColorStop(1, 'rgba(0,0,10,0.6)');
     ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, canvasW, canvasH);
+    ctx.fillRect(-10, -10, canvasW + 20, canvasH + 20);
+    ctx.restore();
 
     // Party status panel (right side)
     UI.drawWindow(ctx, canvasW - 220, canvasH - 200, 215, 120);
