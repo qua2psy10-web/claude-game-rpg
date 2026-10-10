@@ -19,6 +19,8 @@ var MusicSystem = (function() {
   var bIdx = 0, bTime = 0;   // bass cursor
   var pTime = 0;             // percussion cursor (battle / boss)
   var pIdx = 0;              // beat counter for the percussion pattern
+  var aTime = 0, aIdx = 0;   // arpeggio layer cursor (plays only when intensity > 0)
+  var intensity = 0;         // 0 normal, 1 danger, 2 critical (adds a fast arpeggio layer)
   var fadeToken = 0;         // invalidates pending fade-outs when new music starts
 
   var volume = 0.18;
@@ -125,6 +127,8 @@ var MusicSystem = (function() {
     boss: {
       bpm: 152,
       drums: 'boss',
+      harmony: 2 / 3,                 // a fifth below the lead for a heavy, chunky sound
+      arp: [N.D5, N.F5, N.A5, N.F5],
       melody: [
         [N.D4,.5],[N.R,.5],[N.D4,.5],[N.R,.5],[N.F4,1],[N.A4,1],            // bar 1
         [N.Bb4,1],[N.A4,1],[N.G4,1],[N.F4,1],                                // bar 2
@@ -146,7 +150,9 @@ var MusicSystem = (function() {
     // ── 戦闘 (168 BPM, A minor, intense) ─────────────────── //
     battle: {
       bpm: 168,
-      drums: 'kick',
+      drums: 'rock',
+      harmony: 2 / 3,
+      arp: [N.A4, N.C5, N.E5, N.C5],
       melody: [
         // Section A — Am/G/F riff
         [N.A4,0.5],[N.R,0.5],[N.C5,0.5],[N.R,0.5],[N.E5,1],[N.D5,1],   // bar 1
@@ -213,6 +219,27 @@ var MusicSystem = (function() {
     src.start(start);
   }
 
+  // Hi-hat: a very short, bright tick
+  function playHat(start, vol) {
+    if (!ctx) return;
+    var bufLen = Math.ceil(ctx.sampleRate * 0.03);
+    var buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var filt = ctx.createBiquadFilter();
+    filt.type = 'highpass';
+    filt.frequency.value = 6500;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(volume * vol, start);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + 0.03);
+    src.connect(filt);
+    filt.connect(g);
+    g.connect(ctx.destination);
+    src.start(start);
+  }
+
   // Snare: short burst of high-passed noise
   function playSnare(start) {
     if (!ctx) return;
@@ -246,7 +273,10 @@ var MusicSystem = (function() {
     while (mTime < now + LOOKAHEAD) {
       var mn = track.melody[mIdx % track.melody.length];
       var mdur = beatDur * mn[1];
-      if (mn[0]) playNote(mn[0], 'square', 0.14, mTime, mdur);
+      if (mn[0]) {
+        playNote(mn[0], 'square', 0.14, mTime, mdur);
+        if (track.harmony) playNote(mn[0] * track.harmony, 'square', 0.07, mTime, mdur);
+      }
       mTime += mdur;
       mIdx++;
     }
@@ -260,13 +290,32 @@ var MusicSystem = (function() {
       bIdx++;
     }
 
-    // Percussion: kick every beat; the boss track adds a snare on beats 2 and 4
+    // Percussion on eighth-note steps: kick every beat, snare on beats 2 and 4, hi-hat on the
+    // off-beats; the boss track adds a syncopated extra kick before the bar line
     if (track.drums) {
       while (pTime < now + LOOKAHEAD) {
-        playKick(pTime);
-        if (track.drums === 'boss' && pIdx % 2 === 1) playSnare(pTime);
-        pTime += beatDur;
+        var onBeat = pIdx % 2 === 0, beatNo = pIdx >> 1;
+        if (onBeat) {
+          playKick(pTime);
+          if (track.drums !== 'kick' && beatNo % 2 === 1) playSnare(pTime);
+        } else if (track.drums !== 'kick') {
+          playHat(pTime, 0.35);
+        }
+        if (track.drums === 'boss' && pIdx % 8 === 7) playKick(pTime);
+        pTime += beatDur / 2;
         pIdx++;
+      }
+    }
+
+    // Danger layer: a fast sixteenth-note arpeggio that only sounds while intensity > 0
+    if (track.arp) {
+      var aStep = beatDur / 4;
+      while (aTime < now + LOOKAHEAD) {
+        if (intensity > 0) {
+          playNote(track.arp[aIdx % track.arp.length], 'square', intensity > 1 ? 0.07 : 0.045, aTime, aStep);
+        }
+        aTime += aStep;
+        aIdx++;
       }
     }
 
@@ -286,6 +335,8 @@ var MusicSystem = (function() {
     mTime = startTime;
     bTime = startTime;
     pTime = startTime;
+    aTime = startTime;
+    aIdx = 0;
     isPlaying = true;
     scheduler();
   }
@@ -352,6 +403,10 @@ var MusicSystem = (function() {
       volume = Math.max(0, Math.min(1, v));
       if (masterGain) masterGain.gain.value = volume;
     },
+
+    // 0 normal, 1 danger, 2 critical: layers a fast arpeggio over the current track
+    setIntensity: function(n) { intensity = n; },
+    getIntensity: function() { return intensity; },
 
     current: function() { return currentTrack; },
   };
