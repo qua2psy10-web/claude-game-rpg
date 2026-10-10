@@ -222,6 +222,13 @@ var SoundSystem = (function() {
 
     // ── ゲームオーバー ────────────────────────────────────────
 
+    whoosh: function() {                 // 敵の突進: 風を切る音
+      resume();
+      var t = ctx.currentTime;
+      noise(0.35, t + 0.1, 0.2, 1800);
+      osc(300, 'sawtooth', 0.1, t + 0.1, 0.18, 120);
+    },
+
     thud: function() {                   // 敵の着地: 短い低音
       resume();
       var t = ctx.currentTime;
