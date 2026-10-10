@@ -277,8 +277,26 @@ function getBattleBgm() {
   return 'battle';
 }
 
+// Danger level for the battle music: 1 when a party member is nearly down or a boss is
+// badly hurt, 2 when both; 0 outside of an active fight
+function battleIntensity() {
+  var b = game.battle;
+  if (game.state !== 'battle' || !b) return 0;
+  var ph = b.phase;
+  if (ph === 'win' || ph === 'levelup' || ph === 'lose' || ph === 'run') return 0;
+  var level = 0, i;
+  for (i = 0; i < game.party.length; i++) {
+    if (game.party[i].alive && game.party[i].hp < game.party[i].maxHp * 0.25) { level++; break; }
+  }
+  for (i = 0; i < b.enemies.length; i++) {
+    if (b.enemies[i].boss && b.enemies[i].alive && b.enemies[i].hp < b.enemies[i].maxHp * 0.5) { level++; break; }
+  }
+  return level;
+}
+
 function updateBgm() {
   var s = game.state;
+  MusicSystem.setIntensity(battleIntensity());
   if (s === 'title')                                          return setBgm('title');
   if (s === 'battle')                                         return setBgm(getBattleBgm());
   if (s === 'gameover' || s === 'ending')                     return setBgm(null);
