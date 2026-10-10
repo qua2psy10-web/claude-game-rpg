@@ -96,6 +96,10 @@ var BattleSystem = {
 
   ENEMY_CAST_DELAY: 650,  // ms an enemy charges a spell before it lands
   ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyHeal: '80,230,130' },
+  // How each species attacks (drives the motion and the impact effect)
+  ATTACK_STYLES: { slime: 'hop', wolf: 'pounce', bat: 'dive', knight: 'heavy', demonKing: 'heavy',
+                   skeleton: 'slash', goblin: 'slash', mage: 'slash' },
+  ATTACK_TINTS: { hop: '90,190,255', pounce: '255,60,60', dive: '200,30,60', heavy: '255,140,40', slash: '255,60,60' },
   ENEMY_HIT_DELAY: 260,   // ms between an enemy starting its lunge and the hit landing (peak of the charge)
 
   // Lunge curve: -0.25 (wind-up) -> 1 (full charge, hit lands) -> 0 (back in place); at in 0..1
@@ -213,24 +217,88 @@ var BattleSystem = {
     ctx.fillStyle = rg;
     ctx.fillRect(0, 0, w, h);
 
-    // Melee hits slash across the whole screen (heavier hits: a third slash and a white flash)
+    // Melee impact: the effect depends on how this species attacks
     if (hit.melee) {
-      var slashes = hit.heavy ? 3 : 2;
+      var hst = hit.style || 'slash';
+      var fadeA = 1 - Math.max(0, p - 0.5) / 0.5;
+      var gq, gi, ga;
       ctx.save();
       ctx.lineCap = 'round';
-      ctx.shadowColor = '#f00';
+      ctx.shadowColor = 'rgb(' + tn + ')';
       ctx.shadowBlur = 14;
-      for (var sl = 0; sl < slashes; sl++) {
-        var slp = Math.max(0, Math.min(1, p * 3.2 - sl * 0.25));
-        if (slp <= 0) continue;
-        var sx0 = w * (0.22 + sl * 0.2), sy0 = h * 0.08;
-        ctx.globalAlpha = 1 - Math.max(0, p - 0.5) / 0.5;
-        ctx.strokeStyle = sl === 1 ? '#fff' : '#ff6a6a';
-        ctx.lineWidth = 9 * (1 - slp * 0.6);
+      ctx.globalAlpha = fadeA;
+      if (hst === 'pounce') {                       // wolf: three parallel claw rakes
+        for (gi = 0; gi < 3; gi++) {
+          gq = Math.max(0, Math.min(1, p * 3.4 - gi * 0.18));
+          if (gq <= 0) continue;
+          ctx.strokeStyle = gi === 1 ? '#fff' : '#ff6a6a';
+          ctx.lineWidth = 8 * (1 - gq * 0.5);
+          ctx.beginPath();
+          ctx.moveTo(w * 0.30 + gi * 34, h * 0.08);
+          ctx.lineTo(w * 0.30 + gi * 34 + w * 0.2 * gq, h * 0.08 + h * 0.62 * gq);
+          ctx.stroke();
+        }
+      } else if (hst === 'dive') {                  // bat: fang punctures with blood drops on the bitten row
+        if (hit.idx >= 0) {
+          var fx0 = w - 120, fy0 = h - 182 + hit.idx * 36;
+          var fq = Math.min(1, p * 4);
+          ctx.fillStyle = '#ff3050';
+          for (gi = -1; gi <= 1; gi += 2) {
+            ctx.beginPath();
+            ctx.moveTo(fx0 + gi * 12 - 5, fy0 - 14 * fq);
+            ctx.lineTo(fx0 + gi * 12 + 5, fy0 - 14 * fq);
+            ctx.lineTo(fx0 + gi * 12, fy0 + 6 * fq);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(fx0 + gi * 12, fy0 + 10 + p * 24, 3, 0, Math.PI * 2);   // drop sliding down
+            ctx.fill();
+          }
+        }
+        ga = Math.max(0, 0.3 * (1 - p * 2));
+        ctx.fillStyle = 'rgba(200,0,40,' + ga + ')';
+        ctx.fillRect(-10, -10, w + 20, h + 20);
+      } else if (hst === 'hop') {                   // slime: goo splat spreads across the screen
+        ctx.fillStyle = 'rgba(' + tn + ',' + (0.55 * fadeA) + ')';
+        for (gi = 0; gi < 12; gi++) {
+          var ga2 = gi / 12 * Math.PI * 2 + this.fxRnd(gi + 2000) * 0.4;
+          var gd = (40 + this.fxRnd(gi + 2100) * 150) * Math.min(1, p * 3);
+          ctx.beginPath();
+          ctx.arc(w * 0.5 + Math.cos(ga2) * gd * 1.6, h * 0.58 + Math.sin(ga2) * gd * 0.7, 10 + this.fxRnd(gi + 2200) * 16, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.beginPath();
-        ctx.moveTo(sx0, sy0);
-        ctx.lineTo(sx0 + w * 0.22 * slp, sy0 + h * 0.58 * slp);
+        ctx.ellipse(w * 0.5, h * 0.58, 60 + p * 140, 26 + p * 40, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (hst === 'heavy') {                 // knight / boss: a huge crescent chops across the screen
+        gq = Math.max(0, Math.min(1, p * 3));
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 18 * (1 - gq * 0.5);
+        ctx.beginPath();
+        ctx.arc(w * 0.5, -h * 0.25, h * 0.95, Math.PI * (0.12 + 0.76 * (1 - gq)), Math.PI * 0.88);
         ctx.stroke();
+        ctx.strokeStyle = 'rgb(' + tn + ')';
+        ctx.lineWidth = 8 * (1 - gq * 0.5);
+        ctx.beginPath();
+        ctx.arc(w * 0.5, -h * 0.25 + 12, h * 0.95, Math.PI * (0.12 + 0.76 * (1 - gq)), Math.PI * 0.88);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + tn + ',' + (0.8 * (1 - p)) + ')';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.7, 30 + p * 330, 8 + p * 60, 0, 0, Math.PI * 2);   // ground shockwave
+        ctx.stroke();
+      } else {                                      // goblin / skeleton / mage: a crossing X slash
+        for (gi = 0; gi < 2; gi++) {
+          gq = Math.max(0, Math.min(1, p * 3.2 - gi * 0.3));
+          if (gq <= 0) continue;
+          ctx.strokeStyle = gi ? '#fff' : '#ff6a6a';
+          ctx.lineWidth = 9 * (1 - gq * 0.6);
+          var xa = gi ? w * 0.64 : w * 0.28, xb = gi ? w * 0.32 : w * 0.58;
+          ctx.beginPath();
+          ctx.moveTo(xa, h * 0.1);
+          ctx.lineTo(xa + (xb - xa) * gq, h * 0.1 + h * 0.6 * gq);
+          ctx.stroke();
+        }
       }
       if (hit.heavy && p < 0.25) {
         ctx.globalAlpha = 0.45 * (1 - p / 0.25);
@@ -885,9 +953,11 @@ var BattleSystem = {
     } else {
       // Enemy lunges, then the hit lands after ENEMY_HIT_DELAY ms
       var hitIdx = game.party.indexOf(defender);
-      var heavy = damage >= defender.maxHp * 0.25;   // big hits get a bigger reaction
-      b.enemyAtk = { idx: cmd.actor, t0: Date.now(), dur: 560 };
-      b.partyHit = { idx: hitIdx, t0: Date.now() + this.ENEMY_HIT_DELAY, melee: true, heavy: heavy };
+      var atkStyle = this.ATTACK_STYLES[attacker.shape] || 'slash';
+      var heavy = damage >= defender.maxHp * 0.25 || atkStyle === 'heavy';   // big hits get a bigger reaction
+      b.enemyAtk = { idx: cmd.actor, t0: Date.now(), dur: 560, style: atkStyle };
+      b.partyHit = { idx: hitIdx, t0: Date.now() + this.ENEMY_HIT_DELAY, melee: true, heavy: heavy,
+                     style: atkStyle, tint: this.ATTACK_TINTS[atkStyle] };
       SoundSystem.whoosh();
       setTimeout(function() {
         if (game.battle !== b) return;
@@ -2211,7 +2281,7 @@ var BattleSystem = {
 
       en.sx = ex; en.sy = ey; en.sfoot = footY; en.sscale = scale;
       // Attack lunge: wind up, charge toward the player, retreat
-      var lungeK = 1, lungeDy = 0;
+      var lungeK = 1, lungeDy = 0, atkRot = 0, atkDx = 0, atkSX = 1, atkSY = 1;
       var atkFx = b.enemyAtk;
       if (atkFx && atkFx.idx === aliveEnemies[j].index) {
         var at = (now - atkFx.t0) / atkFx.dur;
@@ -2219,6 +2289,47 @@ var BattleSystem = {
           var amt = this.atkCurve(at);
           lungeK = 1 + 0.45 * amt;
           lungeDy = 56 * amt;
+          // Species-specific attack motion layered on the base lunge
+          var ast = atkFx.style, aq;
+          if (ast === 'pounce') {                              // wolf: leaps over in an arc, claws first
+            aq = Math.max(0, Math.min(1, (at - 0.22) / 0.244));
+            lungeDy -= 80 * Math.sin(aq * Math.PI);
+            atkRot = 0.4 * Math.max(0, 1 - Math.abs(at - 0.464) / 0.3);
+          } else if (ast === 'hop') {                          // slime: squashes, springs high, slams flat
+            if (at < 0.28) {
+              atkSY = 1 - 0.28 * (at / 0.28);
+              atkSX = 1 + 0.2 * (at / 0.28);
+            } else if (at < 0.464) {
+              aq = (at - 0.28) / 0.184;
+              lungeDy = -100 * Math.sin(aq * Math.PI) + 56 * amt;
+              atkSY = 1 + 0.2 * Math.sin(aq * Math.PI);
+            } else if (at < 0.65) {
+              aq = 1 - (at - 0.464) / 0.186;
+              atkSY = 1 - 0.4 * aq;
+              atkSX = 1 + 0.4 * aq;
+            }
+          } else if (ast === 'dive') {                         // bat: climbs, then dives in a swaying arc
+            if (at < 0.3) {
+              lungeDy -= 50 * (at / 0.3);
+              atkDx = Math.sin(at * 14) * 14;
+            } else if (at < 0.464) {
+              aq = (at - 0.3) / 0.164;
+              lungeDy = -50 + 120 * aq;
+              lungeK = 1 + 0.6 * aq;
+              atkDx = Math.sin(at * 14) * 14 * (1 - aq);
+              atkRot = -0.35 * (1 - aq);
+            }
+          } else if (ast === 'heavy') {                        // knight/boss: raises the weapon, swings down
+            lungeK = 1 + 0.6 * amt;
+            if (at < 0.3) {
+              atkRot = -0.4 * (at / 0.3);
+              lungeDy -= 30 * (at / 0.3);
+            } else if (at < 0.464) {
+              atkRot = -0.4 + 1.0 * ((at - 0.3) / 0.164);
+            } else {
+              atkRot = 0.6 * (1 - (at - 0.464) / 0.536);
+            }
+          }
           // Telegraph: a red glow builds while the enemy winds up
           if (at < 0.34) {
             var tg = Math.min(1, at / 0.3);
@@ -2346,7 +2457,7 @@ var BattleSystem = {
       // Charge trail: fading copies at the positions the enemy just left
       if (atkFx && atkFx.idx === aliveEnemies[j].index) {
         var tat = (now - atkFx.t0) / atkFx.dur;
-        if (tat >= 0.3 && tat < 0.7) {
+        if (tat >= 0.3 && tat < 0.7 && atkFx.style !== 'hop' && atkFx.style !== 'dive') {
           for (var tg2 = 1; tg2 <= 3; tg2++) {
             var pa = this.atkCurve(tat - tg2 * 0.035);
             ctx.save();
@@ -2361,9 +2472,9 @@ var BattleSystem = {
       }
       ctx.save();
       if (hitBright) ctx.filter = 'brightness(5)';
-      ctx.translate(ex + hitDx + introDx, footY + lungeDy);
-      ctx.scale(lungeK * introSX, lungeK * introSY);
-      if (introRot) ctx.rotate(introRot);
+      ctx.translate(ex + hitDx + introDx + atkDx, footY + lungeDy);
+      ctx.scale(lungeK * introSX * atkSX, lungeK * introSY * atkSY);
+      if (introRot || atkRot) ctx.rotate(introRot + atkRot);
       ctx.translate(-ex, -footY);
       if (estyle === 'rise' && riseQ < 1) {                   // hide the part still below the floor
         ctx.beginPath();
