@@ -91,36 +91,50 @@ var BattleSystem = {
     for (var i = 0; i < b.pops.length; i++) {
       var pp = b.pops[i];
       var t = now - pp.t0;
-      if (t >= 1000) continue;
+      if (t >= 1400) continue;
       live.push(pp);
       var x, y;
       if (pp.isParty) {
         var k = game.party.indexOf(pp.target);
         x = w - 60;
-        y = h - 182 + k * 36;
+        y = h - 190 + k * 36;
       } else {
         if (pp.target.sx === undefined) continue;
         x = pp.target.sx;
         y = pp.target.sfoot - 22 * pp.target.sscale - 38 * pp.target.sscale;
       }
-      var rise = 1 - Math.pow(1 - Math.min(1, t / 700), 3);   // easeOutCubic
-      var bounce = t < 250 ? Math.abs(Math.sin(t / 250 * Math.PI)) * 14 : 0;
-      var sc = t < 120 ? 1.5 - 0.5 * (t / 120) : 1;
-      var alpha = t > 750 ? 1 - (t - 750) / 250 : 1;
-      var fill = pp.kind === 'heal' ? '#7dff8a' : pp.kind === 'mp' ? '#7db8ff' : (pp.isParty ? '#ff6a6a' : '#ffffff');
+      var val = parseInt(pp.text, 10) || 0;
+      // Bigger numbers for bigger hits (damage only)
+      var size = 44 + (pp.kind === 'dmg' ? Math.min(24, val / 4) : 0);
+      var rise = 1 - Math.pow(1 - Math.min(1, t / 900), 3);   // easeOutCubic
+      var bounce = t < 300 ? Math.abs(Math.sin(t / 300 * Math.PI)) * 22 : 0;
+      var sc = t < 160 ? 2.2 - 1.2 * (t / 160) : 1;           // slam in from large
+      var alpha = t > 1050 ? 1 - (t - 1050) / 350 : 1;
+      var top = '#ffffff', bot = '#ffe14d', glow = '#ffb300';
+      if (pp.kind === 'heal') { top = '#eaffee'; bot = '#4dff7a'; glow = '#1fd45a'; }
+      else if (pp.kind === 'mp') { top = '#eef6ff'; bot = '#5aa8ff'; glow = '#2b7cff'; }
+      else if (pp.isParty) { top = '#ffd0d0'; bot = '#ff3030'; glow = '#ff0000'; }
       var text = (pp.kind === 'dmg' ? '' : '+') + pp.text;
+      var sx = (pp.isParty && pp.kind === 'dmg' && t < 400) ? Math.sin(t / 25) * 5 : 0;   // party hits jitter
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.translate(x, y - rise * 34 - bounce);
+      ctx.translate(x + sx, y - rise * 46 - bounce);
       ctx.scale(sc, sc);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = 'bold 26px monospace';
+      ctx.font = 'bold ' + Math.round(size) + 'px monospace';
       ctx.lineJoin = 'round';
-      ctx.lineWidth = 5;
+      // Glow + thick dark outline, then gradient fill
+      ctx.shadowColor = glow;
+      ctx.shadowBlur = 16;
+      ctx.lineWidth = 9;
       ctx.strokeStyle = '#000';
       ctx.strokeText(text, 0, 0);
-      ctx.fillStyle = fill;
+      ctx.shadowBlur = 0;
+      var gr = ctx.createLinearGradient(0, -size / 2, 0, size / 2);
+      gr.addColorStop(0, top);
+      gr.addColorStop(1, bot);
+      ctx.fillStyle = gr;
       ctx.fillText(text, 0, 0);
       ctx.restore();
     }
