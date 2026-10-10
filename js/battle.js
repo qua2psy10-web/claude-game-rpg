@@ -85,6 +85,13 @@ var BattleSystem = {
   // Party basic attacks: windup before the strike lands (numbers, shake and sound wait for it)
   PARTY_ATTACK_DELAY: 190,
 
+  // Failed escape: the party skids to a stop and bounces back off the blockade
+  escapeFailFx: function(game, blocked) {
+    var b = game.battle;
+    b.escapeFail = { t0: Date.now(), dur: 900, blocked: blocked };
+    SoundSystem.escapeFail();
+  },
+
   // Failed escape: red "!" over every enemy and a small jolt as they cut off the way
   alertEnemies: function(game) {
     var b = game.battle;
@@ -961,16 +968,19 @@ var BattleSystem = {
         b.messages = ['しかし 逃げられない！'];
         b.messageTimer = 40;
         this.alertEnemies(game);
+        this.escapeFailFx(game, true);
       } else if (Math.random() < 0.5 + b.escapeAttempts * 0.1) {
         b.messages = ['うまく逃げ切れた！'];
         b.messageTimer = 75;           // leave time for the getaway scene
         b.escapeStart = Date.now();
         b.phase = 'run';
         SoundSystem.escape();
+        SoundSystem.escapeRun();
       } else {
         b.messages = ['しかし 回り込まれてしまった！'];
         b.messageTimer = 40;
         this.alertEnemies(game);
+        this.escapeFailFx(game, false);
       }
       return;
     }
@@ -1556,6 +1566,56 @@ var BattleSystem = {
       ctx.fill();
     }
 
+    // Smoke burst where the party takes off, then a rolling trail of dust clouds behind them
+    var bx = w - 200, by = h - 215;
+    if (t < 700) {
+      var bp = t / 700;
+      for (i = 0; i < 9; i++) {
+        var ba = Math.PI + (i / 8 - 0.5) * 1.6;
+        var bd = 10 + bp * (40 + this.fxRnd(i + 1300) * 40);
+        ctx.fillStyle = 'rgba(235,228,245,' + 0.7 * (1 - bp) + ')';
+        ctx.beginPath();
+        ctx.arc(bx + Math.cos(ba) * bd, by + 20 + Math.sin(ba) * bd * 0.35 - bp * 12, 9 + bp * 18, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    for (i = 0; i < 12; i++) {
+      var ft = t - 120 - i * 55;
+      if (ft < 0 || ft > 520) continue;
+      var fp = ft / 520;
+      ctx.fillStyle = 'rgba(190,180,205,' + 0.5 * (1 - fp) + ')';
+      ctx.beginPath();
+      ctx.arc(bx + 30 - i * 14 + fp * 30, by + 24 - fp * 8, 5 + fp * 12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Footprint flashes and sweat drops
+    for (i = 0; i < 5; i++) {
+      var st = t - 80 - i * 90;
+      if (st < 0 || st > 350) continue;
+      var sp = st / 350;
+      ctx.fillStyle = 'rgba(160,220,255,' + (1 - sp) + ')';
+      ctx.beginPath();
+      ctx.arc(bx + 24 + i * 12 + sp * 16, by - 22 - sp * 14 + sp * sp * 20, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // "ダッシュ！" banner sweeping across
+    var bt = (t - 60) / 640;
+    if (bt > 0 && bt < 1) {
+      var bxp = w + 120 - bt * (w + 420);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, bt * 6) * (1 - Math.max(0, bt - 0.8) / 0.2);
+      ctx.font = 'italic bold 34px monospace';
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#102a5a';
+      ctx.fillStyle = '#fff6c0';
+      ctx.setTransform(1, 0, -0.25, 1, ctx.getTransform().e + 0, ctx.getTransform().f);
+      ctx.strokeText('ダッシュ！', bxp, h * 0.3);
+      ctx.fillText('ダッシュ！', bxp, h * 0.3);
+      ctx.restore();
+    }
+
     // Iris closes on the battle
     var wt = (t - 700) / 500;
     if (wt > 0) {
@@ -1565,7 +1625,61 @@ var BattleSystem = {
       ctx.rect(-5, -5, w + 10, h + 10);
       ctx.arc(w / 2, h * 0.45, maxR * Math.max(0, 1 - wt), 0, Math.PI * 2, true);
       ctx.fill('evenodd');
+      // last glint of light as the circle closes
+      if (wt > 0.7) {
+        var gk = (wt - 0.7) / 0.3;
+        ctx.fillStyle = 'rgba(255,255,255,' + (1 - gk) + ')';
+        ctx.beginPath(); ctx.arc(w / 2, h * 0.45, 4 + gk * 10, 0, Math.PI * 2); ctx.fill();
+      }
     }
+    ctx.restore();
+  },
+
+  // Failed escape: the party skids, dust billows forward, stars spin overhead and the screen flushes red
+  renderEscapeFail: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var f = b.escapeFail;
+    var t = (now - f.t0) / f.dur;
+    if (t >= 1) { b.escapeFail = null; return; }
+    if (t < 0) return;
+    var i;
+    var bx = w - 200, by = h - 215;
+    ctx.save();
+    // Red edge flush
+    var rg = ctx.createRadialGradient(w / 2, h * 0.45, h * 0.3, w / 2, h * 0.45, w * 0.7);
+    rg.addColorStop(0, 'rgba(255,0,0,0)');
+    rg.addColorStop(1, 'rgba(255,30,30,' + (0.4 * Math.sin(Math.PI * Math.min(1, t * 1.3))) + ')');
+    ctx.fillStyle = rg;
+    ctx.fillRect(-10, -10, w + 20, h + 20);
+    // Skid dust billowing forward (toward the enemies = left)
+    for (i = 0; i < 10; i++) {
+      var dp = Math.min(1, Math.max(0, t * 1.4 - i * 0.04));
+      if (dp <= 0) continue;
+      ctx.fillStyle = 'rgba(215,205,230,' + 0.6 * (1 - dp) + ')';
+      ctx.beginPath();
+      ctx.arc(bx - dp * (70 + i * 6), by + 24 - dp * 6 + (i % 3) * 3, 8 + dp * 16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Spinning stars over the head
+    for (i = 0; i < 4; i++) {
+      var sa = t * 9 + i * Math.PI / 2;
+      var sx = bx + Math.cos(sa) * 22, sy = by - 34 + Math.sin(sa) * 6;
+      ctx.globalAlpha = 1 - Math.max(0, t - 0.7) / 0.3;
+      ctx.fillStyle = '#ffe066';
+      ctx.fillRect(sx - 4, sy - 1, 8, 2);
+      ctx.fillRect(sx - 1, sy - 4, 2, 8);
+    }
+    // Label
+    ctx.globalAlpha = Math.min(1, t * 8) * (1 - Math.max(0, t - 0.75) / 0.25);
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#3a0a0a';
+    ctx.fillStyle = '#ffd0d0';
+    var lab = f.blocked ? '逃げられない！' : '回り込まれた！';
+    var shk = t < 0.3 ? Math.sin(t * 90) * 3 : 0;
+    ctx.strokeText(lab, bx - 40 + shk, by - 70 - t * 10);
+    ctx.fillText(lab, bx - 40 + shk, by - 70 - t * 10);
     ctx.restore();
   },
 
@@ -1962,6 +2076,7 @@ var BattleSystem = {
     if (b && b.pAtk) this.renderPartyAttack(ctx, game, w, h, now);
     if (b && b.itemFx) this.renderItemFx(ctx, game, w, h, now);
     if (b) this.renderGuard(ctx, game, w, h, now);
+    if (b && b.escapeFail) this.renderEscapeFail(ctx, game, w, h, now);
     var fx = b && b.effect;
     if (!fx) return;
     var p = (now - fx.t0) / fx.dur;
@@ -2815,6 +2930,11 @@ var BattleSystem = {
     if (shakeLeft > 0) {
       var amp = (b.shakeMag || 0) * Math.min(1, shakeLeft / (b.shakeDur || 1));
       ctx.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
+    }
+    // Running: the camera bobs with the party's footsteps and drifts as they sprint off
+    if (b.escapeStart) {
+      var rt = now - b.escapeStart;
+      ctx.translate(-Math.min(1, rt / 800) * 14, Math.sin(rt / 55) * 2.2 * Math.min(1, rt / 150));
     }
     // Camera push-in: the scene starts slightly zoomed and settles as the enemies arrive
     if (b.introStart) {
