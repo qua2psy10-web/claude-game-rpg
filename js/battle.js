@@ -77,6 +77,11 @@ var BattleSystem = {
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
   },
 
+  // Party spells: ms of casting (rune circle + travelling orb) before the effect lands, and element colour
+  PARTY_CAST_DELAY: { fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340 },
+  PARTY_CAST_TINT: { fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
+                     holy: '255,240,170', buffAtk: '255,120,60', buffDef: '90,170,255' },
+
   // Failed escape: red "!" over every enemy and a small jolt as they cut off the way
   alertEnemies: function(game) {
     var b = game.battle;
@@ -1089,6 +1094,9 @@ var BattleSystem = {
     // Enemy casters charge up first; effect, shake and numbers land after ed ms
     var ed = cmd.actorType === 'enemy' ? (caster.boss ? this.ENEMY_CAST_DELAY + 250 : this.ENEMY_CAST_DELAY) : 0;
     var tint = this.ENEMY_CAST_TINT[cmd.spellId] || '200,200,255';
+    var pKind = cmd.actorType === 'party' ? this.EFFECT_KINDS[cmd.spellId] : null;
+    var pd = pKind ? (this.PARTY_CAST_DELAY[pKind] || 0) : 0;   // party casting time (effect, numbers, shake wait for it)
+    var fd = ed || pd;
     if (ed) b.enemyCast = { idx: cmd.actor, t0: Date.now(), dur: ed + 350, tint: tint, spellId: cmd.spellId, ed: ed, boss: !!caster.boss };
 
     // 呪文のビジュアルエフェクト
@@ -1103,14 +1111,21 @@ var BattleSystem = {
       else if (cmd.targetType === 'partyAll') { fxSide = 'party'; fxIdx = -1; }
       else { fxSide = 'party'; fxIdx = cmd.target; }
     }
-    this.startEffect(game, cmd.spellId, fxSide, fxIdx, ed);
+    this.startEffect(game, cmd.spellId, fxSide, fxIdx, fd);
+    if (pd) {
+      b.partyCast = { idx: cmd.actor, t0: Date.now(), dur: pd, kind: pKind, side: fxSide, targetIdx: fxIdx };
+      SoundSystem.chargeUp(pKind);
+      setTimeout(function() { if (game.battle === b) SoundSystem.spellHit(pKind); }, pd);
+    }
     if (ed && b.enemyCast) { b.enemyCast.side = fxSide; b.enemyCast.targetIdx = fxIdx; }
     if (ed && fxSide === 'party' && spell.type !== 'heal') {
       b.partyHit = { idx: fxIdx, t0: Date.now() + ed, tint: tint };
     }
 
-    // 呪文の効果音
-    if (spell.type === 'heal') {
+    // 呪文の効果音 (party casts play theirs via chargeUp / spellHit)
+    if (pd) {
+      // handled above
+    } else if (spell.type === 'heal') {
       SoundSystem.heal();
     } else if (spell.type === 'buff') {
       SoundSystem.buff();
@@ -1124,8 +1139,9 @@ var BattleSystem = {
       var bigHit = (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy' || cmd.targetType === 'partyAll');
       var shakeMag = bigHit ? 12 : 7, shakeDur = bigHit ? 450 : 300;
       if (ed) { shakeMag = Math.round(shakeMag * 1.4); shakeDur += 100; }
-      if (ed) {
-        setTimeout(function() { if (game.battle === b) BattleSystem.shake(game, shakeMag, shakeDur); }, ed);
+      if (pd) { shakeMag = Math.round(shakeMag * 1.25); shakeDur += 80; }
+      if (fd) {
+        setTimeout(function() { if (game.battle === b) BattleSystem.shake(game, shakeMag, shakeDur); }, fd);
       } else {
         this.shake(game, shakeMag, shakeDur);
       }
@@ -1135,7 +1151,7 @@ var BattleSystem = {
           if (targets[i].alive) {
             var dmg = this.calcSpellDamage(caster, targets[i], spell);
             targets[i].hp = Math.max(0, targets[i].hp - dmg);
-            this.pop(game, targets[i], dmg, 'dmg', ed);
+            this.pop(game, targets[i], dmg, 'dmg', fd);
             b.messages.push(targets[i].name + 'に ' + dmg + 'の ダメージ！');
             if (targets[i].hp <= 0) {
               targets[i].alive = false;
@@ -1174,7 +1190,7 @@ var BattleSystem = {
             dmg3 = Math.max(1, Math.floor(this.getEffectiveStat(caster, 'atk') * spell.power / 2 - this.getEffectiveStat(target, 'def') / 4));
           }
           target.hp = Math.max(0, target.hp - dmg3);
-          this.pop(game, target, dmg3, 'dmg', ed);
+          this.pop(game, target, dmg3, 'dmg', fd);
           b.messages.push(target.name + 'に ' + dmg3 + 'の ダメージ！');
           if (spell.stun && Math.random() < spell.stun) {
             b.messages.push(target.name + 'は しびれて 動けない！');
@@ -1197,8 +1213,8 @@ var BattleSystem = {
       if (healTarget && healTarget.alive) {
         var heal = spell.power + Math.floor(Math.random() * 10 - 5);
         healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + heal);
-        this.pop(game, healTarget, heal, 'heal', ed);
-        if (ed) healTarget.hpBarUntil = Date.now() + ed + 2000;
+        this.pop(game, healTarget, heal, 'heal', fd);
+        if (fd) healTarget.hpBarUntil = Date.now() + fd + 2000;
         b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
       }
     } else if (spell.type === 'buff') {
@@ -1210,7 +1226,7 @@ var BattleSystem = {
         }
       }
     }
-    b.messageTimer = 20 + b.messages.length * 15;
+    b.messageTimer = 20 + b.messages.length * 15 + Math.round(pd / 16);
   },
 
   executeItem: function(game, cmd) {
@@ -1886,6 +1902,7 @@ var BattleSystem = {
   // Draw the active spell effect over its target(s)
   renderEffect: function(ctx, game, w, h, now) {
     var b = game.battle;
+    if (b && b.partyCast) this.renderPartyCast(ctx, game, w, h, now);
     var fx = b && b.effect;
     if (!fx) return;
     var p = (now - fx.t0) / fx.dur;
@@ -1903,7 +1920,10 @@ var BattleSystem = {
         if (fx.idx === -1 || fx.idx === k) pts.push({ x: w - 150, y: h - 178 + k * 36 });
       }
     }
-    for (var n = 0; n < pts.length; n++) this.drawFx(ctx, fx.kind, pts[n].x, pts[n].y, p, n * 50);
+    for (var n = 0; n < pts.length; n++) {
+      this.drawFx(ctx, fx.kind, pts[n].x, pts[n].y, p, n * 50);
+      this.drawFxImpact(ctx, fx.kind, pts[n].x, pts[n].y, p, n * 50, fx.side === 'enemy');
+    }
 
     // Full-screen flashes for the big spells
     var flash = 0, tint = '255,255,255';
@@ -1915,6 +1935,194 @@ var BattleSystem = {
       ctx.fillStyle = 'rgba(' + tint + ',' + flash + ')';
       ctx.fillRect(-10, -10, w + 20, h + 20);
     }
+  },
+
+  // Party casting: rune circle at the caster's feet, motes spiralling in, then an orb/bolt flies to the target
+  renderPartyCast: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var pc = b.partyCast;
+    var t = (now - pc.t0) / pc.dur;
+    if (t >= 1.05) { b.partyCast = null; return; }
+    if (t < 0) return;
+    var self = this;
+    var rgb = this.PARTY_CAST_TINT[pc.kind] || '255,255,255';
+    var cx = w - 250 + pc.idx * 48, cy = h - 238;   // party sprites live in the status window, so the spell gathers just above it
+    var charge = Math.min(1, t / 0.7);      // gathering phase
+    var fire = t > 0.7 ? Math.min(1, (t - 0.7) / 0.3) : 0;   // release phase
+    var i, a, px, py;
+    ctx.save();
+
+    // Rune circle on the floor
+    ctx.globalAlpha = Math.sin(Math.PI * Math.min(1, t)) * 0.9;
+    ctx.strokeStyle = 'rgb(' + rgb + ')';
+    ctx.shadowColor = 'rgb(' + rgb + ')';
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2;
+    var rr = 16 + charge * 16;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 26, rr * 1.5, rr * 0.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 26, rr * 0.9, rr * 0.3, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    for (i = 0; i < 6; i++) {
+      a = now / 260 + i * Math.PI / 3;
+      ctx.fillStyle = 'rgb(' + rgb + ')';
+      ctx.fillRect(cx + Math.cos(a) * rr * 1.5 - 2, cy + 26 + Math.sin(a) * rr * 0.5 - 2, 4, 4);
+    }
+
+    // Aura column rising around the caster
+    var ag = ctx.createLinearGradient(0, cy - 50, 0, cy + 28);
+    ag.addColorStop(0, 'rgba(' + rgb + ',0)');
+    ag.addColorStop(1, 'rgba(' + rgb + ',' + (0.35 * charge) + ')');
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = ag;
+    ctx.fillRect(cx - 20, cy - 50, 40, 78);
+
+    // Motes pulled inward
+    for (i = 0; i < 14; i++) {
+      var ph = (charge * 1.6 + self.fxRnd(i + 3)) % 1;
+      var ang = self.fxRnd(i) * Math.PI * 2 + ph * 2;
+      var dist = (1 - ph) * 52;
+      px = cx + Math.cos(ang) * dist;
+      py = cy - 6 + Math.sin(ang) * dist * 0.7;
+      ctx.globalAlpha = Math.sin(Math.PI * ph) * 0.9;
+      ctx.fillStyle = i % 2 ? 'rgb(' + rgb + ')' : '#fff';
+      ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+    }
+
+    // Gathering orb above the hand
+    var orbR = 3 + charge * 9 + Math.sin(now / 40) * 1.2;
+    var hx = cx, hy = cy - 6;
+    if (fire === 0 || pc.kind === 'holy' || pc.kind === 'thunder' || pc.kind === 'buffAtk' || pc.kind === 'buffDef') {
+      var og = ctx.createRadialGradient(hx, hy, 0, hx, hy, orbR * 2.4);
+      og.addColorStop(0, 'rgba(255,255,255,0.95)');
+      og.addColorStop(0.35, 'rgba(' + rgb + ',0.8)');
+      og.addColorStop(1, 'rgba(' + rgb + ',0)');
+      ctx.globalAlpha = 1 - fire * 0.7;
+      ctx.fillStyle = og;
+      ctx.fillRect(hx - orbR * 2.4, hy - orbR * 2.4, orbR * 4.8, orbR * 4.8);
+    }
+
+    // Release: projectile travelling to each target
+    if (fire > 0 && (pc.kind === 'fire' || pc.kind === 'ice' || pc.kind === 'heal' || pc.kind === 'thunder')) {
+      var tpts = [];
+      if (pc.side === 'enemy') {
+        for (var e = 0; e < b.enemies.length; e++) {
+          if ((pc.targetIdx === -1 || pc.targetIdx === e) && b.enemies[e].sx !== undefined) tpts.push({ x: b.enemies[e].sx, y: b.enemies[e].sy });
+        }
+      } else {
+        for (var q = 0; q < game.party.length; q++) {
+          if (pc.targetIdx === -1 || pc.targetIdx === q) tpts.push({ x: w - 150, y: h - 178 + q * 36 });
+        }
+      }
+      var ease = fire * fire;
+      for (var n = 0; n < tpts.length; n++) {
+        if (pc.kind === 'thunder') {
+          // sky crackle gathering above the target
+          ctx.globalAlpha = fire * 0.8;
+          ctx.strokeStyle = '#dfe9ff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          var zx = tpts[n].x, zy = tpts[n].y - 190;
+          ctx.moveTo(zx - 30, zy);
+          for (i = 1; i <= 5; i++) ctx.lineTo(zx - 30 + i * 12, zy + (i % 2 ? -10 : 8));
+          ctx.stroke();
+          continue;
+        }
+        var ox = hx + (tpts[n].x - hx) * ease;
+        var oy = hy + (tpts[n].y - hy) * ease - Math.sin(Math.PI * ease) * 36;
+        // trail
+        for (i = 0; i < 9; i++) {
+          var te = Math.max(0, ease - i * 0.05);
+          var tx2 = hx + (tpts[n].x - hx) * te;
+          var ty2 = hy + (tpts[n].y - hy) * te - Math.sin(Math.PI * te) * 36;
+          ctx.globalAlpha = (1 - i / 9) * 0.7;
+          ctx.fillStyle = pc.kind === 'fire' ? (i % 2 ? '#ffb030' : '#ff5a1c') : (pc.kind === 'ice' ? '#bfe9ff' : '#c8ffd8');
+          ctx.beginPath();
+          ctx.arc(tx2, ty2, (9 - i) * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(ox, oy, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  },
+
+  // Extra impact layers drawn on top of the base spell effect: shockwave, sparks, lingering element marks
+  drawFxImpact: function(ctx, kind, x, y, p, seed, onEnemy) {
+    var self = this;
+    var i;
+    ctx.save();
+    var wave = Math.min(1, p / 0.35);
+    if (p < 0.35 && (kind === 'fire' || kind === 'ice' || kind === 'thunder' || kind === 'holy')) {
+      var col = { fire: '255,170,60', ice: '190,235,255', thunder: '230,236,255', holy: '255,245,190' }[kind];
+      ctx.globalAlpha = (1 - wave) * 0.85;
+      ctx.strokeStyle = 'rgb(' + col + ')';
+      ctx.lineWidth = 5 * (1 - wave) + 1;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 20, 10 + wave * 70, 4 + wave * 22, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = (1 - wave) * 0.9;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x, y, 6 + wave * 20, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (kind === 'fire' || kind === 'thunder' || kind === 'ice') {
+      // flying sparks
+      var sc = kind === 'fire' ? '#ffd060' : (kind === 'ice' ? '#e4f6ff' : '#fff');
+      for (i = 0; i < 12; i++) {
+        var ang = self.fxRnd(i + seed + 90) * Math.PI * 2;
+        var sp = 20 + self.fxRnd(i + seed + 120) * 60;
+        var d = Math.min(1, p * 1.5);
+        ctx.globalAlpha = Math.max(0, 1 - d);
+        ctx.fillStyle = sc;
+        ctx.fillRect(x + Math.cos(ang) * sp * d - 1.5, y + Math.sin(ang) * sp * d * 0.8 + 28 * d * d - 1.5, 3, 3);
+      }
+    }
+    if (onEnemy && kind === 'ice') {
+      // frost crystals clinging to the target
+      for (i = 0; i < 6; i++) {
+        var fa = i / 6 * Math.PI * 2;
+        var fh = 14 + self.fxRnd(i + seed) * 12;
+        ctx.globalAlpha = Math.min(1, p * 4) * (1 - Math.max(0, p - 0.7) / 0.3) * 0.85;
+        ctx.fillStyle = '#d8f2ff';
+        ctx.beginPath();
+        var fx0 = x + Math.cos(fa) * 28, fy0 = y + 8 + Math.sin(fa) * 22;
+        ctx.moveTo(fx0, fy0 - fh);
+        ctx.lineTo(fx0 - 4, fy0);
+        ctx.lineTo(fx0 + 4, fy0);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    if (onEnemy && kind === 'fire') {
+      // scorch glow lingering after the flames
+      ctx.globalAlpha = Math.max(0, 0.35 - p * 0.35);
+      ctx.fillStyle = '#ff6a10';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 22, 36, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (kind === 'heal' || kind === 'holy') {
+      // twinkling stars drifting up
+      for (i = 0; i < 7; i++) {
+        var sx = x + (self.fxRnd(i + seed + 200) - 0.5) * 70;
+        var sy = y + 24 - p * (50 + self.fxRnd(i + seed + 210) * 50);
+        var tw = 2 + Math.abs(Math.sin(p * 14 + i)) * 4;
+        ctx.globalAlpha = Math.sin(Math.PI * Math.min(1, p)) * 0.9;
+        ctx.fillStyle = kind === 'heal' ? '#eafff0' : '#fffbd0';
+        ctx.fillRect(sx - tw, sy - 0.75, tw * 2, 1.5);
+        ctx.fillRect(sx - 0.75, sy - tw, 1.5, tw * 2);
+      }
+    }
+    ctx.restore();
   },
 
   drawFx: function(ctx, kind, x, y, p, seed) {
