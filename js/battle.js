@@ -66,6 +66,21 @@ var BattleSystem = {
     b.shakeUntil = Date.now() + dur;
   },
 
+  // Spell id -> visual effect kind
+  EFFECT_KINDS: {
+    powerSlash: 'slash', shieldBash: 'bash', warCry: 'buffAtk', protect: 'buffDef',
+    fire: 'fire', enemyFire: 'fire', iceStorm: 'ice', thunder: 'thunder',
+    heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
+  },
+
+  // Start a spell effect. side: 'enemy'|'party', idx: target index or -1 for all
+  startEffect: function(game, spellId, side, idx) {
+    var b = game.battle;
+    var kind = this.EFFECT_KINDS[spellId];
+    if (!b || !kind) return;
+    b.effect = { kind: kind, side: side, idx: idx, t0: Date.now(), dur: 850 };
+  },
+
   getEncounterMessage: function(enemies) {
     var names = [];
     for (var i = 0; i < enemies.length; i++) {
@@ -626,6 +641,20 @@ var BattleSystem = {
 
     b.messages = [caster.name + 'は ' + spell.name + 'を となえた！'];
 
+    // 呪文のビジュアルエフェクト
+    var fxSide = 'enemy', fxIdx = -1;
+    if (cmd.actorType === 'party') {
+      if (spell.type === 'buff') { fxSide = 'party'; fxIdx = -1; }
+      else if (spell.type === 'heal') { fxSide = 'party'; fxIdx = (cmd.target >= 0 ? cmd.target : this.findHealTarget(game)); }
+      else if (spell.target === 'allEnemy') { fxSide = 'enemy'; fxIdx = -1; }
+      else { fxSide = 'enemy'; fxIdx = cmd.target; }
+    } else {
+      if (spell.type === 'heal') { fxSide = 'enemy'; fxIdx = cmd.actor; }
+      else if (cmd.targetType === 'partyAll') { fxSide = 'party'; fxIdx = -1; }
+      else { fxSide = 'party'; fxIdx = cmd.target; }
+    }
+    this.startEffect(game, cmd.spellId, fxSide, fxIdx);
+
     // 呪文の効果音
     if (spell.type === 'heal') {
       SoundSystem.heal();
@@ -894,6 +923,208 @@ var BattleSystem = {
     return null;
   },
 
+  // Deterministic pseudo-random in [0,1) so particles don't flicker between frames
+  fxRnd: function(i) {
+    var v = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+    return v - Math.floor(v);
+  },
+
+  // Draw the active spell effect over its target(s)
+  renderEffect: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var fx = b && b.effect;
+    if (!fx) return;
+    var p = (now - fx.t0) / fx.dur;
+    if (p >= 1) { b.effect = null; return; }
+
+    var pts = [];
+    if (fx.side === 'enemy') {
+      for (var i = 0; i < b.enemies.length; i++) {
+        var en = b.enemies[i];
+        if ((fx.idx === -1 || fx.idx === i) && en.sx !== undefined) pts.push({ x: en.sx, y: en.sy });
+      }
+    } else {
+      for (var k = 0; k < game.party.length; k++) {
+        if (fx.idx === -1 || fx.idx === k) pts.push({ x: w - 150, y: h - 178 + k * 36 });
+      }
+    }
+    for (var n = 0; n < pts.length; n++) this.drawFx(ctx, fx.kind, pts[n].x, pts[n].y, p, n * 50);
+
+    // Full-screen flashes for the big spells
+    var flash = 0, tint = '255,255,255';
+    if (fx.kind === 'thunder') { flash = Math.max(0, 0.6 - p * 2.2); tint = '220,230,255'; }
+    else if (fx.kind === 'holy') { flash = Math.sin(Math.PI * p) * 0.35; tint = '255,245,190'; }
+    else if (fx.kind === 'ice') { flash = Math.max(0, 0.3 - p); tint = '170,220,255'; }
+    else if (fx.kind === 'dark') { flash = Math.sin(Math.PI * p) * 0.4; tint = '40,0,60'; }
+    if (flash > 0) {
+      ctx.fillStyle = 'rgba(' + tint + ',' + flash + ')';
+      ctx.fillRect(-10, -10, w + 20, h + 20);
+    }
+  },
+
+  drawFx: function(ctx, kind, x, y, p, seed) {
+    var self = this;
+    var r = function(i) { return self.fxRnd(i + seed); };
+    var fade = Math.sin(Math.PI * Math.min(1, p));
+    ctx.save();
+    var i, a, px, py;
+
+    if (kind === 'fire') {
+      var g = ctx.createRadialGradient(x, y, 2, x, y, 55);
+      g.addColorStop(0, 'rgba(255,200,60,' + 0.7 * fade + ')');
+      g.addColorStop(1, 'rgba(255,80,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - 60, y - 60, 120, 120);
+      for (i = 0; i < 18; i++) {
+        px = x + (r(i) - 0.5) * 56 + Math.sin(p * 9 + i) * 4;
+        py = y + 28 - p * (50 + r(i + 40) * 60);
+        ctx.globalAlpha = Math.max(0, 1 - p) * 0.9;
+        ctx.fillStyle = i % 3 === 0 ? '#ffe066' : (i % 3 === 1 ? '#ff8a1f' : '#e8341c');
+        ctx.beginPath();
+        ctx.arc(px, py, 7 * (1 - p) + 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (kind === 'ice') {
+      for (i = 0; i < 14; i++) {
+        px = x + (r(i) - 0.5) * 70;
+        py = y - 110 + Math.min(1, p * 1.6 + r(i + 9) * 0.2) * 120;
+        ctx.globalAlpha = 0.9 * (1 - Math.max(0, p - 0.6) / 0.4);
+        ctx.fillStyle = i % 2 ? '#bfe9ff' : '#7cc4ff';
+        ctx.beginPath();
+        ctx.moveTo(px, py - 14);
+        ctx.lineTo(px - 4, py);
+        ctx.lineTo(px, py + 14);
+        ctx.lineTo(px + 4, py);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalAlpha = fade * 0.5;
+      ctx.strokeStyle = '#d8f2ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 20, 20 + p * 40, 6 + p * 10, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (kind === 'thunder') {
+      if (p < 0.55) {
+        ctx.globalAlpha = 1 - p / 0.55;
+        ctx.strokeStyle = '#fff';
+        ctx.shadowColor = '#8ab8ff';
+        ctx.shadowBlur = 18;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        var bx = x + (r(1) - 0.5) * 20, by = y - 170;
+        ctx.moveTo(bx, by);
+        for (i = 1; i <= 7; i++) {
+          bx = x + (r(i + 3) - 0.5) * 44 * (1 - i / 8);
+          by = y - 170 + i * (170 / 7);
+          ctx.lineTo(bx, by);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = fade * 0.6;
+      ctx.fillStyle = '#cfe0ff';
+      ctx.beginPath();
+      ctx.arc(x, y, 10 + p * 30, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (kind === 'heal') {
+      var hg = ctx.createRadialGradient(x, y, 2, x, y, 45);
+      hg.addColorStop(0, 'rgba(140,255,170,' + 0.55 * fade + ')');
+      hg.addColorStop(1, 'rgba(60,220,120,0)');
+      ctx.fillStyle = hg;
+      ctx.fillRect(x - 50, y - 50, 100, 100);
+      for (i = 0; i < 10; i++) {
+        px = x + (r(i) - 0.5) * 60;
+        py = y + 20 - p * (40 + r(i + 7) * 40);
+        ctx.globalAlpha = Math.max(0, 1 - p);
+        ctx.fillStyle = '#c8ffd8';
+        ctx.fillRect(px - 1, py - 5, 3, 11);
+        ctx.fillRect(px - 5, py - 1, 11, 3);
+      }
+    } else if (kind === 'buffAtk' || kind === 'buffDef') {
+      var col = kind === 'buffAtk' ? '255,120,60' : '90,170,255';
+      for (i = 0; i < 3; i++) {
+        var q = Math.max(0, Math.min(1, p * 1.4 - i * 0.18));
+        ctx.globalAlpha = Math.sin(Math.PI * q) * 0.8;
+        ctx.strokeStyle = 'rgb(' + col + ')';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(x, y + 20 - q * 40, 24 + q * 10, 7, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = 'rgb(' + col + ')';
+      for (i = 0; i < 4; i++) {
+        px = x - 30 + i * 20;
+        py = y + 10 - p * 30 - (i % 2) * 8;
+        ctx.beginPath();
+        ctx.moveTo(px, py - 8);
+        ctx.lineTo(px - 5, py);
+        ctx.lineTo(px + 5, py);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (kind === 'holy') {
+      var bw = 26 * fade + 4;
+      var lg = ctx.createLinearGradient(x - bw, 0, x + bw, 0);
+      lg.addColorStop(0, 'rgba(255,240,160,0)');
+      lg.addColorStop(0.5, 'rgba(255,255,230,' + 0.9 * fade + ')');
+      lg.addColorStop(1, 'rgba(255,240,160,0)');
+      ctx.fillStyle = lg;
+      ctx.fillRect(x - bw, 0, bw * 2, y + 30);
+      for (i = 0; i < 8; i++) {
+        ctx.globalAlpha = fade;
+        ctx.fillStyle = '#fff6b0';
+        ctx.beginPath();
+        ctx.arc(x + (r(i) - 0.5) * 60, y + 20 - p * 70 * (0.5 + r(i + 5)), 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (kind === 'dark') {
+      for (i = 0; i < 4; i++) {
+        var rad = (1 - p) * (70 - i * 12) + 6;
+        ctx.globalAlpha = fade * 0.8;
+        ctx.strokeStyle = i % 2 ? '#a040e0' : '#4a1070';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, p * 6 + i, p * 6 + i + Math.PI * 1.4);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = fade * 0.7;
+      ctx.fillStyle = '#1a0630';
+      ctx.beginPath();
+      ctx.arc(x, y, 14 * fade, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (kind === 'slash') {
+      ctx.lineCap = 'round';
+      for (i = 0; i < 2; i++) {
+        var sp = Math.max(0, Math.min(1, p * 2.2 - i * 0.45));
+        if (sp <= 0) continue;
+        var dir = i ? -1 : 1;
+        ctx.globalAlpha = 1 - Math.max(0, p - 0.6) / 0.4;
+        ctx.strokeStyle = '#fff';
+        ctx.shadowColor = '#9cf';
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 5 - sp * 2;
+        ctx.beginPath();
+        ctx.moveTo(x - 38 * dir, y - 42);
+        ctx.lineTo(x - 38 * dir + 76 * dir * sp, y - 42 + 84 * sp);
+        ctx.stroke();
+      }
+    } else if (kind === 'bash') {
+      ctx.globalAlpha = 1 - p;
+      ctx.strokeStyle = '#ffe9a0';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y, 8 + p * 46, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      for (i = 0; i < 8; i++) {
+        a = i * Math.PI / 4;
+        ctx.fillRect(x + Math.cos(a) * (14 + p * 40) - 2, y + Math.sin(a) * (14 + p * 40) - 2, 4, 4);
+      }
+    }
+    ctx.restore();
+  },
+
   // Perspective battle backdrop: sky, mountains, fogged horizon, gridded floor
   renderBackdrop: function(ctx, w, h, groundY) {
     var sky = ctx.createLinearGradient(0, 0, 0, groundY);
@@ -1015,6 +1246,7 @@ var BattleSystem = {
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.fillRect(ex - 40 * scale, ey - 60 * scale, 80 * scale, 80 * scale);
       }
+      en.sx = ex; en.sy = ey;
       UI.drawEnemy(ctx, en, ex, ey, scale);
 
       // Atmospheric fog on distant enemies
@@ -1035,6 +1267,8 @@ var BattleSystem = {
         ctx.fill();
       }
     }
+
+    this.renderEffect(ctx, game, canvasW, canvasH, now);
 
     // Vignette for depth/cinematic feel
     var vg = ctx.createRadialGradient(canvasW / 2, canvasH * 0.45, canvasH * 0.3, canvasW / 2, canvasH * 0.45, canvasW * 0.65);
