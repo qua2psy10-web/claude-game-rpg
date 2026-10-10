@@ -1275,9 +1275,34 @@ var BattleSystem = {
   },
 
   // Level-up scene: golden burst, rising sparkles, popping window, counting stats
-  renderLevelUp: function(ctx, lu, w, h, t) {
+  renderLevelUp: function(ctx, lu, w, h, t, color) {
     var cx = 320, cy = 180, i;
+    // Character colour (hex) -> "r,g,b" for tinted rays and rings
+    var tint = '255,215,0';
+    var hm = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color || '');
+    if (hm) tint = parseInt(hm[1], 16) + ',' + parseInt(hm[2], 16) + ',' + parseInt(hm[3], 16);
+    var star = function(x, y, r) {
+      ctx.beginPath();
+      for (var k = 0; k < 8; k++) {
+        var rr = k % 2 ? r * 0.4 : r, a = k * Math.PI / 4 - Math.PI / 2;
+        if (k === 0) ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+        else ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
+    };
     ctx.save();
+
+    // Slowly rotating light rays in the character's colour
+    ctx.fillStyle = 'rgba(' + tint + ',' + (0.2 * Math.min(1, t / 400)) + ')';
+    for (i = 0; i < 14; i++) {
+      var ra = i * Math.PI * 2 / 14 + t / 2200;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, w, ra, ra + Math.PI / 24);
+      ctx.closePath();
+      ctx.fill();
+    }
 
     // Radial burst behind the window (flash, then a steady glow)
     var glowA = Math.max(0.25, 0.9 - t / 500);
@@ -1286,6 +1311,36 @@ var BattleSystem = {
     gg.addColorStop(1, 'rgba(255,200,60,0)');
     ctx.fillStyle = gg;
     ctx.fillRect(0, 0, w, h);
+
+    // Opening flash and expanding shock rings
+    if (t < 260) {
+      ctx.fillStyle = 'rgba(255,255,255,' + 0.7 * (1 - t / 260) + ')';
+      ctx.fillRect(0, 0, w, h);
+    }
+    for (i = 0; i < 2; i++) {
+      var rt0 = t - i * 140;
+      if (rt0 > 0 && rt0 < 800) {
+        var rp = rt0 / 800;
+        ctx.strokeStyle = 'rgba(' + (i ? tint : '255,240,160') + ',' + (0.8 * (1 - rp)) + ')';
+        ctx.lineWidth = 6 * (1 - rp) + 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 20 + rp * 420, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Star burst flying out from the centre
+    if (t < 1100) {
+      var sa = 1 - t / 1100;
+      for (i = 0; i < 36; i++) {
+        var ang = this.fxRnd(i + 1300) * Math.PI * 2;
+        var spd = 0.25 + this.fxRnd(i + 1400) * 0.4;
+        ctx.globalAlpha = sa;
+        ctx.fillStyle = i % 3 === 0 ? '#ffffff' : (i % 3 === 1 ? '#ffd700' : 'rgb(' + tint + ')');
+        star(cx + Math.cos(ang) * spd * t, cy + Math.sin(ang) * spd * t + 0.0002 * t * t, 2 + 6 * sa);
+      }
+      ctx.globalAlpha = 1;
+    }
 
     // Rising sparkles
     for (i = 0; i < 28; i++) {
@@ -1326,6 +1381,33 @@ var BattleSystem = {
 
     UI.drawText(ctx, lu.name + 'は レベル ' + lu.level + 'に あがった！', 120, 95, '#ffd700');
 
+    // Big level badge: old level flips to the new one with a pop
+    var bt = t - 300;
+    if (bt > 0) {
+      var bsc = bt < 260 ? 2 - bt / 260 : 1;
+      ctx.save();
+      ctx.translate(450, 178);
+      ctx.scale(bsc, bsc);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgb(' + tint + ')';
+      ctx.shadowBlur = 18;
+      ctx.font = 'bold 18px monospace';
+      ctx.fillStyle = '#fff6b0';
+      ctx.fillText('LEVEL', 0, -36);
+      ctx.font = 'bold 72px monospace';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = '#3a1a00';
+      ctx.strokeText(String(lu.level), 0, 6);
+      var lg = ctx.createLinearGradient(0, -30, 0, 40);
+      lg.addColorStop(0, '#ffffff');
+      lg.addColorStop(1, '#ffc400');
+      ctx.fillStyle = lg;
+      ctx.fillText(String(lu.level), 0, 6);
+      ctx.restore();
+    }
+
     // Stats reveal one by one; numbers count up from old to new
     var stats = ['hp', 'mp', 'atk', 'def', 'spd', 'int'];
     var statNames = ['HP', 'MP', 'ATK', 'DEF', 'SPD', 'INT'];
@@ -1340,7 +1422,21 @@ var BattleSystem = {
       UI.drawText(ctx, statNames[si] + ': ' + oldV + ' → ' + cur, 120, ry, '#fff', UI.FONT_SMALL);
       if (k >= 1) {
         var flashOn = rt < 700 && Math.floor(rt / 90) % 2 === 0;
-        UI.drawText(ctx, '(+' + diff + ')', 300, ry, flashOn ? '#ffffff' : '#7dff8a', UI.FONT_SMALL);
+        var pt = rt - 350;                       // time since the number finished counting
+        var psc = pt < 220 ? 1.8 - 0.8 * (pt / 220) : 1;
+        ctx.save();
+        ctx.translate(300, ry + 7);
+        ctx.scale(psc, psc);
+        ctx.font = 'bold 15px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#003a10';
+        ctx.strokeText('+' + diff, 0, 0);
+        ctx.fillStyle = flashOn ? '#ffffff' : '#7dff8a';
+        ctx.fillText('+' + diff, 0, 0);
+        ctx.restore();
       }
     }
     if (lu.newSpell && t > 350 + stats.length * 110 + 200) {
@@ -2034,7 +2130,11 @@ var BattleSystem = {
     // Level up display (animated)
     if (b.phase === 'levelup' && b.levelUpIndex < b.levelUps.length) {
       if (b.luShown !== b.levelUpIndex) { b.luShown = b.levelUpIndex; b.luStart = Date.now(); }
-      this.renderLevelUp(ctx, b.levelUps[b.levelUpIndex], canvasW, canvasH, Date.now() - b.luStart);
+      var luChar = null;
+      for (var lc = 0; lc < game.party.length; lc++) {
+        if (game.party[lc].name === b.levelUps[b.levelUpIndex].name) luChar = game.party[lc];
+      }
+      this.renderLevelUp(ctx, b.levelUps[b.levelUpIndex], canvasW, canvasH, Date.now() - b.luStart, luChar && luChar.color);
     }
   },
 };
