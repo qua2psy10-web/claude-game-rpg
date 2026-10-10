@@ -104,6 +104,11 @@ var BattleSystem = {
     if (!b || !target) return;
     if (!b.pops) b.pops = [];
     var isParty = game.party.indexOf(target) >= 0;
+    if (!isParty && kind === 'dmg') {
+      // Remember when and how hard this enemy was hit (drives recoil, flash, sparks, HP bar)
+      target.hitAt = Date.now() + (delay || 0);
+      target.hitMag = Math.min(1, 0.35 + (value / (target.maxHp || 1)) * 2.5);
+    }
     b.pops.push({ target: target, isParty: isParty, text: String(value), kind: kind, t0: Date.now() + (delay || 0) });
   },
 
@@ -1908,11 +1913,6 @@ var BattleSystem = {
         }
       }
 
-      // Flash effect
-      if (b.flashEnemy === aliveEnemies[j].index) {
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillRect(ex - 40 * scale, ey - 60 * scale, 80 * scale, 80 * scale);
-      }
       en.sx = ex; en.sy = ey; en.sfoot = footY; en.sscale = scale;
       // Attack lunge: wind up, charge toward the player, retreat
       var lungeK = 1, lungeDy = 0;
@@ -1967,6 +1967,21 @@ var BattleSystem = {
           if (sl < 1) { introSX = 1 + 0.3 * (1 - sl); introSY = 1 - 0.3 * (1 - sl); }
         }
       }
+      // Hit reaction: white flash, shaking recoil and squash that settle over 0.5s
+      var hitDx = 0, hitBright = false, hitT = -1;
+      if (en.hitAt) {
+        hitT = now - en.hitAt;
+        if (hitT >= 0 && hitT < 500) {
+          var hp0 = hitT / 500, hk = (1 - hp0) * (1 - hp0), hm = en.hitMag || 0.5;
+          hitDx = Math.sin(hitT / 26) * 9 * hm * (1 - hp0);
+          lungeDy -= 14 * hm * hk;
+          introSX *= 1 + 0.14 * hm * hk;
+          introSY *= 1 - 0.14 * hm * hk;
+          hitBright = hitT < 130;
+        } else {
+          hitT = -1;
+        }
+      }
       // Afterimages trail behind the falling enemy
       if (b.introStart && introQ < 0.364) {
         var baseA = ctx.globalAlpha;
@@ -1981,11 +1996,34 @@ var BattleSystem = {
         }
       }
       ctx.save();
-      ctx.translate(ex, footY + lungeDy);
+      if (hitBright) ctx.filter = 'brightness(5)';
+      ctx.translate(ex + hitDx, footY + lungeDy);
       ctx.scale(lungeK * introSX, lungeK * introSY);
       ctx.translate(-ex, -footY);
       UI.drawEnemy(ctx, en, ex, ey, scale);
       ctx.restore();
+
+      // Impact sparks radiating from the hit point
+      if (hitT >= 0 && hitT < 320) {
+        var sp = hitT / 320;
+        ctx.save();
+        ctx.globalAlpha = 1 - sp;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#fff6b0';
+        ctx.shadowColor = '#ffb300';
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = 3 * (1 - sp) + 1;
+        var spk = 6 + Math.round((en.hitMag || 0.5) * 6);
+        ctx.beginPath();
+        for (var si2 = 0; si2 < spk; si2++) {
+          var sang = this.fxRnd(si2 * 3 + aliveEnemies[j].index * 17 + Math.floor(en.hitAt / 50)) * Math.PI * 2;
+          var r0 = (10 + sp * 26) * scale, r1 = r0 + (14 - sp * 8) * scale;
+          ctx.moveTo(ex + Math.cos(sang) * r0, ey + Math.sin(sang) * r0);
+          ctx.lineTo(ex + Math.cos(sang) * r1, ey + Math.sin(sang) * r1);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // Atmospheric fog on distant enemies
       if (back) {
@@ -2012,6 +2050,24 @@ var BattleSystem = {
           ctx.fillText(en.name, ex, footY + 20);
           ctx.restore();
         }
+      }
+
+      // Enemy HP bar: appears when hit; the pale trail lags behind the real value
+      if (en.hpShown === undefined) en.hpShown = en.maxHp;
+      en.hpShown += (en.hp - en.hpShown) * 0.1;
+      if (en.hitAt && now - en.hitAt < 2600) {
+        var bw2 = 56 * scale, bx = ex - bw2 / 2, by = footY + 8;
+        var fade2 = now - en.hitAt > 2200 ? 1 - (now - en.hitAt - 2200) / 400 : 1;
+        var ratio = Math.max(0, en.hp / en.maxHp), trail = Math.max(0, en.hpShown / en.maxHp);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, fade2);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(bx - 1, by - 1, bw2 + 2, 7);
+        ctx.fillStyle = '#e8e8e8';
+        ctx.fillRect(bx, by, bw2 * trail, 5);
+        ctx.fillStyle = ratio > 0.5 ? '#4ade50' : (ratio > 0.25 ? '#ffd23a' : '#ff4a3a');
+        ctx.fillRect(bx, by, bw2 * ratio, 5);
+        ctx.restore();
       }
 
       // Target cursor
