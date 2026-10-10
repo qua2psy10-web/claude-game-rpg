@@ -174,6 +174,16 @@ var SoundSystem = (function() {
       osc(784, 'triangle', 0.08, t + 0.3, 0.12, 392);
     },
 
+    stunHit: function() {                // スタン: 痺れる電撃音と目が回る音
+      resume();
+      var t = ctx.currentTime;
+      noise(0.4, t, 0.25, 4500);
+      for (var i = 0; i < 6; i++) osc(1400 + (i % 2) * 500, 'square', 0.07, t + i * 0.04, 0.04, 700);
+      osc(660, 'sine', 0.1, t + 0.2, 0.18, 880);
+      osc(880, 'sine', 0.1, t + 0.32, 0.18, 660);
+      osc(660, 'sine', 0.08, t + 0.44, 0.2, 440);
+    },
+
     damage: function() {
       resume();
       var t = ctx.currentTime;

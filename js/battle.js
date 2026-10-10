@@ -1236,6 +1236,10 @@ var BattleSystem = {
           b.messages.push(target.name + 'に ' + dmg3 + 'の ダメージ！');
           if (spell.stun && Math.random() < spell.stun) {
             b.messages.push(target.name + 'は しびれて 動けない！');
+            // Visual only: shock arcs, dizzy stars and a "スタン！" label once the hit lands
+            target.stunAt = Date.now() + (fd || this.PARTY_ATTACK_DELAY);
+            var stunB = b;
+            setTimeout(function() { if (game.battle === stunB) SoundSystem.stunHit(); }, fd || this.PARTY_ATTACK_DELAY);
           }
           if (target.hp <= 0) {
             target.alive = false;
@@ -2076,6 +2080,7 @@ var BattleSystem = {
     if (b && b.pAtk) this.renderPartyAttack(ctx, game, w, h, now);
     if (b && b.itemFx) this.renderItemFx(ctx, game, w, h, now);
     if (b) this.renderGuard(ctx, game, w, h, now);
+    if (b) this.renderStun(ctx, game, now);
     if (b && b.escapeFail) this.renderEscapeFail(ctx, game, w, h, now);
     var fx = b && b.effect;
     if (!fx) return;
@@ -2226,6 +2231,89 @@ var BattleSystem = {
       }
     }
     ctx.restore();
+  },
+
+  // Stun: yellow shock ring, crackling arcs over the body, dizzy stars circling the head, "スタン！" label
+  renderStun: function(ctx, game, now) {
+    var b = game.battle;
+    var i, k;
+    for (i = 0; i < b.enemies.length; i++) {
+      var en = b.enemies[i];
+      if (!en.alive || !en.stunAt || en.sx === undefined) continue;
+      var t = now - en.stunAt;
+      if (t < 0) continue;
+      if (t >= 2000) { en.stunAt = 0; continue; }
+      var sc = en.sscale || 1;
+      var x = en.sx, y = en.sy, headY = en.sfoot - 92 * sc;
+      ctx.save();
+      // Onset ring and flash
+      if (t < 350) {
+        var rp = t / 350;
+        ctx.globalAlpha = (1 - rp) * 0.9;
+        ctx.strokeStyle = '#ffe94a';
+        ctx.lineWidth = 5 * (1 - rp) + 1;
+        ctx.beginPath();
+        ctx.ellipse(x, y + 18 * sc, (12 + rp * 70) * sc, (4 + rp * 18) * sc, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,250,170,' + (0.5 * (1 - rp)) + ')';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 34 * sc, 44 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Shock arcs over the body (re-randomised ~20 times a second so they crackle)
+      if (t < 1100) {
+        var seed = Math.floor(t / 50);
+        ctx.globalAlpha = 1 - t / 1100;
+        ctx.strokeStyle = '#fff6a0';
+        ctx.shadowColor = '#ffd800';
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = 2;
+        for (k = 0; k < 3; k++) {
+          var ax = x + (this.fxRnd(seed * 3 + k) - 0.5) * 60 * sc;
+          var ay = y - 40 * sc + this.fxRnd(seed * 3 + k + 40) * 70 * sc;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          for (var z = 1; z <= 4; z++) {
+            ctx.lineTo(ax + (this.fxRnd(seed * 7 + k * 5 + z) - 0.5) * 26 * sc, ay + z * 9 * sc);
+          }
+          ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+      }
+      // Dizzy stars orbiting the head
+      var starA = Math.min(1, (2000 - t) / 500) * Math.min(1, t / 150);
+      for (k = 0; k < 3; k++) {
+        var ang = t / 220 + k * Math.PI * 2 / 3;
+        var sx = x + Math.cos(ang) * 26 * sc, sy = headY + Math.sin(ang) * 7 * sc;
+        ctx.globalAlpha = starA * (Math.sin(ang) > 0 ? 1 : 0.55);
+        ctx.fillStyle = '#ffe94a';
+        ctx.beginPath();
+        for (var p = 0; p < 10; p++) {
+          var pr = p % 2 ? 3 : 7;
+          var pa = p * Math.PI / 5 - Math.PI / 2;
+          var qx = sx + Math.cos(pa) * pr, qy = sy + Math.sin(pa) * pr;
+          if (p === 0) ctx.moveTo(qx, qy); else ctx.lineTo(qx, qy);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Label
+      if (t < 1000) {
+        var lp = t / 1000;
+        ctx.globalAlpha = Math.min(1, t / 80) * (1 - Math.max(0, lp - 0.7) / 0.3);
+        var pop = t < 150 ? 0.6 + (t / 150) * 0.6 : 1.2 - Math.min(0.2, (t - 150) / 800 * 0.2);
+        ctx.translate(x, headY - 56 - lp * 16);
+        ctx.scale(pop, pop);
+        ctx.font = 'bold 22px monospace';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#4a3a00';
+        ctx.fillStyle = '#fff27a';
+        ctx.strokeText('スタン！', 0, 0);
+        ctx.fillText('スタン！', 0, 0);
+      }
+      ctx.restore();
+    }
   },
 
   // Guarding: a shield materialises around the member (burst), stays as a faint barrier badge for the
@@ -3258,6 +3346,15 @@ var BattleSystem = {
         var ek = Math.min(1, (now - b.escapeStart) / 900);
         lungeK *= 1 - 0.3 * ek;
         lungeDy -= 24 * ek;
+      }
+      // Stunned: the body trembles hard at first, then settles into a slow wobble
+      if (en.stunAt) {
+        var stT = now - en.stunAt;
+        if (stT >= 0 && stT < 2000) {
+          var stK = stT < 500 ? 1 : 0.35 * (1 - (stT - 500) / 1500);
+          atkDx += Math.sin(stT / 22) * 6 * stK;
+          lungeDy += Math.abs(Math.sin(stT / 40)) * -2 * stK;
+        }
       }
       // Spell charge-up: hover, glowing aura and orbiting sparks in the spell's colour
       var castFx = b.enemyCast;
