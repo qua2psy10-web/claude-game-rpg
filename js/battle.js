@@ -981,6 +981,11 @@ var BattleSystem = {
       defender.defending = true;
       b.messages = [defender.name + 'は 身を守っている。'];
       b.messageTimer = 30;
+      if (cmd.actorType === 'party') {
+        b.guardFx = { idx: cmd.actor, t0: Date.now(), dur: 750 };
+        SoundSystem.guard();
+        this.shake(game, 2, 160);
+      }
       return;
     }
 
@@ -1066,9 +1071,21 @@ var BattleSystem = {
       b.enemyAtk = { idx: cmd.actor, t0: Date.now(), dur: 560, style: atkStyle };
       b.partyHit = { idx: hitIdx, t0: Date.now() + this.ENEMY_HIT_DELAY, melee: true, heavy: heavy,
                      style: atkStyle, tint: this.ATTACK_TINTS[atkStyle] };
+      var guarded = !!defender.defending;
+      if (guarded) {
+        // Braced target: no red flash; a barrier flares and the shock is much smaller
+        b.partyHit = null;
+        b.guardBlock = { idx: hitIdx, t0: Date.now() + this.ENEMY_HIT_DELAY, dur: 520, heavy: heavy };
+        b.messages.push(defender.name + 'は ガードで ダメージを おさえた！');
+      }
       SoundSystem.whoosh();
       setTimeout(function() {
         if (game.battle !== b) return;
+        if (guarded) {
+          SoundSystem.guardHit(heavy);
+          BattleSystem.shake(game, heavy ? 6 : 4, 240);
+          return;
+        }
         b.flashParty = hitIdx;
         SoundSystem.damage();
         SoundSystem.enemyHit(atkStyle);
@@ -1944,6 +1961,7 @@ var BattleSystem = {
     if (b && b.partyCast) this.renderPartyCast(ctx, game, w, h, now);
     if (b && b.pAtk) this.renderPartyAttack(ctx, game, w, h, now);
     if (b && b.itemFx) this.renderItemFx(ctx, game, w, h, now);
+    if (b) this.renderGuard(ctx, game, w, h, now);
     var fx = b && b.effect;
     if (!fx) return;
     var p = (now - fx.t0) / fx.dur;
@@ -2090,6 +2108,136 @@ var BattleSystem = {
         ctx.beginPath();
         ctx.arc(ox, oy, 5, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+    ctx.restore();
+  },
+
+  // Guarding: a shield materialises around the member (burst), stays as a faint barrier badge for the
+  // rest of the turn, and flares with sparks and a ring when an enemy attack is blocked
+  renderGuard: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var self = this;
+    var i, k;
+    var spot = function(idx) { return { x: w - 250 + idx * 48, y: h - 238 }; };
+    var shield = function(x, y, sc, alpha, glow) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, y);
+      ctx.scale(sc, sc);
+      ctx.shadowColor = 'rgba(120,200,255,1)';
+      ctx.shadowBlur = glow;
+      ctx.fillStyle = '#5a8fe0';
+      ctx.strokeStyle = '#e6f4ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -14); ctx.lineTo(11, -9); ctx.lineTo(10, 3); ctx.lineTo(0, 14); ctx.lineTo(-10, 3); ctx.lineTo(-11, -9);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(-2, -9, 4, 18);
+      ctx.fillRect(-7, -3, 14, 4);
+      ctx.restore();
+    };
+    ctx.save();
+
+    // Persistent badge on every member who is braced
+    for (i = 0; i < game.party.length; i++) {
+      if (!game.party[i].alive || !game.party[i].defending) continue;
+      var sp = spot(i);
+      var gf = b.guardFx && b.guardFx.idx === i ? Math.min(1, (now - b.guardFx.t0) / b.guardFx.dur) : 1;
+      if (gf < 0.35) continue;   // the burst below covers the start
+      var pulse = 0.55 + 0.15 * Math.sin(now / 220 + i);
+      ctx.globalAlpha = pulse * 0.5;
+      ctx.strokeStyle = '#9fd4ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(sp.x, sp.y + 26, 26, 8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      shield(sp.x, sp.y - 6, 0.8, pulse + 0.2, 8);
+    }
+
+    // Guard burst
+    var g = b.guardFx;
+    if (g) {
+      var t = (now - g.t0) / g.dur;
+      if (t >= 1) { b.guardFx = null; }
+      else if (t >= 0) {
+        var gp = spot(g.idx);
+        var rise = Math.min(1, t / 0.35);
+        // hexagonal barrier expanding then settling
+        ctx.globalAlpha = (1 - t) * 0.9;
+        ctx.strokeStyle = '#bfe6ff';
+        ctx.shadowColor = '#6ab8ff';
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 3;
+        var hr = 14 + rise * 22;
+        ctx.beginPath();
+        for (k = 0; k < 6; k++) {
+          var ha = Math.PI / 6 + k * Math.PI / 3;
+          var hx = gp.x + Math.cos(ha) * hr, hy = gp.y - 4 + Math.sin(ha) * hr * 0.9;
+          if (k === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        // floor ripple
+        ctx.globalAlpha = (1 - t) * 0.7;
+        ctx.beginPath();
+        ctx.ellipse(gp.x, gp.y + 26, 10 + t * 50, 4 + t * 14, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // shield pops in with an overshoot
+        var sc = t < 0.35 ? 0.3 + rise * 1.1 : 1.4 - Math.min(1, (t - 0.35) / 0.3) * 0.6;
+        shield(gp.x, gp.y - 6, sc, Math.min(1, 1.4 - t), 14);
+        // sparkles
+        ctx.shadowBlur = 0;
+        for (k = 0; k < 8; k++) {
+          var sa = self.fxRnd(k + 3) * Math.PI * 2, sd = 14 + t * 40 * (0.5 + self.fxRnd(k + 9));
+          ctx.globalAlpha = (1 - t);
+          ctx.fillStyle = k % 2 ? '#fff' : '#9fd4ff';
+          ctx.fillRect(gp.x + Math.cos(sa) * sd - 1.5, gp.y - 4 + Math.sin(sa) * sd * 0.8 - 1.5, 3, 3);
+        }
+      }
+    }
+
+    // Blocked hit
+    var gb = b.guardBlock;
+    if (gb) {
+      var bt = (now - gb.t0) / gb.dur;
+      if (bt >= 1) { b.guardBlock = null; }
+      else if (bt >= 0) {
+        var bp = spot(gb.idx);
+        var sc2 = gb.heavy ? 1.3 : 1;
+        // white flare over the shield
+        if (bt < 0.25) {
+          ctx.globalAlpha = (1 - bt / 0.25) * 0.9;
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(bp.x, bp.y - 4, (10 + bt * 80) * sc2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        shield(bp.x + (bt < 0.2 ? -4 * (1 - bt / 0.2) : 0), bp.y - 6, 1.2 * sc2 - bt * 0.3, 1 - Math.max(0, bt - 0.6) / 0.4, 16);
+        ctx.strokeStyle = '#cfeaff';
+        ctx.lineWidth = 4 * (1 - bt) + 1;
+        ctx.globalAlpha = 1 - bt;
+        ctx.beginPath();
+        ctx.arc(bp.x, bp.y - 4, (12 + bt * 46) * sc2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        for (k = 0; k < 12; k++) {
+          var ba = self.fxRnd(k + 21) * Math.PI * 2, bd = (18 + self.fxRnd(k + 50) * 46) * Math.min(1, bt * 1.6) * sc2;
+          ctx.globalAlpha = Math.max(0, 1 - bt * 1.4);
+          ctx.fillStyle = k % 2 ? '#fff' : '#9fd4ff';
+          ctx.fillRect(bp.x + Math.cos(ba) * bd - 1.5, bp.y - 4 + Math.sin(ba) * bd * 0.8 - 1.5, 3, 3);
+        }
+        // "GUARD" label
+        ctx.globalAlpha = Math.min(1, bt * 8) * (1 - Math.max(0, bt - 0.7) / 0.3);
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#0a1a40';
+        ctx.fillStyle = '#bfe6ff';
+        ctx.strokeText('ガード！', bp.x, bp.y - 44 - bt * 14);
+        ctx.fillText('ガード！', bp.x, bp.y - 44 - bt * 14);
       }
     }
     ctx.restore();

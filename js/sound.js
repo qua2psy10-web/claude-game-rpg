@@ -137,6 +137,23 @@ var SoundSystem = (function() {
       else { [523, 659, 784].forEach(function(f, i) { osc(f, 'sine', 0.13, t + i * 0.07, 0.22); }); noise(0.1, t, 0.2, 3000); }
     },
 
+    guard: function() {                  // 防御の構え: 盾が展開する音
+      resume();
+      var t = ctx.currentTime;
+      osc(330, 'triangle', 0.16, t, 0.12, 520);
+      osc(660, 'sine', 0.12, t + 0.06, 0.3, 880);
+      noise(0.18, t, 0.1, 3000);
+    },
+
+    guardHit: function(heavy) {          // ガードで受け止める音: 金属の衝撃
+      resume();
+      var t = ctx.currentTime;
+      noise(0.45, t, 0.12, 5000);
+      osc(1100, 'square', 0.16, t, 0.08, 500);
+      osc(2200, 'sine', 0.08, t, 0.35, 1800);
+      osc(heavy ? 90 : 140, 'square', 0.22, t, 0.18, 50);
+    },
+
     damage: function() {
       resume();
       var t = ctx.currentTime;
