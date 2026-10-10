@@ -154,6 +154,26 @@ var SoundSystem = (function() {
       osc(heavy ? 90 : 140, 'square', 0.22, t, 0.18, 50);
     },
 
+    escapeRun: function() {              // 逃走成功: 駆け出す足音とドップラー風の風切り音
+      resume();
+      var t = ctx.currentTime;
+      for (var i = 0; i < 8; i++) {
+        noise(0.22, t + 0.05 + i * 0.075, 0.05, 700);
+        osc(120 + (i % 2) * 40, 'square', 0.08, t + 0.05 + i * 0.075, 0.04, 70);
+      }
+      noise(0.3, t + 0.1, 0.6, 3000);
+      osc(900, 'sine', 0.06, t + 0.15, 0.5, 220);
+    },
+
+    escapeFail: function() {             // 逃走失敗: 急停止してつまずく音
+      resume();
+      var t = ctx.currentTime;
+      noise(0.4, t, 0.18, 1800);
+      osc(300, 'sawtooth', 0.2, t, 0.25, 90);
+      osc(160, 'square', 0.18, t + 0.12, 0.2, 60);
+      osc(784, 'triangle', 0.08, t + 0.3, 0.12, 392);
+    },
+
     damage: function() {
       resume();
       var t = ctx.currentTime;
