@@ -17,7 +17,9 @@ var MusicSystem = (function() {
 
   var mIdx = 0, mTime = 0;   // melody cursor
   var bIdx = 0, bTime = 0;   // bass cursor
-  var pTime = 0;             // percussion cursor (battle only)
+  var pTime = 0;             // percussion cursor (battle / boss)
+  var pIdx = 0;              // beat counter for the percussion pattern
+  var fadeToken = 0;         // invalidates pending fade-outs when new music starts
 
   var volume = 0.18;
   var LOOKAHEAD = 0.20;      // seconds to schedule ahead
@@ -30,7 +32,13 @@ var MusicSystem = (function() {
     C4:262, D4:294, Eb4:311, E4:330, F4:349, Fs4:370, G4:392, Ab4:415, A4:440, Bb4:466, B4:494,
     C5:523, D5:587, Eb5:622, E5:659, F5:698, Fs5:740, G5:784, Ab5:831, A5:880, Bb5:932, B5:988,
     C6:1047,
+    Cs4:277, Cs5:554,
   };
+
+  // One bar of eighth-note pulse on a single bass note (4 beats)
+  function pulse(n) {
+    return [[n,.5],[N.R,.5],[n,.5],[N.R,.5],[n,.5],[N.R,.5],[n,.5],[N.R,.5]];
+  }
 
   // ── Track data ────────────────────────────────────────────
   // Each entry: [frequency_hz, duration_in_beats]  (R=0 = rest)
@@ -113,9 +121,32 @@ var MusicSystem = (function() {
       ],
     },
 
+    // ── ボス戦 (152 BPM, D minor, ominous & heavy) ───────── //
+    boss: {
+      bpm: 152,
+      drums: 'boss',
+      melody: [
+        [N.D4,.5],[N.R,.5],[N.D4,.5],[N.R,.5],[N.F4,1],[N.A4,1],            // bar 1
+        [N.Bb4,1],[N.A4,1],[N.G4,1],[N.F4,1],                                // bar 2
+        [N.E4,.5],[N.R,.5],[N.E4,.5],[N.R,.5],[N.G4,1],[N.Bb4,1],            // bar 3
+        [N.A4,2],[N.Cs5,2],                                                  // bar 4 (dominant tension)
+        [N.D5,1],[N.C5,.5],[N.Bb4,.5],[N.A4,1],[N.F4,1],                     // bar 5
+        [N.G4,1],[N.Bb4,1],[N.D5,2],                                         // bar 6
+        [N.Cs5,.5],[N.D5,.5],[N.E5,1],[N.F5,1],[N.E5,1],                     // bar 7
+        [N.D5,2],[N.R,2],                                                    // bar 8
+      ],
+      bass: [].concat(
+        pulse(N.D3), pulse(N.Bb3), pulse(N.G3), pulse(N.A3),
+        pulse(N.D3), pulse(N.Bb3),
+        pulse(N.G3).slice(0, 4), pulse(N.A3).slice(0, 4),
+        [[N.D3,2],[N.R,2]]
+      ),
+    },
+
     // ── 戦闘 (168 BPM, A minor, intense) ─────────────────── //
     battle: {
       bpm: 168,
+      drums: 'kick',
       melody: [
         // Section A — Am/G/F riff
         [N.A4,0.5],[N.R,0.5],[N.C5,0.5],[N.R,0.5],[N.E5,1],[N.D5,1],   // bar 1
@@ -182,6 +213,27 @@ var MusicSystem = (function() {
     src.start(start);
   }
 
+  // Snare: short burst of high-passed noise
+  function playSnare(start) {
+    if (!ctx) return;
+    var bufLen = Math.ceil(ctx.sampleRate * 0.12);
+    var buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 2);
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var filt = ctx.createBiquadFilter();
+    filt.type = 'highpass';
+    filt.frequency.value = 1500;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(volume * 0.9, start);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
+    src.connect(filt);
+    filt.connect(g);
+    g.connect(ctx.destination);
+    src.start(start);
+  }
+
   // ── Scheduler loop ────────────────────────────────────────
 
   function scheduler() {
@@ -208,11 +260,13 @@ var MusicSystem = (function() {
       bIdx++;
     }
 
-    // Battle: kick drum on every beat
-    if (currentTrack === 'battle') {
+    // Percussion: kick every beat; the boss track adds a snare on beats 2 and 4
+    if (track.drums) {
       while (pTime < now + LOOKAHEAD) {
         playKick(pTime);
+        if (track.drums === 'boss' && pIdx % 2 === 1) playSnare(pTime);
         pTime += beatDur;
+        pIdx++;
       }
     }
 
@@ -226,7 +280,8 @@ var MusicSystem = (function() {
     if (currentTrack === name && isPlaying) return;
     stop();
     currentTrack = name;
-    mIdx = 0; bIdx = 0;
+    mIdx = 0; bIdx = 0; pIdx = 0;
+    fadeToken++;
     var startTime = ctx.currentTime + 0.05;
     mTime = startTime;
     bTime = startTime;
@@ -274,6 +329,24 @@ var MusicSystem = (function() {
     },
 
     stop: stop,
+
+    // Smooth fade to silence, then stop (volume is restored for the next track)
+    fadeOut: function(sec) {
+      if (!isPlaying || !masterGain) { stop(); return; }
+      var token = ++fadeToken;
+      var now = ctx.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+      masterGain.gain.linearRampToValueAtTime(0, now + sec);
+      setTimeout(function() {
+        if (token !== fadeToken) return;   // new music started meanwhile
+        stop();
+        if (masterGain) {
+          masterGain.gain.cancelScheduledValues(ctx.currentTime);
+          masterGain.gain.setValueAtTime(volume, ctx.currentTime);
+        }
+      }, sec * 1000 + 30);
+    },
 
     setVolume: function(v) {
       volume = Math.max(0, Math.min(1, v));
