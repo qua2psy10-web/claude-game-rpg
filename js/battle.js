@@ -82,6 +82,9 @@ var BattleSystem = {
   PARTY_CAST_TINT: { fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
                      holy: '255,240,170', buffAtk: '255,120,60', buffDef: '90,170,255' },
 
+  // Party basic attacks: windup before the strike lands (numbers, shake and sound wait for it)
+  PARTY_ATTACK_DELAY: 190,
+
   // Failed escape: red "!" over every enemy and a small jolt as they cut off the way
   alertEnemies: function(game) {
     var b = game.battle;
@@ -1032,7 +1035,7 @@ var BattleSystem = {
     if (defender.defending) def = Math.floor(def * 1.5);
     var damage = Math.max(1, Math.floor(atk / 2 - def / 4 + (Math.random() * 5 - 2)));
     defender.hp = Math.max(0, defender.hp - damage);
-    this.pop(game, defender, damage, 'dmg', cmd.actorType === 'enemy' ? this.ENEMY_HIT_DELAY : 0);
+    this.pop(game, defender, damage, 'dmg', cmd.actorType === 'enemy' ? this.ENEMY_HIT_DELAY : this.PARTY_ATTACK_DELAY);
 
     var atkWord = 'こうげき';
     if (cmd.actorType === 'enemy') {
@@ -1040,9 +1043,21 @@ var BattleSystem = {
     }
     b.messages = [attacker.name + 'の ' + atkWord + '！', defender.name + 'に ' + damage + 'の ダメージ！'];
     if (cmd.actorType === 'party') {
-      b.flashEnemy = cmd.target;
-      SoundSystem.attack();
-      this.shake(game, 5, 260);
+      // Windup streak, then the weapon strike lands after PARTY_ATTACK_DELAY ms
+      var ad = this.PARTY_ATTACK_DELAY;
+      var tIdx = b.enemies.indexOf(defender);
+      var big = damage >= defender.maxHp * 0.25;
+      var who = { 'ダリオ': 'Dario', 'スンダー': 'Sundar' }[attacker.name] || 'Sam';
+      b.pAtk = { idx: tIdx, who: who, big: big, t0: Date.now(), dur: ad + 520, ad: ad, seed: damage };
+      defender.hitAt = Date.now() + ad;   // recoil syncs to the strike
+      SoundSystem.whoosh();
+      setTimeout(function() {
+        if (game.battle !== b) return;
+        b.flashEnemy = tIdx;
+        SoundSystem.attack();
+        SoundSystem.weaponHit(who, big);
+        BattleSystem.shake(game, big ? 11 : 7, big ? 380 : 280);
+      }, ad);
     } else {
       // Enemy lunges, then the hit lands after ENEMY_HIT_DELAY ms
       var hitIdx = game.party.indexOf(defender);
@@ -1060,7 +1075,7 @@ var BattleSystem = {
         BattleSystem.shake(game, heavy ? 15 : 10, heavy ? 480 : 360);
       }, this.ENEMY_HIT_DELAY);
     }
-    b.messageTimer = 45;
+    b.messageTimer = 45 + (cmd.actorType === 'party' ? 12 : 0);
 
     if (defender.hp <= 0) {
       defender.alive = false;
@@ -1903,6 +1918,7 @@ var BattleSystem = {
   renderEffect: function(ctx, game, w, h, now) {
     var b = game.battle;
     if (b && b.partyCast) this.renderPartyCast(ctx, game, w, h, now);
+    if (b && b.pAtk) this.renderPartyAttack(ctx, game, w, h, now);
     var fx = b && b.effect;
     if (!fx) return;
     var p = (now - fx.t0) / fx.dur;
@@ -2050,6 +2066,123 @@ var BattleSystem = {
         ctx.arc(ox, oy, 5, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+    ctx.restore();
+  },
+
+  // Party basic attack: speed lines in, then a weapon-specific strike (Sam: crossed blade slashes,
+  // Dario: arcane staff burst, Sundar: holy mace thump) with shockwave and sparks
+  renderPartyAttack: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var pa = b.pAtk;
+    var en = b.enemies[pa.idx];
+    var el = now - pa.t0;
+    if (el >= pa.dur) { b.pAtk = null; return; }
+    if (!en || en.sx === undefined || el < 0) return;
+    var x = en.sx, y = en.sy;
+    var self = this;
+    var col = pa.who === 'Dario' ? '190,120,255' : (pa.who === 'Sundar' ? '255,235,150' : '170,220,255');
+    var i;
+    ctx.save();
+    ctx.lineCap = 'round';
+    if (el < pa.ad) {
+      // Windup: speed lines rush in from the party side
+      var wp = el / pa.ad;
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.8 * wp) + ')';
+      ctx.lineWidth = 2;
+      for (i = 0; i < 8; i++) {
+        var ly = y - 30 + (self.fxRnd(i + pa.seed) - 0.5) * 90 + i * 2;
+        var lx = x + 150 - wp * 110 + self.fxRnd(i + 20) * 30;
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(lx + 40, ly + 12);
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
+    var p = (el - pa.ad) / (pa.dur - pa.ad);
+    var fade = 1 - p;
+    var sc = pa.big ? 1.35 : 1;
+
+    // Impact flash + shockwave
+    if (p < 0.3) {
+      var q = p / 0.3;
+      ctx.globalAlpha = (1 - q) * 0.9;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x, y, (8 + q * 24) * sc, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgb(' + col + ')';
+      ctx.lineWidth = 4 * (1 - q) + 1;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 18, (10 + q * 60) * sc, (4 + q * 18) * sc, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (pa.who === 'Sam') {
+      // Two crossing blade slashes drawn as tapering crescents
+      ctx.shadowColor = 'rgb(' + col + ')';
+      ctx.shadowBlur = 14;
+      for (i = 0; i < (pa.big ? 3 : 2); i++) {
+        var sp = Math.max(0, Math.min(1, p * 3.2 - i * 0.28));
+        if (sp <= 0) continue;
+        var dir = i % 2 ? -1 : 1, off = i === 2 ? 0 : 0;
+        var x0 = x - 46 * dir * sc, y0 = y - 50 * sc + off;
+        var x1 = x0 + 92 * dir * sc * sp, y1 = y0 + 100 * sc * sp;
+        ctx.globalAlpha = Math.min(1, fade * 1.6);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = (7 - sp * 3) * sc;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + col + ',0.8)';
+        ctx.lineWidth = (14 - sp * 6) * sc;
+        ctx.globalAlpha = Math.min(1, fade * 1.6) * 0.45;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      }
+    } else if (pa.who === 'Dario') {
+      // Arcane star burst from the staff tip
+      ctx.shadowColor = 'rgb(' + col + ')';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = 'rgb(' + col + ')';
+      ctx.fillStyle = '#fff';
+      ctx.lineWidth = 3;
+      var rot = p * 2;
+      ctx.globalAlpha = fade;
+      for (i = 0; i < 5; i++) {
+        var aa = rot + i * Math.PI * 2 / 5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.cos(aa) * (14 + p * 44) * sc, y + Math.sin(aa) * (14 + p * 44) * sc);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(x, y, (5 + 6 * fade) * sc, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Mace: golden radial thump with a cross of light
+      ctx.shadowColor = 'rgb(' + col + ')';
+      ctx.shadowBlur = 12;
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = 'rgb(' + col + ')';
+      ctx.lineWidth = 5 * fade + 1;
+      ctx.beginPath();
+      ctx.arc(x, y, (10 + p * 52) * sc, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#fffbe0';
+      var ar = (10 + 40 * (1 - p)) * sc;
+      ctx.fillRect(x - 2, y - ar, 4, ar * 2);
+      ctx.fillRect(x - ar, y - 2, ar * 2, 4);
+    }
+
+    // Sparks
+    ctx.shadowBlur = 0;
+    for (i = 0; i < (pa.big ? 16 : 10); i++) {
+      var ang = self.fxRnd(i + pa.seed + 50) * Math.PI * 2;
+      var spd = 24 + self.fxRnd(i + pa.seed + 70) * 56 * sc;
+      var d = Math.min(1, p * 1.4);
+      ctx.globalAlpha = Math.max(0, 1 - d);
+      ctx.fillStyle = i % 2 ? '#fff' : 'rgb(' + col + ')';
+      ctx.fillRect(x + Math.cos(ang) * spd * d - 1.5, y + Math.sin(ang) * spd * d * 0.8 + 24 * d * d - 1.5, 3, 3);
     }
     ctx.restore();
   },

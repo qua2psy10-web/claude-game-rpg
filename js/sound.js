@@ -112,6 +112,15 @@ var SoundSystem = (function() {
       osc(280, 'square', 0.35, t, 0.05, 100);
     },
 
+    weaponHit: function(who, big) {      // 味方の通常攻撃: 武器ごとの命中音
+      resume();
+      var t = ctx.currentTime;
+      if (who === 'Dario') { osc(880, 'triangle', 0.18, t, 0.18, 330); osc(1320, 'sine', 0.1, t + 0.03, 0.22, 660); }
+      else if (who === 'Sundar') { osc(196, 'square', 0.22, t, 0.12, 90); osc(784, 'sine', 0.12, t + 0.02, 0.3); }
+      else { noise(0.5, t, 0.14, 4500); osc(1200, 'sawtooth', 0.14, t, 0.1, 400); }
+      if (big) { osc(90, 'square', 0.3, t, 0.2, 40); noise(0.4, t, 0.25, 800); }
+    },
+
     damage: function() {
       resume();
       var t = ctx.currentTime;
