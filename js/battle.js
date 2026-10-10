@@ -128,8 +128,15 @@ var BattleSystem = {
       // Remember when and how hard this enemy was hit (drives recoil, flash, sparks, HP bar)
       target.hitAt = Date.now() + (delay || 0);
       target.hitMag = Math.min(1, 0.35 + (value / (target.maxHp || 1)) * 2.5);
+      target.hitKind = this._curKind || null;
     }
-    b.pops.push({ target: target, isParty: isParty, text: String(value), kind: kind, t0: Date.now() + (delay || 0) });
+    // A hit worth 40%+ of the enemy's max HP is a critical: label, screen flash and an extra jolt
+    var crit = !isParty && kind === 'dmg' && value >= (target.maxHp || 1) * 0.4;
+    if (crit) {
+      b.critFlashAt = Date.now() + (delay || 0);
+      this.shake(game, 10, 320);
+    }
+    b.pops.push({ target: target, isParty: isParty, text: String(value), kind: kind, t0: Date.now() + (delay || 0), crit: crit });
   },
 
   // Enemy spell delivery: a fireball flies to its target or a dark wave sweeps the screen,
@@ -420,7 +427,7 @@ var BattleSystem = {
       }
       var val = (pp.kind === 'exp' || pp.kind === 'alert') ? 0 : (parseInt(pp.text, 10) || 0);
       // Bigger numbers for bigger hits (damage only)
-      var size = pp.kind === 'alert' ? 48 : pp.kind === 'exp' ? 26 : 44 + (pp.kind === 'dmg' ? Math.min(24, val / 4) : 0);
+      var size = (pp.crit ? 12 : 0) + (pp.kind === 'alert' ? 48 : pp.kind === 'exp' ? 26 : 44 + (pp.kind === 'dmg' ? Math.min(24, val / 4) : 0));
       var rise = 1 - Math.pow(1 - Math.min(1, t / 900), 3);   // easeOutCubic
       var bounce = (pp.kind !== 'exp' && pp.kind !== 'alert' && t < 300) ? Math.abs(Math.sin(t / 300 * Math.PI)) * 22 : 0;
       var sc = pp.kind === 'exp' ? (t < 200 ? 0.6 + 0.4 * (t / 200) : 1) : (t < 160 ? 2.2 - 1.2 * (t / 160) : 1);   // slam in from large (exp: gentle pop)
@@ -453,6 +460,14 @@ var BattleSystem = {
       gr.addColorStop(1, bot);
       ctx.fillStyle = gr;
       ctx.fillText(text, 0, 0);
+      if (pp.crit) {
+        ctx.font = 'bold 16px monospace';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#000';
+        ctx.strokeText('大ダメージ！', 0, -size * 0.78);
+        ctx.fillStyle = '#ffd23a';
+        ctx.fillText('大ダメージ！', 0, -size * 0.78);
+      }
       if (pp.isParty) {
         // Name tag under the number so it's clear who it belongs to
         ctx.font = 'bold 14px monospace';
@@ -970,6 +985,7 @@ var BattleSystem = {
   },
 
   executeAttack: function(game, cmd) {
+    this._curKind = null;
     var b = game.battle;
     var attacker, defender, attackerName, defenderName;
 
@@ -1035,6 +1051,7 @@ var BattleSystem = {
   },
 
   executeSpell: function(game, cmd) {
+    this._curKind = cmd.actorType === 'party' ? (this.EFFECT_KINDS[cmd.spellId] || null) : null;   // lets pop() tag the element of the hit
     var b = game.battle;
     var spell = SPELLS[cmd.spellId];
     var caster = cmd.actorType === 'party' ? game.party[cmd.actor] : b.enemies[cmd.actor];
@@ -1179,6 +1196,7 @@ var BattleSystem = {
   },
 
   executeItem: function(game, cmd) {
+    this._curKind = null;
     var b = game.battle;
     var item = ITEMS[cmd.itemId];
     var user = game.party[cmd.actor];
@@ -2530,6 +2548,8 @@ var BattleSystem = {
           hitT = -1;
         }
       }
+      var wRatio = en.maxHp ? en.hp / en.maxHp : 1;           // badly hurt enemies tremble
+      if (wRatio < 0.25) hitDx += Math.sin(now / 45 + j) * 1.5;
       // Afterimages trail behind the falling enemy
       if (b.introStart && estyle === 'drop' && introQ < 0.364) {
         var baseA = ctx.globalAlpha;
@@ -2590,6 +2610,102 @@ var BattleSystem = {
             ctx.fillRect(eyx - 18 * scale, eyy - 18 * scale, 36 * scale, 36 * scale);
           }
         }
+      }
+
+      // Wounded look: scratches below half HP, rising smoke below a quarter
+      if (wRatio < 0.5 && !en.boss) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(25,10,25,0.55)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(ex - 14 * scale, ey - 18 * scale);
+        ctx.lineTo(ex - 6 * scale, ey - 8 * scale);
+        ctx.lineTo(ex - 8 * scale, ey - 2 * scale);
+        ctx.lineTo(ex + 4 * scale, ey + 6 * scale);
+        ctx.moveTo(ex + 10 * scale, ey - 12 * scale);
+        ctx.lineTo(ex + 3 * scale, ey);
+        ctx.lineTo(ex + 6 * scale, ey + 8 * scale);
+        ctx.stroke();
+        ctx.restore();
+      }
+      if (wRatio < 0.25) {
+        for (var sm = 0; sm < 4; sm++) {
+          var smp = (now / 900 + sm / 4) % 1;
+          ctx.fillStyle = 'rgba(90,90,100,' + (0.35 * (1 - smp)) + ')';
+          ctx.beginPath();
+          ctx.arc(ex + (this.fxRnd(sm + 3000 + j) - 0.5) * 20 * scale + Math.sin(smp * 6 + sm) * 4,
+                  ey - 30 * scale - smp * 35 * scale, (4 + smp * 8) * scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Debris chips of the enemy's own colour fly off on every hit
+      if (hitT >= 0 && hitT < 450) {
+        var dq = hitT / 450, dn = 6 + Math.round((en.hitMag || 0.5) * 6);
+        ctx.save();
+        ctx.fillStyle = en.color;
+        ctx.globalAlpha = 1 - dq;
+        for (var dc = 0; dc < dn; dc++) {
+          var dang = -Math.PI * this.fxRnd(dc + 3100 + Math.floor(en.hitAt / 50));
+          var dsp = (50 + this.fxRnd(dc + 3200) * 90) * scale;
+          var dsz = 3 + this.fxRnd(dc + 3300) * 3;
+          ctx.fillRect(ex + Math.cos(dang) * dsp * dq - dsz / 2, ey + Math.sin(dang) * dsp * dq + 130 * scale * dq * dq - dsz / 2, dsz, dsz);
+        }
+        ctx.restore();
+      }
+
+      // Elemental hit: burning, freezing or electrocution lingers for ~0.9s
+      var eT = en.hitAt ? now - en.hitAt : -1;
+      if (en.hitKind && eT >= 0 && eT < 900) {
+        var efade = 1 - eT / 900;
+        ctx.save();
+        if (en.hitKind === 'fire') {
+          var fgl = ctx.createRadialGradient(ex, ey, 2, ex, ey, 42 * scale);
+          fgl.addColorStop(0, 'rgba(255,170,50,' + (0.55 * efade) + ')');
+          fgl.addColorStop(1, 'rgba(255,60,0,0)');
+          ctx.fillStyle = fgl;
+          ctx.fillRect(ex - 44 * scale, ey - 44 * scale, 88 * scale, 88 * scale);
+          for (var fk = 0; fk < 10; fk++) {
+            var fph = (eT / 500 + this.fxRnd(fk + 3400)) % 1;
+            ctx.globalAlpha = efade * (1 - fph);
+            ctx.fillStyle = fk % 2 ? '#ffd23a' : '#ff6a1f';
+            var fsz = (4 + this.fxRnd(fk + 3500) * 4) * (1 - fph * 0.5);
+            ctx.fillRect(ex + (this.fxRnd(fk + 3600) - 0.5) * 40 * scale, ey + 12 * scale - fph * 55 * scale, fsz, fsz);
+          }
+        } else if (en.hitKind === 'ice') {
+          ctx.fillStyle = 'rgba(150,210,255,' + (0.35 * efade) + ')';
+          ctx.beginPath();
+          ctx.ellipse(ex, ey, 28 * scale, 34 * scale, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(215,242,255,' + (0.85 * efade) + ')';
+          for (var ik = 0; ik < 6; ik++) {
+            var ia = ik / 6 * Math.PI * 2 + 0.3, ir = 26 * scale;
+            var ix = ex + Math.cos(ia) * ir, iy = ey + Math.sin(ia) * ir * 1.1;
+            ctx.beginPath();
+            ctx.moveTo(ix + Math.cos(ia) * 12 * scale, iy + Math.sin(ia) * 12 * scale);
+            ctx.lineTo(ix + Math.cos(ia + 1.9) * 4 * scale, iy + Math.sin(ia + 1.9) * 4 * scale);
+            ctx.lineTo(ix + Math.cos(ia - 1.9) * 4 * scale, iy + Math.sin(ia - 1.9) * 4 * scale);
+            ctx.closePath();
+            ctx.fill();
+          }
+        } else if (en.hitKind === 'thunder') {
+          var tseed = Math.floor(now / 70);
+          ctx.strokeStyle = '#fff6a0';
+          ctx.shadowColor = '#ffe44a';
+          ctx.shadowBlur = 10;
+          ctx.lineWidth = 2;
+          ctx.globalAlpha = efade;
+          for (var tk = 0; tk < 3; tk++) {
+            ctx.beginPath();
+            var tx0 = ex + (this.fxRnd(tseed * 3 + tk + 3700) - 0.5) * 50 * scale;
+            ctx.moveTo(tx0, ey - 40 * scale);
+            for (var tz = 1; tz <= 5; tz++) {
+              ctx.lineTo(tx0 + (this.fxRnd(tseed * 7 + tk * 5 + tz + 3800) - 0.5) * 26 * scale, ey - 40 * scale + tz * 16 * scale);
+            }
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
       }
 
       // Impact sparks radiating from the hit point
@@ -2793,6 +2909,13 @@ var BattleSystem = {
       UI.drawMessageWindow(ctx, b.messages, canvasW, canvasH);
     }
 
+    if (b.critFlashAt) {
+      var cft = Date.now() - b.critFlashAt;
+      if (cft >= 0 && cft < 220) {
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.38 * (1 - cft / 220)) + ')';
+        ctx.fillRect(0, 0, canvasW, canvasH);
+      }
+    }
     this.renderEnemyCastLate(ctx, game, canvasW, canvasH, Date.now());
     this.renderPartyHit(ctx, game, canvasW, canvasH, Date.now());
     this.renderPops(ctx, game, canvasW, canvasH, Date.now());
