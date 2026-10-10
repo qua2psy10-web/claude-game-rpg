@@ -1058,6 +1058,59 @@ var BattleSystem = {
     ctx.restore();
   },
 
+  // Defeat animation: white blink, then the enemy collapses and scatters into particles
+  renderDeaths: function(ctx, game, now) {
+    var b = game.battle;
+    for (var i = 0; i < b.enemies.length; i++) {
+      var en = b.enemies[i];
+      if (en.alive || en.sx === undefined) continue;
+      if (!en.deathStart) {
+        en.deathStart = now;
+        if (en.boss) this.shake(game, 10, 900);
+      }
+      var dur = en.boss ? 1400 : 700;
+      var t = now - en.deathStart;
+      if (t >= dur) continue;
+      var p = t / dur;
+      var blinkEnd = en.boss ? 450 : 220;
+      var sc = en.sscale, ex = en.sx, foot = en.sfoot;
+
+      ctx.save();
+      if (t < blinkEnd) {
+        // Hit-flash: alternate bright white and normal
+        if (Math.floor(t / 55) % 2 === 0) ctx.filter = 'brightness(6)';
+        UI.drawEnemy(ctx, en, ex, foot - 22 * sc, sc);
+      } else {
+        var q = (t - blinkEnd) / (dur - blinkEnd);
+        ctx.globalAlpha = 1 - q;
+        ctx.translate(ex, foot);
+        ctx.scale(1 + q * 0.15, 1 - q * 0.9);   // squash down toward the ground
+        ctx.translate(-ex, -foot);
+        ctx.filter = 'brightness(' + (1 + (1 - q) * 3) + ')';
+        UI.drawEnemy(ctx, en, ex, foot - 22 * sc, sc);
+      }
+      ctx.restore();
+
+      // Particles burst out once the flash ends
+      if (t >= blinkEnd * 0.6) {
+        var pt = (t - blinkEnd * 0.6) / (dur - blinkEnd * 0.6);
+        var n = en.boss ? 40 : 16;
+        ctx.save();
+        ctx.fillStyle = en.color;
+        for (var k = 0; k < n; k++) {
+          var ang = this.fxRnd(k + i * 31) * Math.PI * 2;
+          var dist = (30 + this.fxRnd(k + 50) * 60) * sc * pt;
+          ctx.globalAlpha = 1 - pt;
+          var px = ex + Math.cos(ang) * dist;
+          var py = foot - 22 * sc - Math.abs(Math.sin(ang)) * dist - pt * 25;
+          var sz = (en.boss ? 7 : 5) * (1 - pt * 0.6);
+          ctx.fillRect(px - sz / 2, py - sz / 2, sz, sz);
+        }
+        ctx.restore();
+      }
+    }
+  },
+
   easeOutBounce: function(t) {
     if (t < 1 / 2.75) return 7.5625 * t * t;
     if (t < 2 / 2.75) { t -= 1.5 / 2.75; return 7.5625 * t * t + 0.75; }
@@ -1411,7 +1464,7 @@ var BattleSystem = {
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.fillRect(ex - 40 * scale, ey - 60 * scale, 80 * scale, 80 * scale);
       }
-      en.sx = ex; en.sy = ey;
+      en.sx = ex; en.sy = ey; en.sfoot = footY; en.sscale = scale;
       UI.drawEnemy(ctx, en, ex, ey, scale);
 
       // Atmospheric fog on distant enemies
@@ -1435,6 +1488,7 @@ var BattleSystem = {
       }
     }
 
+    this.renderDeaths(ctx, game, now);
     this.renderEffect(ctx, game, canvasW, canvasH, now);
 
     // Vignette for depth/cinematic feel
