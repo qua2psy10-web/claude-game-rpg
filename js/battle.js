@@ -74,13 +74,56 @@ var BattleSystem = {
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
   },
 
+  ENEMY_HIT_DELAY: 170,   // ms between an enemy starting its lunge and the hit landing
+
   // Queue a floating number over a combatant. kind: 'dmg' | 'heal' | 'mp'
-  pop: function(game, target, value, kind) {
+  pop: function(game, target, value, kind, delay) {
     var b = game.battle;
     if (!b || !target) return;
     if (!b.pops) b.pops = [];
     var isParty = game.party.indexOf(target) >= 0;
-    b.pops.push({ target: target, isParty: isParty, text: String(value), kind: kind, t0: Date.now() });
+    b.pops.push({ target: target, isParty: isParty, text: String(value), kind: kind, t0: Date.now() + (delay || 0) });
+  },
+
+  // Claw slashes over the struck party member's status row + red edge flash
+  renderPartyHit: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var hit = b.partyHit;
+    if (!hit || hit.idx < 0) return;
+    var t = now - hit.t0;
+    if (t < 0 || t > 450) return;
+    var p = t / 450;
+    ctx.save();
+
+    // Red flash around the screen edges
+    var rg = ctx.createRadialGradient(w / 2, h * 0.45, h * 0.3, w / 2, h * 0.45, w * 0.7);
+    rg.addColorStop(0, 'rgba(255,0,0,0)');
+    rg.addColorStop(1, 'rgba(255,0,0,' + 0.45 * (1 - p) + ')');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Three claw marks across the member's row
+    var rowY = h - 190 + hit.idx * 36;
+    var x0 = w - 215;
+    ctx.beginPath();
+    ctx.rect(w - 220, h - 200, 215, 120);   // keep marks inside the status window
+    ctx.clip();
+    ctx.lineCap = 'round';
+    ctx.shadowColor = '#f00';
+    ctx.shadowBlur = 8;
+    for (var i = 0; i < 3; i++) {
+      var sp = Math.max(0, Math.min(1, p * 2.4 - i * 0.2));
+      if (sp <= 0) continue;
+      ctx.globalAlpha = 1 - Math.max(0, p - 0.55) / 0.45;
+      ctx.strokeStyle = '#ff5a5a';
+      ctx.lineWidth = 4 - sp * 2;
+      var sx = x0 + 40 + i * 50;
+      ctx.beginPath();
+      ctx.moveTo(sx, rowY - 14);
+      ctx.lineTo(sx + 30 * sp, rowY - 14 + 44 * sp);
+      ctx.stroke();
+    }
+    ctx.restore();
   },
 
   // Draw floating numbers (called last so party numbers sit above the status window)
@@ -93,6 +136,7 @@ var BattleSystem = {
       var t = now - pp.t0;
       if (t >= 1400) continue;
       live.push(pp);
+      if (t < 0) continue;   // delayed until the hit lands
       var x, y;
       if (pp.isParty) {
         var k = game.party.indexOf(pp.target);
@@ -679,7 +723,7 @@ var BattleSystem = {
     if (defender.defending) def = Math.floor(def * 1.5);
     var damage = Math.max(1, Math.floor(atk / 2 - def / 4 + (Math.random() * 5 - 2)));
     defender.hp = Math.max(0, defender.hp - damage);
-    this.pop(game, defender, damage, 'dmg');
+    this.pop(game, defender, damage, 'dmg', cmd.actorType === 'enemy' ? this.ENEMY_HIT_DELAY : 0);
 
     b.messages = [attacker.name + 'の こうげき！', defender.name + 'に ' + damage + 'の ダメージ！'];
     if (cmd.actorType === 'party') {
@@ -687,9 +731,16 @@ var BattleSystem = {
       SoundSystem.attack();
       this.shake(game, 5, 260);
     } else {
-      b.flashParty = cmd.target;
-      SoundSystem.damage();
-      this.shake(game, 9, 340);
+      // Enemy lunges, then the hit lands after ENEMY_HIT_DELAY ms
+      var hitIdx = game.party.indexOf(defender);
+      b.enemyAtk = { idx: cmd.actor, t0: Date.now(), dur: 480 };
+      b.partyHit = { idx: hitIdx, t0: Date.now() + this.ENEMY_HIT_DELAY };
+      setTimeout(function() {
+        if (game.battle !== b) return;
+        b.flashParty = hitIdx;
+        SoundSystem.damage();
+        BattleSystem.shake(game, 9, 340);
+      }, this.ENEMY_HIT_DELAY);
     }
     b.messageTimer = 45;
 
@@ -1550,7 +1601,26 @@ var BattleSystem = {
         ctx.fillRect(ex - 40 * scale, ey - 60 * scale, 80 * scale, 80 * scale);
       }
       en.sx = ex; en.sy = ey; en.sfoot = footY; en.sscale = scale;
+      // Attack lunge: wind up, charge toward the player, retreat
+      var lungeK = 1, lungeDy = 0;
+      var atkFx = b.enemyAtk;
+      if (atkFx && atkFx.idx === aliveEnemies[j].index) {
+        var at = (now - atkFx.t0) / atkFx.dur;
+        if (at >= 0 && at < 1) {
+          var amt;
+          if (at < 0.3) amt = -0.25 * (at / 0.3);                 // wind-up: pull back
+          else if (at < 0.5) amt = -0.25 + 1.25 * ((at - 0.3) / 0.2);   // charge
+          else amt = 1 - (at - 0.5) / 0.5;                        // retreat
+          lungeK = 1 + 0.3 * amt;
+          lungeDy = 38 * amt;
+        }
+      }
+      ctx.save();
+      ctx.translate(ex, footY + lungeDy);
+      ctx.scale(lungeK, lungeK);
+      ctx.translate(-ex, -footY);
       UI.drawEnemy(ctx, en, ex, ey, scale);
+      ctx.restore();
 
       // Atmospheric fog on distant enemies
       if (back) {
@@ -1658,6 +1728,7 @@ var BattleSystem = {
       UI.drawMessageWindow(ctx, b.messages, canvasW, canvasH);
     }
 
+    this.renderPartyHit(ctx, game, canvasW, canvasH, Date.now());
     this.renderPops(ctx, game, canvasW, canvasH, Date.now());
 
     // Level up display (animated)
