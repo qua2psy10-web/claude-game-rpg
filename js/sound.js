@@ -268,6 +268,34 @@ var SoundSystem = (function() {
       }
     },
 
+    enemyHit: function(style) {          // 敵の攻撃が当たる音(攻撃の種類ごと)
+      resume();
+      var t = ctx.currentTime, i;
+      switch (style) {
+        case 'hop':                                    // ベチャッ
+          noise(0.5, t, 0.16, 700);
+          osc(220, 'sine', 0.3, t, 0.14, 70);
+          break;
+        case 'pounce':                                 // 爪の引っかき
+          for (i = 0; i < 3; i++) noise(0.4, t + i * 0.035, 0.07, 3500);
+          osc(900, 'sawtooth', 0.08, t, 0.12, 400);
+          break;
+        case 'dive':                                   // 噛みつき
+          osc(1400, 'square', 0.14, t, 0.03);
+          osc(1300, 'square', 0.14, t + 0.05, 0.03);
+          noise(0.25, t, 0.08, 2500);
+          break;
+        case 'heavy':                                  // 重い斬撃と衝撃
+          osc(110, 'sine', 0.5, t, 0.3, 40);
+          osc(700, 'square', 0.18, t, 0.08, 300);
+          noise(0.6, t, 0.22, 2500);
+          break;
+        default:                                       // 鋭い斬撃
+          osc(1100, 'sawtooth', 0.14, t, 0.1, 350);
+          noise(0.4, t, 0.1, 5000);
+      }
+    },
+
     thud: function() {                   // 敵の着地: 短い低音
       resume();
       var t = ctx.currentTime;

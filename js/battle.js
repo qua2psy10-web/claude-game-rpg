@@ -362,6 +362,19 @@ var BattleSystem = {
           ctx.stroke();
         }
       }
+      if (hit.heavy && p < 0.5) {                    // radial speed lines converge on the impact
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.55 * (1 - p / 0.5)) + ')';
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (gi = 0; gi < 28; gi++) {
+          var ra = gi / 28 * Math.PI * 2 + this.fxRnd(gi + 4000) * 0.2;
+          var r0 = w * (0.25 + 0.2 * (p / 0.5)), r1 = r0 + w * (0.15 + this.fxRnd(gi + 4100) * 0.2);
+          ctx.moveTo(w / 2 + Math.cos(ra) * r0, h * 0.5 + Math.sin(ra) * r0 * 0.75);
+          ctx.lineTo(w / 2 + Math.cos(ra) * r1, h * 0.5 + Math.sin(ra) * r1 * 0.75);
+        }
+        ctx.stroke();
+      }
       if (hit.heavy && p < 0.25) {
         ctx.globalAlpha = 0.45 * (1 - p / 0.25);
         ctx.fillStyle = '#fff';
@@ -1016,7 +1029,11 @@ var BattleSystem = {
     defender.hp = Math.max(0, defender.hp - damage);
     this.pop(game, defender, damage, 'dmg', cmd.actorType === 'enemy' ? this.ENEMY_HIT_DELAY : 0);
 
-    b.messages = [attacker.name + 'の こうげき！', defender.name + 'に ' + damage + 'の ダメージ！'];
+    var atkWord = 'こうげき';
+    if (cmd.actorType === 'enemy') {
+      atkWord = { hop: 'たいあたり', pounce: 'とびかかり', dive: 'きゅうこうか', heavy: 'ふりおろし' }[this.ATTACK_STYLES[attacker.shape]] || 'こうげき';
+    }
+    b.messages = [attacker.name + 'の ' + atkWord + '！', defender.name + 'に ' + damage + 'の ダメージ！'];
     if (cmd.actorType === 'party') {
       b.flashEnemy = cmd.target;
       SoundSystem.attack();
@@ -1034,6 +1051,7 @@ var BattleSystem = {
         if (game.battle !== b) return;
         b.flashParty = hitIdx;
         SoundSystem.damage();
+        SoundSystem.enemyHit(atkStyle);
         BattleSystem.shake(game, heavy ? 15 : 10, heavy ? 480 : 360);
       }, this.ENEMY_HIT_DELAY);
     }
@@ -2151,6 +2169,17 @@ var BattleSystem = {
         ctx.translate(-canvasW / 2, -canvasH * 0.45);
       }
     }
+    // Impact punch: the whole scene lurches toward the player when a melee hit lands
+    var punchFx = b.partyHit;
+    if (punchFx && punchFx.melee) {
+      var pt2 = now - punchFx.t0;
+      if (pt2 >= 0 && pt2 < 240) {
+        var pz = 1 + (punchFx.heavy ? 0.07 : 0.04) * Math.pow(1 - pt2 / 240, 2);
+        ctx.translate(canvasW / 2, canvasH * 0.55);
+        ctx.scale(pz, pz);
+        ctx.translate(-canvasW / 2, -canvasH * 0.55);
+      }
+    }
     this.renderBackdrop(ctx, canvasW, canvasH, groundY);
     // Boss casts: the camera pushes in on the caster
     var zfx = b.enemyCast;
@@ -2288,6 +2317,21 @@ var BattleSystem = {
             ctx.ellipse(ex, footY + 2, 10 + lt * 60 * scale, 3 + lt * 12 * scale, 0, 0, Math.PI * 2);
             ctx.stroke();
           }
+        }
+      }
+
+      // Ground ripple at the attacker's feet at the moment of impact (hop / pounce / heavy)
+      if (atkFx && atkFx.idx === aliveEnemies[j].index && atkFx.style !== 'dive' && atkFx.style !== 'slash') {
+        var rpt = (now - atkFx.t0) / atkFx.dur;
+        if (rpt >= 0.464 && rpt < 0.75) {
+          var rpp = (rpt - 0.464) / 0.286;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255,255,255,' + (0.7 * (1 - rpp)) + ')';
+          ctx.lineWidth = 3 * (1 - rpp) + 1;
+          ctx.beginPath();
+          ctx.ellipse(ex, footY + 2, (20 + rpp * (atkFx.style === 'heavy' ? 90 : 60)) * scale, (5 + rpp * 16) * scale, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
         }
       }
 
