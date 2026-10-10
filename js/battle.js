@@ -96,7 +96,16 @@ var BattleSystem = {
 
   ENEMY_CAST_DELAY: 450,  // ms an enemy charges a spell before it lands
   ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyHeal: '80,230,130' },
-  ENEMY_HIT_DELAY: 170,   // ms between an enemy starting its lunge and the hit landing
+  ENEMY_HIT_DELAY: 260,   // ms between an enemy starting its lunge and the hit landing (peak of the charge)
+
+  // Lunge curve: -0.25 (wind-up) -> 1 (full charge, hit lands) -> 0 (back in place); at in 0..1
+  atkCurve: function(at) {
+    if (at < 0) return 0;
+    if (at < 0.3) return -0.25 * (at / 0.3);                  // wind-up: pull back
+    if (at < 0.5) return -0.25 + 1.25 * ((at - 0.3) / 0.2);   // charge
+    if (at < 1) return 1 - (at - 0.5) / 0.5;                  // retreat
+    return 0;
+  },
 
   // Queue a floating number over a combatant. kind: 'dmg' | 'heal' | 'mp'
   pop: function(game, target, value, kind, delay) {
@@ -129,6 +138,33 @@ var BattleSystem = {
     rg.addColorStop(1, 'rgba(' + tn + ',' + 0.45 * (1 - p) + ')');
     ctx.fillStyle = rg;
     ctx.fillRect(0, 0, w, h);
+
+    // Melee hits slash across the whole screen (heavier hits: a third slash and a white flash)
+    if (hit.melee) {
+      var slashes = hit.heavy ? 3 : 2;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.shadowColor = '#f00';
+      ctx.shadowBlur = 14;
+      for (var sl = 0; sl < slashes; sl++) {
+        var slp = Math.max(0, Math.min(1, p * 3.2 - sl * 0.25));
+        if (slp <= 0) continue;
+        var sx0 = w * (0.22 + sl * 0.2), sy0 = h * 0.08;
+        ctx.globalAlpha = 1 - Math.max(0, p - 0.5) / 0.5;
+        ctx.strokeStyle = sl === 1 ? '#fff' : '#ff6a6a';
+        ctx.lineWidth = 9 * (1 - slp * 0.6);
+        ctx.beginPath();
+        ctx.moveTo(sx0, sy0);
+        ctx.lineTo(sx0 + w * 0.22 * slp, sy0 + h * 0.58 * slp);
+        ctx.stroke();
+      }
+      if (hit.heavy && p < 0.25) {
+        ctx.globalAlpha = 0.45 * (1 - p / 0.25);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-10, -10, w + 20, h + 20);
+      }
+      ctx.restore();
+    }
 
     // Three claw marks across the member's row (every row for party-wide hits)
     var x0 = w - 215;
@@ -775,13 +811,15 @@ var BattleSystem = {
     } else {
       // Enemy lunges, then the hit lands after ENEMY_HIT_DELAY ms
       var hitIdx = game.party.indexOf(defender);
-      b.enemyAtk = { idx: cmd.actor, t0: Date.now(), dur: 480 };
-      b.partyHit = { idx: hitIdx, t0: Date.now() + this.ENEMY_HIT_DELAY };
+      var heavy = damage >= defender.maxHp * 0.25;   // big hits get a bigger reaction
+      b.enemyAtk = { idx: cmd.actor, t0: Date.now(), dur: 560 };
+      b.partyHit = { idx: hitIdx, t0: Date.now() + this.ENEMY_HIT_DELAY, melee: true, heavy: heavy };
+      SoundSystem.whoosh();
       setTimeout(function() {
         if (game.battle !== b) return;
         b.flashParty = hitIdx;
         SoundSystem.damage();
-        BattleSystem.shake(game, 9, 340);
+        BattleSystem.shake(game, heavy ? 15 : 10, heavy ? 480 : 360);
       }, this.ENEMY_HIT_DELAY);
     }
     b.messageTimer = 45;
@@ -2003,12 +2041,18 @@ var BattleSystem = {
       if (atkFx && atkFx.idx === aliveEnemies[j].index) {
         var at = (now - atkFx.t0) / atkFx.dur;
         if (at >= 0 && at < 1) {
-          var amt;
-          if (at < 0.3) amt = -0.25 * (at / 0.3);                 // wind-up: pull back
-          else if (at < 0.5) amt = -0.25 + 1.25 * ((at - 0.3) / 0.2);   // charge
-          else amt = 1 - (at - 0.5) / 0.5;                        // retreat
-          lungeK = 1 + 0.3 * amt;
-          lungeDy = 38 * amt;
+          var amt = this.atkCurve(at);
+          lungeK = 1 + 0.45 * amt;
+          lungeDy = 56 * amt;
+          // Telegraph: a red glow builds while the enemy winds up
+          if (at < 0.34) {
+            var tg = Math.min(1, at / 0.3);
+            var tgr = ctx.createRadialGradient(ex, ey, 4, ex, ey, 52 * scale);
+            tgr.addColorStop(0, 'rgba(255,40,40,' + (0.55 * tg) + ')');
+            tgr.addColorStop(1, 'rgba(255,40,40,0)');
+            ctx.fillStyle = tgr;
+            ctx.fillRect(ex - 56 * scale, ey - 56 * scale, 112 * scale, 112 * scale);
+          }
         }
       }
       // Getaway: enemies shrink toward the horizon as we run
@@ -2076,6 +2120,22 @@ var BattleSystem = {
           ctx.translate(-ex, -footY);
           UI.drawEnemy(ctx, en, ex, ey - gh * 28, scale);
           ctx.restore();
+        }
+      }
+      // Charge trail: fading copies at the positions the enemy just left
+      if (atkFx && atkFx.idx === aliveEnemies[j].index) {
+        var tat = (now - atkFx.t0) / atkFx.dur;
+        if (tat >= 0.3 && tat < 0.7) {
+          for (var tg2 = 1; tg2 <= 3; tg2++) {
+            var pa = this.atkCurve(tat - tg2 * 0.035);
+            ctx.save();
+            ctx.globalAlpha = 0.3 / tg2;
+            ctx.translate(ex, footY + 56 * pa);
+            ctx.scale(1 + 0.45 * pa, 1 + 0.45 * pa);
+            ctx.translate(-ex, -footY);
+            UI.drawEnemy(ctx, en, ex, ey, scale);
+            ctx.restore();
+          }
         }
       }
       ctx.save();
@@ -2211,6 +2271,16 @@ var BattleSystem = {
       var py = canvasH - 190 + k * 36;
       var px = canvasW - 206;
       var p = game.party[k];
+      // The struck member's row flashes red and jolts sideways
+      var ph = b.partyHit;
+      if (ph && (ph.idx === k || ph.idx === -1)) {
+        var jt = now - ph.t0;
+        if (jt >= 0 && jt < 380) {
+          px += Math.sin(jt / 22) * 5 * (1 - jt / 380);
+          ctx.fillStyle = 'rgba(' + (ph.tint || '255,0,0') + ',' + (0.3 * (1 - jt / 380)) + ')';
+          ctx.fillRect(canvasW - 216, py - 6, 207, 34);
+        }
+      }
       var nameColor = p.alive ? '#fff' : '#888';
       if (b.flashParty === k) nameColor = '#f44';
       UI.drawText(ctx, p.name, px, py, nameColor, UI.FONT_SMALL);
