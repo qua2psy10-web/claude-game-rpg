@@ -1261,22 +1261,45 @@ var BattleSystem = {
 
     b.messages = [user.name + 'は ' + item.name + 'を つかった！'];
 
+    // Item effect: the item is tossed to its target, then the effect lands after d ms
+    var d = cmd.itemId === 'bomb' ? 420 : 220;
+    var fxTarget = -1, fxSide = 'party';
+    if (item.type === 'heal' || item.type === 'healMp') fxTarget = cmd.target >= 0 && game.party[cmd.target] ? cmd.target : 0;
+    else if (item.type === 'revive') {
+      for (var rv = 0; rv < game.party.length; rv++) { if (!game.party[rv].alive) { fxTarget = rv; break; } }
+    } else if (item.type === 'damage') {
+      fxSide = 'enemy';
+      fxTarget = b.enemies[cmd.target] && b.enemies[cmd.target].alive ? cmd.target : -1;
+    }
+    if (fxTarget >= 0) {
+      b.itemFx = { id: cmd.itemId, side: fxSide, idx: fxTarget, from: cmd.actor, t0: Date.now(), d: d,
+                   dur: d + (cmd.itemId === 'phoenix' ? 1100 : 800) };
+      SoundSystem.itemToss();
+      setTimeout(function() {
+        if (game.battle !== b) return;
+        SoundSystem.itemHit(cmd.itemId);
+        if (cmd.itemId === 'bomb') BattleSystem.shake(game, 12, 420);
+        else if (cmd.itemId === 'phoenix') BattleSystem.shake(game, 5, 300);
+      }, d);
+    }
+
     if (item.type === 'heal') {
       var target = game.party[cmd.target] || game.party[0];
       var heal = item.power;
       target.hp = Math.min(target.maxHp, target.hp + heal);
-      this.pop(game, target, heal, 'heal');
+      this.pop(game, target, heal, 'heal', d);
       b.messages.push(target.name + 'の HPが ' + heal + ' かいふくした！');
     } else if (item.type === 'healMp') {
       var tgt = game.party[cmd.target] || game.party[0];
       tgt.mp = Math.min(tgt.maxMp, tgt.mp + item.power);
-      this.pop(game, tgt, item.power, 'mp');
+      this.pop(game, tgt, item.power, 'mp', d);
       b.messages.push(tgt.name + 'の MPが ' + item.power + ' かいふくした！');
     } else if (item.type === 'damage') {
       var enemy = b.enemies[cmd.target];
       if (enemy && enemy.alive) {
         enemy.hp = Math.max(0, enemy.hp - item.power);
-        this.pop(game, enemy, item.power, 'dmg');
+        this._curKind = 'fire';   // blast tints the enemy's hit reaction
+        this.pop(game, enemy, item.power, 'dmg', d);
         b.messages.push(enemy.name + 'に ' + item.power + 'の ダメージ！');
         if (enemy.hp <= 0) {
           enemy.alive = false;
@@ -1290,12 +1313,13 @@ var BattleSystem = {
         if (!game.party[j].alive) {
           game.party[j].alive = true;
           game.party[j].hp = Math.floor(game.party[j].maxHp * item.power);
+          this.pop(game, game.party[j], game.party[j].hp, 'heal', d);
           b.messages.push(game.party[j].name + 'は 生き返った！');
           break;
         }
       }
     }
-    b.messageTimer = 20 + b.messages.length * 15;
+    b.messageTimer = 20 + b.messages.length * 15 + (b.itemFx ? Math.round(d / 16) : 0);
   },
 
   calcSpellDamage: function(caster, target, spell) {
@@ -1919,6 +1943,7 @@ var BattleSystem = {
     var b = game.battle;
     if (b && b.partyCast) this.renderPartyCast(ctx, game, w, h, now);
     if (b && b.pAtk) this.renderPartyAttack(ctx, game, w, h, now);
+    if (b && b.itemFx) this.renderItemFx(ctx, game, w, h, now);
     var fx = b && b.effect;
     if (!fx) return;
     var p = (now - fx.t0) / fx.dur;
@@ -2066,6 +2091,149 @@ var BattleSystem = {
         ctx.arc(ox, oy, 5, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+    ctx.restore();
+  },
+
+  // Item use: the item arcs from the user to its target, then a per-item effect plays
+  // (herb: swirling leaves, magic water: droplets + ripples, phoenix feather: flame pillar, bomb: blast)
+  renderItemFx: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var f = b.itemFx;
+    var el = now - f.t0;
+    if (el >= f.dur) { b.itemFx = null; return; }
+    if (el < 0) return;
+    var self = this;
+    var x, y;
+    if (f.side === 'enemy') {
+      var en = b.enemies[f.idx];
+      if (!en || en.sx === undefined) return;
+      x = en.sx; y = en.sy;
+    } else {
+      x = w - 250 + f.idx * 48; y = h - 238;   // party sprites live in the status window: effects play just above it
+    }
+    var ux = w - 250 + f.from * 48, uy = h - 238;
+    var COL = { herb: '120,255,150', magicWater: '110,180,255', phoenix: '255,150,60', bomb: '255,170,60' }[f.id] || '255,255,255';
+    var i;
+    ctx.save();
+    ctx.lineCap = 'round';
+
+    if (el < f.d) {
+      // Toss: item flies in an arc to the target
+      var tp = el / f.d;
+      var ix = ux + (x - ux) * tp;
+      var iy = uy + (y - uy) * tp - Math.sin(Math.PI * tp) * (f.id === 'bomb' ? 70 : 34);
+      for (i = 0; i < 6; i++) {
+        var te = Math.max(0, tp - i * 0.05);
+        ctx.globalAlpha = (1 - i / 6) * 0.6;
+        ctx.fillStyle = 'rgb(' + COL + ')';
+        ctx.beginPath();
+        ctx.arc(ux + (x - ux) * te, uy + (y - uy) * te - Math.sin(Math.PI * te) * (f.id === 'bomb' ? 70 : 34), 5 - i * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (f.id === 'bomb') {
+        ctx.fillStyle = '#3a3340';
+        ctx.beginPath(); ctx.arc(ix, iy, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffe066';   // lit fuse spark
+        ctx.fillRect(ix + 4 + Math.sin(now / 30) * 2, iy - 11, 4, 4);
+      } else {
+        ctx.shadowColor = 'rgb(' + COL + ')'; ctx.shadowBlur = 10;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(ix, iy, 4.5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+
+    var p = (el - f.d) / (f.dur - f.d);
+    var fade = Math.sin(Math.PI * Math.min(1, p));
+    if (f.id === 'herb' || f.id === 'magicWater') {
+      var herb = f.id === 'herb';
+      var gl = ctx.createRadialGradient(x, y, 2, x, y, 46);
+      gl.addColorStop(0, 'rgba(' + COL + ',' + (0.5 * fade) + ')');
+      gl.addColorStop(1, 'rgba(' + COL + ',0)');
+      ctx.fillStyle = gl;
+      ctx.fillRect(x - 50, y - 50, 100, 100);
+      for (i = 0; i < 10; i++) {
+        var ang = p * 5 + i * Math.PI * 2 / 10;
+        var rad = 30 * (1 - p * 0.5);
+        var px = x + Math.cos(ang) * rad, py = y + 18 - p * 55 - Math.sin(ang) * 6 + (i % 3) * 5;
+        ctx.globalAlpha = fade;
+        if (herb) {
+          ctx.fillStyle = i % 2 ? '#7dff9a' : '#3fd36a';
+          ctx.beginPath(); ctx.ellipse(px, py, 6, 3, ang, 0, Math.PI * 2); ctx.fill();
+        } else {
+          ctx.fillStyle = i % 2 ? '#bfe0ff' : '#6aa8ff';
+          ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.globalAlpha = fade * 0.7;
+      ctx.strokeStyle = 'rgb(' + COL + ')';
+      ctx.lineWidth = 2;
+      for (i = 0; i < 2; i++) {
+        var rq = Math.max(0, Math.min(1, p * 1.6 - i * 0.3));
+        ctx.beginPath();
+        ctx.ellipse(x, y + 22, 10 + rq * 36, 4 + rq * 10, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else if (f.id === 'phoenix') {
+      // Fire pillar with a rising feather, then a golden flash as they come back
+      var pg = ctx.createLinearGradient(0, y - 120, 0, y + 28);
+      pg.addColorStop(0, 'rgba(255,220,100,0)');
+      pg.addColorStop(0.5, 'rgba(255,150,50,' + (0.7 * fade) + ')');
+      pg.addColorStop(1, 'rgba(255,90,20,' + (0.8 * fade) + ')');
+      ctx.fillStyle = pg;
+      var pw = 22 + 12 * fade;
+      ctx.fillRect(x - pw, y - 120, pw * 2, 148);
+      for (i = 0; i < 16; i++) {
+        var ex = x + (self.fxRnd(i + 5) - 0.5) * 50;
+        var ey = y + 20 - p * (40 + self.fxRnd(i + 30) * 110);
+        ctx.globalAlpha = Math.max(0, 1 - p) * 0.9;
+        ctx.fillStyle = i % 3 === 0 ? '#fff2a0' : (i % 3 === 1 ? '#ffa030' : '#ff5a1c');
+        ctx.beginPath(); ctx.arc(ex, ey, 4 * (1 - p) + 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = Math.min(1, fade * 1.5);
+      ctx.fillStyle = '#ffd24a';   // feather
+      ctx.beginPath();
+      var fy = y + 10 - p * 70;
+      ctx.moveTo(x, fy - 14); ctx.lineTo(x - 6, fy + 2); ctx.lineTo(x, fy + 12); ctx.lineTo(x + 6, fy + 2);
+      ctx.closePath(); ctx.fill();
+      if (p > 0.55) {
+        ctx.globalAlpha = Math.sin(Math.PI * (p - 0.55) / 0.45) * 0.45;
+        ctx.fillStyle = '#fff6c0';
+        ctx.fillRect(-10, -10, w + 20, h + 20);
+      }
+    } else if (f.id === 'bomb') {
+      var ex0 = Math.min(1, p / 0.35);
+      if (p < 0.35) {
+        ctx.globalAlpha = 1 - ex0;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x, y, 14 + ex0 * 46, 0, Math.PI * 2); ctx.fill();
+      }
+      var bg = ctx.createRadialGradient(x, y, 4, x, y, 30 + p * 50);
+      bg.addColorStop(0, 'rgba(255,230,120,' + (0.9 * (1 - p)) + ')');
+      bg.addColorStop(0.5, 'rgba(255,110,20,' + (0.7 * (1 - p)) + ')');
+      bg.addColorStop(1, 'rgba(120,20,0,0)');
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = bg;
+      ctx.fillRect(x - 90, y - 90, 180, 180);
+      ctx.strokeStyle = 'rgba(255,200,120,' + (1 - p) + ')';
+      ctx.lineWidth = 5 * (1 - p) + 1;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 18, 10 + p * 110, 4 + p * 34, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      for (i = 0; i < 14; i++) {
+        var ba = self.fxRnd(i + 11) * Math.PI * 2, bs = 30 + self.fxRnd(i + 40) * 70;
+        var dd = Math.min(1, p * 1.5);
+        ctx.globalAlpha = Math.max(0, 1 - dd);
+        ctx.fillStyle = i % 2 ? '#5a4a40' : '#ffb030';
+        ctx.fillRect(x + Math.cos(ba) * bs * dd - 2, y + Math.sin(ba) * bs * dd * 0.8 + 34 * dd * dd - 2, 4, 4);
+      }
+      // smoke puff
+      ctx.globalAlpha = Math.max(0, 0.5 - p * 0.5);
+      ctx.fillStyle = '#3a3340';
+      ctx.beginPath(); ctx.arc(x, y - 20 - p * 40, 18 + p * 22, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
   },
