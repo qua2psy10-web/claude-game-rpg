@@ -74,6 +74,8 @@ var BattleSystem = {
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
   },
 
+  ENEMY_CAST_DELAY: 450,  // ms an enemy charges a spell before it lands
+  ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyHeal: '80,230,130' },
   ENEMY_HIT_DELAY: 170,   // ms between an enemy starting its lunge and the hit landing
 
   // Queue a floating number over a combatant. kind: 'dmg' | 'heal' | 'mp'
@@ -89,7 +91,7 @@ var BattleSystem = {
   renderPartyHit: function(ctx, game, w, h, now) {
     var b = game.battle;
     var hit = b.partyHit;
-    if (!hit || hit.idx < 0) return;
+    if (!hit || hit.idx < -1) return;
     var t = now - hit.t0;
     if (t < 0 || t > 450) return;
     var p = t / 450;
@@ -97,13 +99,13 @@ var BattleSystem = {
 
     // Red flash around the screen edges
     var rg = ctx.createRadialGradient(w / 2, h * 0.45, h * 0.3, w / 2, h * 0.45, w * 0.7);
-    rg.addColorStop(0, 'rgba(255,0,0,0)');
-    rg.addColorStop(1, 'rgba(255,0,0,' + 0.45 * (1 - p) + ')');
+    var tn = hit.tint || '255,0,0';
+    rg.addColorStop(0, 'rgba(' + tn + ',0)');
+    rg.addColorStop(1, 'rgba(' + tn + ',' + 0.45 * (1 - p) + ')');
     ctx.fillStyle = rg;
     ctx.fillRect(0, 0, w, h);
 
-    // Three claw marks across the member's row
-    var rowY = h - 190 + hit.idx * 36;
+    // Three claw marks across the member's row (every row for party-wide hits)
     var x0 = w - 215;
     ctx.beginPath();
     ctx.rect(w - 220, h - 200, 215, 120);   // keep marks inside the status window
@@ -111,17 +113,22 @@ var BattleSystem = {
     ctx.lineCap = 'round';
     ctx.shadowColor = '#f00';
     ctx.shadowBlur = 8;
-    for (var i = 0; i < 3; i++) {
-      var sp = Math.max(0, Math.min(1, p * 2.4 - i * 0.2));
-      if (sp <= 0) continue;
-      ctx.globalAlpha = 1 - Math.max(0, p - 0.55) / 0.45;
-      ctx.strokeStyle = '#ff5a5a';
-      ctx.lineWidth = 4 - sp * 2;
-      var sx = x0 + 40 + i * 50;
-      ctx.beginPath();
-      ctx.moveTo(sx, rowY - 14);
-      ctx.lineTo(sx + 30 * sp, rowY - 14 + 44 * sp);
-      ctx.stroke();
+    ctx.shadowColor = 'rgb(' + tn + ')';
+    ctx.strokeStyle = 'rgb(' + tn + ')';
+    var rows = hit.idx === -1 ? [0, 1, 2] : [hit.idx];
+    for (var ri = 0; ri < rows.length; ri++) {
+      var rowY = h - 190 + rows[ri] * 36;
+      for (var i = 0; i < 3; i++) {
+        var sp = Math.max(0, Math.min(1, p * 2.4 - i * 0.2));
+        if (sp <= 0) continue;
+        ctx.globalAlpha = 1 - Math.max(0, p - 0.55) / 0.45;
+        ctx.lineWidth = 4 - sp * 2;
+        var sx = x0 + 40 + i * 50;
+        ctx.beginPath();
+        ctx.moveTo(sx, rowY - 14);
+        ctx.lineTo(sx + 30 * sp, rowY - 14 + 44 * sp);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   },
@@ -196,11 +203,11 @@ var BattleSystem = {
   },
 
   // Start a spell effect. side: 'enemy'|'party', idx: target index or -1 for all
-  startEffect: function(game, spellId, side, idx) {
+  startEffect: function(game, spellId, side, idx, delay) {
     var b = game.battle;
     var kind = this.EFFECT_KINDS[spellId];
     if (!b || !kind) return;
-    b.effect = { kind: kind, side: side, idx: idx, t0: Date.now(), dur: 850 };
+    b.effect = { kind: kind, side: side, idx: idx, t0: Date.now() + (delay || 0), dur: 850 };
   },
 
   getEncounterMessage: function(enemies) {
@@ -772,6 +779,11 @@ var BattleSystem = {
 
     b.messages = [caster.name + 'は ' + spell.name + 'を となえた！'];
 
+    // Enemy casters charge up first; effect, shake and numbers land after ed ms
+    var ed = cmd.actorType === 'enemy' ? this.ENEMY_CAST_DELAY : 0;
+    var tint = this.ENEMY_CAST_TINT[cmd.spellId] || '200,200,255';
+    if (ed) b.enemyCast = { idx: cmd.actor, t0: Date.now(), dur: ed + 350, tint: tint };
+
     // 呪文のビジュアルエフェクト
     var fxSide = 'enemy', fxIdx = -1;
     if (cmd.actorType === 'party') {
@@ -784,7 +796,10 @@ var BattleSystem = {
       else if (cmd.targetType === 'partyAll') { fxSide = 'party'; fxIdx = -1; }
       else { fxSide = 'party'; fxIdx = cmd.target; }
     }
-    this.startEffect(game, cmd.spellId, fxSide, fxIdx);
+    this.startEffect(game, cmd.spellId, fxSide, fxIdx, ed);
+    if (ed && fxSide === 'party' && spell.type !== 'heal') {
+      b.partyHit = { idx: fxIdx, t0: Date.now() + ed, tint: tint };
+    }
 
     // 呪文の効果音
     if (spell.type === 'heal') {
@@ -799,14 +814,19 @@ var BattleSystem = {
 
     if (spell.type === 'magic' || spell.type === 'physical') {
       var bigHit = (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy' || cmd.targetType === 'partyAll');
-      this.shake(game, bigHit ? 12 : 7, bigHit ? 450 : 300);
+      var shakeMag = bigHit ? 12 : 7, shakeDur = bigHit ? 450 : 300;
+      if (ed) {
+        setTimeout(function() { if (game.battle === b) BattleSystem.shake(game, shakeMag, shakeDur); }, ed);
+      } else {
+        this.shake(game, shakeMag, shakeDur);
+      }
       if (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy') {
         var targets = cmd.actorType === 'party' ? b.enemies : game.party;
         for (var i = 0; i < targets.length; i++) {
           if (targets[i].alive) {
             var dmg = this.calcSpellDamage(caster, targets[i], spell);
             targets[i].hp = Math.max(0, targets[i].hp - dmg);
-            this.pop(game, targets[i], dmg, 'dmg');
+            this.pop(game, targets[i], dmg, 'dmg', ed);
             b.messages.push(targets[i].name + 'に ' + dmg + 'の ダメージ！');
             if (targets[i].hp <= 0) {
               targets[i].alive = false;
@@ -816,12 +836,12 @@ var BattleSystem = {
           }
         }
       } else if (cmd.targetType === 'partyAll') {
-        SoundSystem.damage();
+        setTimeout(function() { SoundSystem.damage(); }, ed);
         for (var j = 0; j < game.party.length; j++) {
           if (game.party[j].alive) {
             var dmg2 = this.calcSpellDamage(caster, game.party[j], spell);
             game.party[j].hp = Math.max(0, game.party[j].hp - dmg2);
-            this.pop(game, game.party[j], dmg2, 'dmg');
+            this.pop(game, game.party[j], dmg2, 'dmg', ed);
             b.messages.push(game.party[j].name + 'に ' + dmg2 + 'の ダメージ！');
             if (game.party[j].hp <= 0) {
               game.party[j].alive = false;
@@ -845,7 +865,7 @@ var BattleSystem = {
             dmg3 = Math.max(1, Math.floor(this.getEffectiveStat(caster, 'atk') * spell.power / 2 - this.getEffectiveStat(target, 'def') / 4));
           }
           target.hp = Math.max(0, target.hp - dmg3);
-          this.pop(game, target, dmg3, 'dmg');
+          this.pop(game, target, dmg3, 'dmg', ed);
           b.messages.push(target.name + 'に ' + dmg3 + 'の ダメージ！');
           if (spell.stun && Math.random() < spell.stun) {
             b.messages.push(target.name + 'は しびれて 動けない！');
@@ -868,7 +888,7 @@ var BattleSystem = {
       if (healTarget && healTarget.alive) {
         var heal = spell.power + Math.floor(Math.random() * 10 - 5);
         healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + heal);
-        this.pop(game, healTarget, heal, 'heal');
+        this.pop(game, healTarget, heal, 'heal', ed);
         b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
       }
     } else if (spell.type === 'buff') {
@@ -1268,6 +1288,7 @@ var BattleSystem = {
     if (!fx) return;
     var p = (now - fx.t0) / fx.dur;
     if (p >= 1) { b.effect = null; return; }
+    if (p < 0) return;   // still charging up
 
     var pts = [];
     if (fx.side === 'enemy') {
@@ -1613,6 +1634,27 @@ var BattleSystem = {
           else amt = 1 - (at - 0.5) / 0.5;                        // retreat
           lungeK = 1 + 0.3 * amt;
           lungeDy = 38 * amt;
+        }
+      }
+      // Spell charge-up: hover, glowing aura and orbiting sparks in the spell's colour
+      var castFx = b.enemyCast;
+      if (castFx && castFx.idx === aliveEnemies[j].index) {
+        var ct = (now - castFx.t0) / castFx.dur;
+        if (ct >= 0 && ct < 1) {
+          var ramp = Math.min(1, ct / 0.7);
+          lungeDy -= 14 * Math.sin(Math.min(1, ct / 0.8) * Math.PI);
+          var ar = 30 * scale * (0.8 + 0.6 * ramp);
+          var ag = ctx.createRadialGradient(ex, ey, 4, ex, ey, ar * 1.6);
+          ag.addColorStop(0, 'rgba(' + castFx.tint + ',' + (0.55 * ramp) + ')');
+          ag.addColorStop(1, 'rgba(' + castFx.tint + ',0)');
+          ctx.fillStyle = ag;
+          ctx.fillRect(ex - ar * 2, ey - ar * 2, ar * 4, ar * 4);
+          ctx.fillStyle = 'rgba(' + castFx.tint + ',' + (0.9 * (1 - ct * 0.4)) + ')';
+          for (var os = 0; os < 7; os++) {
+            var oa = now / 180 + os * Math.PI * 2 / 7;
+            var orad = ar * (1.4 - ramp * 0.5);
+            ctx.fillRect(ex + Math.cos(oa) * orad - 2, ey + Math.sin(oa) * orad * 0.6 - 2, 4, 4);
+          }
         }
       }
       ctx.save();
