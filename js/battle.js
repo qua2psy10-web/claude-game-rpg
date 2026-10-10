@@ -75,12 +75,14 @@ var BattleSystem = {
     powerSlash: 'slash', shieldBash: 'bash', warCry: 'buffAtk', protect: 'buffDef',
     fire: 'fire', enemyFire: 'fire', iceStorm: 'ice', thunder: 'thunder',
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
+    weaken: 'debuffAtk', armorBreak: 'debuffDef',
   },
 
   // Party spells: ms of casting (rune circle + travelling orb) before the effect lands, and element colour
-  PARTY_CAST_DELAY: { fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340 },
+  PARTY_CAST_DELAY: { fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340, debuffAtk: 440, debuffDef: 440 },
   PARTY_CAST_TINT: { fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
-                     holy: '255,240,170', buffAtk: '255,120,60', buffDef: '90,170,255' },
+                     holy: '255,240,170', buffAtk: '255,120,60', buffDef: '90,170,255',
+                     debuffAtk: '200,60,120', debuffDef: '120,90,220' },
 
   // Party basic attacks: windup before the strike lands (numbers, shake and sound wait for it)
   PARTY_ATTACK_DELAY: 190,
@@ -1263,6 +1265,23 @@ var BattleSystem = {
         if (fd) healTarget.hpBarUntil = Date.now() + fd + 2000;
         b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
       }
+    } else if (spell.type === 'debuff') {
+      var dTargets = [];
+      if (spell.target === 'allEnemy') {
+        for (var dq = 0; dq < b.enemies.length; dq++) { if (b.enemies[dq].alive) dTargets.push(b.enemies[dq]); }
+      } else {
+        var dt0 = b.enemies[cmd.target];
+        if (!dt0 || !dt0.alive) { for (var dk = 0; dk < b.enemies.length; dk++) { if (b.enemies[dk].alive) { dt0 = b.enemies[dk]; break; } } }
+        if (dt0 && dt0.alive) dTargets.push(dt0);
+      }
+      var statWord = spell.stat === 'atk' ? 'こうげき力' : 'しゅび力';
+      for (var dm = 0; dm < dTargets.length; dm++) {
+        if (!dTargets[dm].buffs) dTargets[dm].buffs = {};
+        dTargets[dm].buffs[spell.stat] = { mult: spell.mult, turns: spell.turns };
+        dTargets[dm].debuffAt = Date.now() + fd + dm * 90;
+        dTargets[dm].debuffStat = spell.stat;
+        b.messages.push(dTargets[dm].name + 'の ' + statWord + 'が さがった！');
+      }
     } else if (spell.type === 'buff') {
       b.messages.push('味方全体の ' + (spell.stat === 'atk' ? 'こうげき力' : 'しゅび力') + 'が あがった！');
       for (var m = 0; m < game.party.length; m++) {
@@ -2081,6 +2100,7 @@ var BattleSystem = {
     if (b && b.itemFx) this.renderItemFx(ctx, game, w, h, now);
     if (b) this.renderGuard(ctx, game, w, h, now);
     if (b) this.renderStun(ctx, game, now);
+    if (b) this.renderDebuff(ctx, game, now);
     if (b && b.escapeFail) this.renderEscapeFail(ctx, game, w, h, now);
     var fx = b && b.effect;
     if (!fx) return;
@@ -2185,7 +2205,7 @@ var BattleSystem = {
     }
 
     // Release: projectile travelling to each target
-    if (fire > 0 && (pc.kind === 'fire' || pc.kind === 'ice' || pc.kind === 'heal' || pc.kind === 'thunder')) {
+    if (fire > 0 && (pc.kind === 'fire' || pc.kind === 'ice' || pc.kind === 'heal' || pc.kind === 'thunder' || pc.kind === 'debuffAtk' || pc.kind === 'debuffDef')) {
       var tpts = [];
       if (pc.side === 'enemy') {
         for (var e = 0; e < b.enemies.length; e++) {
@@ -2218,7 +2238,7 @@ var BattleSystem = {
           var tx2 = hx + (tpts[n].x - hx) * te;
           var ty2 = hy + (tpts[n].y - hy) * te - Math.sin(Math.PI * te) * 36;
           ctx.globalAlpha = (1 - i / 9) * 0.7;
-          ctx.fillStyle = pc.kind === 'fire' ? (i % 2 ? '#ffb030' : '#ff5a1c') : (pc.kind === 'ice' ? '#bfe9ff' : '#c8ffd8');
+          ctx.fillStyle = pc.kind === 'fire' ? (i % 2 ? '#ffb030' : '#ff5a1c') : (pc.kind === 'ice' ? '#bfe9ff' : (pc.kind === 'debuffAtk' ? (i % 2 ? '#ff4f9a' : '#6a1040') : (pc.kind === 'debuffDef' ? (i % 2 ? '#8a70ff' : '#2a1a6a') : '#c8ffd8')));
           ctx.beginPath();
           ctx.arc(tx2, ty2, (9 - i) * 0.9, 0, Math.PI * 2);
           ctx.fill();
@@ -2311,6 +2331,80 @@ var BattleSystem = {
         ctx.fillStyle = '#fff27a';
         ctx.strokeText('スタン！', 0, 0);
         ctx.fillText('スタン！', 0, 0);
+      }
+      ctx.restore();
+    }
+  },
+
+  // Debuff: a label pops when it lands, and afterwards a bobbing down-arrow badge and a gloomy aura
+  // mark every enemy whose attack or defence is lowered
+  renderDebuff: function(ctx, game, now) {
+    var b = game.battle;
+    var i, k;
+    for (i = 0; i < b.enemies.length; i++) {
+      var en = b.enemies[i];
+      if (!en.alive || !en.buffs || en.sx === undefined) continue;
+      var stats = [];
+      if (en.buffs.atk && en.buffs.atk.mult < 1) stats.push('atk');
+      if (en.buffs.def && en.buffs.def.mult < 1) stats.push('def');
+      if (!stats.length) continue;
+      var sc = en.sscale || 1;
+      var x = en.sx, y = en.sy, footY = en.sfoot, headY = footY - 88 * sc;
+      var onset = en.debuffAt ? now - en.debuffAt : 99999;
+      if (onset < 0) continue;
+      ctx.save();
+      // gloom pooling at the feet
+      var gp = 0.5 + 0.12 * Math.sin(now / 260 + i);
+      var gg = ctx.createRadialGradient(x, footY, 2, x, footY, 40 * sc);
+      gg.addColorStop(0, 'rgba(90,40,140,' + (0.45 * gp) + ')');
+      gg.addColorStop(1, 'rgba(40,0,70,0)');
+      ctx.fillStyle = gg;
+      ctx.fillRect(x - 44 * sc, footY - 20 * sc, 88 * sc, 40 * sc);
+      // onset: contracting ring + shake-off
+      if (onset < 450) {
+        var rp = onset / 450;
+        ctx.globalAlpha = 1 - rp;
+        ctx.strokeStyle = en.debuffStat === 'def' ? '#8a70ff' : '#ff4f9a';
+        ctx.lineWidth = 4 * (1 - rp) + 1;
+        ctx.beginPath();
+        ctx.ellipse(x, y, (1 - rp) * 60 * sc + 12, ((1 - rp) * 60 * sc + 12) * 1.1, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // badges above the head
+      for (k = 0; k < stats.length; k++) {
+        var bx = x + (k - (stats.length - 1) / 2) * 30;
+        var by = headY - 6 + Math.sin(now / 240 + k * 2 + i) * 3;
+        var isAtk = stats[k] === 'atk';
+        var turnsLeft = en.buffs[stats[k]].turns;
+        ctx.globalAlpha = Math.min(1, onset / 200) * (turnsLeft <= 1 ? 0.55 + 0.35 * Math.sin(now / 120) : 1);
+        ctx.fillStyle = isAtk ? '#7a1040' : '#2a2070';
+        ctx.strokeStyle = isAtk ? '#ff6fb0' : '#a99aff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(bx, by, 11, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = isAtk ? '#ffb0d6' : '#cfc6ff';
+        ctx.beginPath();   // down arrow
+        ctx.moveTo(bx - 3, by - 6); ctx.lineTo(bx + 3, by - 6); ctx.lineTo(bx + 3, by); ctx.lineTo(bx + 7, by);
+        ctx.lineTo(bx, by + 8); ctx.lineTo(bx - 7, by); ctx.lineTo(bx - 3, by);
+        ctx.closePath();
+        ctx.fill();
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(isAtk ? '攻' : '防', bx, by - 14);
+      }
+      // label when it lands
+      if (onset < 1100) {
+        var lp = onset / 1100;
+        ctx.globalAlpha = Math.min(1, onset / 80) * (1 - Math.max(0, lp - 0.7) / 0.3);
+        var label = (en.debuffStat === 'def' ? 'ぼうぎょ' : 'こうげき') + 'ダウン！';
+        ctx.font = 'bold 18px monospace';
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#1a0a2a';
+        ctx.fillStyle = en.debuffStat === 'def' ? '#cfc6ff' : '#ffb0d6';
+        ctx.strokeText(label, x, headY - 40 - lp * 10);
+        ctx.fillText(label, x, headY - 40 - lp * 10);
       }
       ctx.restore();
     }
@@ -2908,6 +3002,35 @@ var BattleSystem = {
       ctx.beginPath();
       ctx.arc(x, y, 14 * fade, 0, Math.PI * 2);
       ctx.fill();
+    } else if (kind === 'debuffAtk' || kind === 'debuffDef') {
+      var dc = kind === 'debuffAtk' ? '255,70,130' : '130,100,255';
+      // dark mist closing in, then heavy arrows pressing the target down
+      var mg = ctx.createRadialGradient(x, y, 4, x, y, 58);
+      mg.addColorStop(0, 'rgba(' + dc + ',' + (0.45 * fade) + ')');
+      mg.addColorStop(1, 'rgba(30,0,50,0)');
+      ctx.fillStyle = mg;
+      ctx.fillRect(x - 60, y - 60, 120, 120);
+      for (i = 0; i < 3; i++) {
+        var cp = Math.min(1, Math.max(0, p * 1.5 - i * 0.12));
+        ctx.globalAlpha = Math.sin(Math.PI * cp) * 0.85;
+        ctx.strokeStyle = 'rgb(' + dc + ')';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(x, y + 4, (1 - cp) * 60 + 14, ((1 - cp) * 60 + 14) * 0.35, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      for (i = 0; i < 3; i++) {
+        var ap = Math.min(1, Math.max(0, (p - 0.15 - i * 0.12) / 0.6));
+        if (ap <= 0) continue;
+        var axp = x + (i - 1) * 22, ayp = y - 50 + ap * 62;
+        ctx.globalAlpha = Math.sin(Math.PI * ap);
+        ctx.fillStyle = 'rgb(' + dc + ')';
+        ctx.beginPath();
+        ctx.moveTo(axp - 9, ayp - 10); ctx.lineTo(axp + 9, ayp - 10); ctx.lineTo(axp + 9, ayp); ctx.lineTo(axp + 14, ayp);
+        ctx.lineTo(axp, ayp + 14); ctx.lineTo(axp - 14, ayp); ctx.lineTo(axp - 9, ayp);
+        ctx.closePath();
+        ctx.fill();
+      }
     } else if (kind === 'slash') {
       ctx.lineCap = 'round';
       for (i = 0; i < 2; i++) {
