@@ -55,6 +55,9 @@ var BattleSystem = {
     game.state = 'battle';
     game.battle.messages = [this.getEncounterMessage(enemies)];
     game.battle.messageTimer = 60;
+    // Boss fights get a longer cinematic entrance before the first command
+    game.battle.bossIntro = enemies.some(function(e) { return e.boss; });
+    if (game.battle.bossIntro) game.battle.messageTimer = 170;
     SoundSystem.battleStart();
   },
 
@@ -1108,6 +1111,68 @@ var BattleSystem = {
     return null;
   },
 
+  // Boss entrance overlay. t = ms since battle start, lt = ms since the boss landed (-1 before)
+  renderBossIntro: function(ctx, w, h, t, lt, name) {
+    if (t > 2600) return;
+    ctx.save();
+
+    // Dark red gloom that lifts as the boss appears
+    var gloom = Math.max(0, 0.5 * (1 - t / 2500));
+    ctx.fillStyle = 'rgba(40,0,10,' + gloom + ')';
+    ctx.fillRect(0, 0, w, h);
+
+    // Distant lightning before the boss shows up
+    var flashes = [350, 600];
+    for (var i = 0; i < flashes.length; i++) {
+      var ft = t - flashes[i];
+      if (ft > 0 && ft < 140) {
+        ctx.fillStyle = 'rgba(255,255,255,' + 0.5 * (1 - ft / 140) + ')';
+        ctx.fillRect(0, 0, w, h);
+      }
+    }
+    // Red flash on impact
+    if (lt >= 0 && lt < 350) {
+      ctx.fillStyle = 'rgba(255,60,40,' + 0.5 * (1 - lt / 350) + ')';
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // Letterbox bars slide in, then out
+    var bar = 52 * Math.min(1, t / 300) * (t > 2200 ? Math.max(0, 1 - (t - 2200) / 400) : 1);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, bar);
+    ctx.fillRect(0, h - bar, w, bar);
+
+    // Boss name banner after the landing
+    if (lt >= 250) {
+      var nt = lt - 250;
+      var a = Math.min(1, nt / 300) * (t > 2200 ? Math.max(0, 1 - (t - 2200) / 400) : 1);
+      var track = 14 - Math.min(10, nt / 80);   // letters start spread out, then pull together
+      ctx.globalAlpha = a;
+      ctx.font = 'bold 44px monospace';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      var chars = name.split('');
+      var total = 0, k;
+      for (k = 0; k < chars.length; k++) total += ctx.measureText(chars[k]).width + track;
+      var x = (w - total) / 2;
+      var g = ctx.createLinearGradient(0, h * 0.2 - 24, 0, h * 0.2 + 24);
+      g.addColorStop(0, '#ffe08a');
+      g.addColorStop(1, '#ff3a2a');
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = '#2a0000';
+      ctx.shadowColor = '#ff2a00';
+      ctx.shadowBlur = 14;
+      for (k = 0; k < chars.length; k++) {
+        ctx.strokeText(chars[k], x, h * 0.2);
+        ctx.fillStyle = g;
+        ctx.fillText(chars[k], x, h * 0.2);
+        x += ctx.measureText(chars[k]).width + track;
+      }
+    }
+    ctx.restore();
+  },
+
   renderEscape: function(ctx, w, h, t) {
     var i;
     ctx.save();
@@ -1658,9 +1723,27 @@ var BattleSystem = {
       // Entrance: each enemy drops in, bounces and kicks up dust (bosses arrive last, slower)
       var introQ = 1;
       if (b.introStart) {
-        var delay = j * 200 + (en.boss ? 250 : 0);
-        introQ = Math.max(0, Math.min(1, (now - b.introStart - delay) / (en.boss ? 900 : 620)));
+        var delay = en.boss ? 700 : j * 200;
+        introQ = Math.max(0, Math.min(1, (now - b.introStart - delay) / (en.boss ? 1100 : 620)));
         if (introQ <= 0) continue;
+        // Boss slam: heavy shake, rumble and a shockwave ring when it lands
+        if (en.boss && b.bossIntro && introQ >= 0.364 && !b.bossLandAt) {
+          b.bossLandAt = now;
+          this.shake(game, 16, 800);
+          SoundSystem.bossAppear();
+        }
+        if (en.boss && b.bossLandAt) {
+          var sw = (now - b.bossLandAt) / 700;
+          if (sw < 1) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,90,60,' + (0.8 * (1 - sw)) + ')';
+            ctx.lineWidth = 6 * (1 - sw) + 1;
+            ctx.beginPath();
+            ctx.ellipse(ex, footY + 2, 40 + sw * 260, 8 + sw * 50, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
       }
       var drop = (1 - this.easeOutBounce(introQ)) * 150;
       var ey = footY - 22 * scale + bob - drop;
@@ -1782,6 +1865,13 @@ var BattleSystem = {
     // Victory scene (drawn under the message windows)
     if (b.phase === 'win' && b.winStart) {
       this.renderVictory(ctx, canvasW, canvasH, now - b.winStart);
+    }
+
+    // Boss entrance cinematic: letterbox bars, gloom, lightning, name banner
+    if (b.bossIntro && b.introStart) {
+      var bossName = '';
+      for (var bi = 0; bi < b.enemies.length; bi++) { if (b.enemies[bi].boss) { bossName = b.enemies[bi].name; break; } }
+      this.renderBossIntro(ctx, canvasW, canvasH, now - b.introStart, b.bossLandAt ? now - b.bossLandAt : -1, bossName);
     }
 
     // Getaway scene: speed lines, dust trail, then the screen irises shut
