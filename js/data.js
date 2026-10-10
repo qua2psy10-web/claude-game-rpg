@@ -44,6 +44,7 @@ var CHARACTERS = {
     growth: { hp: 4, mp: 5, atk: 1, def: 1, spd: 2, int: 4 },
     spells: [
       { id: 'fire', learnLevel: 1 },
+      { id: 'weaken', learnLevel: 4 },
       { id: 'iceStorm', learnLevel: 7 },
       { id: 'thunder', learnLevel: 12 },
     ],
@@ -56,6 +57,7 @@ var CHARACTERS = {
     spells: [
       { id: 'heal', learnLevel: 1 },
       { id: 'protect', learnLevel: 6 },
+      { id: 'armorBreak', learnLevel: 8 },
       { id: 'holyLight', learnLevel: 10 },
     ],
     color: '#44cc88',
@@ -71,6 +73,8 @@ var SPELLS = {
   iceStorm:    { name: 'アイスストーム', mp: 8, type: 'magic', target: 'allEnemy', power: 18, desc: '吹雪で敵全体を攻撃' },
   thunder:     { name: 'サンダー', mp: 12, type: 'magic', target: 'enemy', power: 48, desc: '雷で敵一体を大ダメージ' },
   heal:        { name: 'ヒール', mp: 4, type: 'heal', target: 'ally', power: 50, desc: '味方一人のHPを回復' },
+  weaken:      { name: 'ウィークン', mp: 6, type: 'debuff', target: 'enemy', stat: 'atk', mult: 0.7, turns: 3, desc: '敵一体の攻撃力DOWN' },
+  armorBreak:  { name: 'ブレイク', mp: 8, type: 'debuff', target: 'allEnemy', stat: 'def', mult: 0.7, turns: 3, desc: '敵全体の防御力DOWN' },
   protect:     { name: 'プロテクト', mp: 6, type: 'buff', target: 'party', stat: 'def', mult: 1.25, turns: 3, desc: '味方全体の防御力UP' },
   holyLight:   { name: 'ホーリーライト', mp: 10, type: 'magic', target: 'allEnemy', power: 42, desc: '聖なる光で敵全体を攻撃' },
   enemyFire:   { name: '火炎', mp: 0, type: 'magic', target: 'ally', power: 20, desc: '' },
