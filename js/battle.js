@@ -50,6 +50,7 @@ var BattleSystem = {
       levelUps: [],
       levelUpIndex: 0,
       escapeAttempts: 0,
+      introStart: Date.now(),   // drives the enemy entrance animation
     };
     game.state = 'battle';
     game.battle.messages = [this.getEncounterMessage(enemies)];
@@ -923,6 +924,14 @@ var BattleSystem = {
     return null;
   },
 
+  easeOutBounce: function(t) {
+    if (t < 1 / 2.75) return 7.5625 * t * t;
+    if (t < 2 / 2.75) { t -= 1.5 / 2.75; return 7.5625 * t * t + 0.75; }
+    if (t < 2.5 / 2.75) { t -= 2.25 / 2.75; return 7.5625 * t * t + 0.9375; }
+    t -= 2.625 / 2.75;
+    return 7.5625 * t * t + 0.984375;
+  },
+
   // Deterministic pseudo-random in [0,1) so particles don't flicker between frames
   fxRnd: function(i) {
     var v = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
@@ -1224,7 +1233,17 @@ var BattleSystem = {
       var ex = spacing * (j + 1);
       var footY = groundY + (back ? 46 : 84) + (en.boss ? 10 : 0);
       var bob = Math.sin(now / 420 + j * 1.7) * 3;
-      var ey = footY - 22 * scale + bob;
+
+      // Entrance: each enemy drops in, bounces and kicks up dust (bosses arrive last, slower)
+      var introQ = 1;
+      if (b.introStart) {
+        var delay = j * 200 + (en.boss ? 250 : 0);
+        introQ = Math.max(0, Math.min(1, (now - b.introStart - delay) / (en.boss ? 900 : 620)));
+        if (introQ <= 0) continue;
+      }
+      var drop = (1 - this.easeOutBounce(introQ)) * 150;
+      var ey = footY - 22 * scale + bob - drop;
+      ctx.globalAlpha = Math.min(1, introQ * 3);
 
       // Boss aura
       if (en.boss) {
@@ -1238,8 +1257,20 @@ var BattleSystem = {
       // Ground shadow (shrinks as the enemy bobs up)
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.beginPath();
-      ctx.ellipse(ex, footY + 2, 30 * scale - bob, 7 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(ex, footY + 2, (30 * scale - bob) * (0.4 + 0.6 * introQ), 7 * scale * (0.4 + 0.6 * introQ), 0, 0, Math.PI * 2);
       ctx.fill();
+
+      // Landing dust puff
+      var dustT = (introQ - 0.36) / 0.64;
+      if (introQ < 1 && dustT > 0) {
+        ctx.fillStyle = 'rgba(200,190,220,' + 0.5 * (1 - dustT) + ')';
+        for (var dp = 0; dp < 8; dp++) {
+          var da = dp / 8 * Math.PI * 2;
+          ctx.beginPath();
+          ctx.arc(ex + Math.cos(da) * (10 + dustT * 40) * scale, footY + Math.sin(da) * (3 + dustT * 6) * scale - dustT * 8, 4 + dustT * 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
 
       // Flash effect
       if (b.flashEnemy === aliveEnemies[j].index) {
@@ -1254,6 +1285,8 @@ var BattleSystem = {
         ctx.fillStyle = 'rgba(30,30,60,0.18)';
         ctx.fillRect(ex - 45 * scale, ey - 55 * scale, 90 * scale, 90 * scale);
       }
+
+      ctx.globalAlpha = 1;
 
       // Target cursor
       if (b.phase === 'targeting' && j === b.targetIndex) {
@@ -1277,6 +1310,17 @@ var BattleSystem = {
     ctx.fillStyle = vg;
     ctx.fillRect(-10, -10, canvasW + 20, canvasH + 20);
     ctx.restore();
+
+    // Battle-start iris wipe: black closes in, then opens from the centre
+    var wipeT = (now - (b.introStart || 0)) / 500;
+    if (b.introStart && wipeT < 1) {
+      var maxR = Math.sqrt(canvasW * canvasW + canvasH * canvasH) / 2;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.rect(0, 0, canvasW, canvasH);
+      ctx.arc(canvasW / 2, canvasH * 0.45, maxR * wipeT, 0, Math.PI * 2, true);
+      ctx.fill('evenodd');
+    }
 
     // Party status panel (right side)
     UI.drawWindow(ctx, canvasW - 220, canvasH - 200, 215, 120);
