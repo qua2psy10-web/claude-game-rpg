@@ -74,6 +74,23 @@ var BattleSystem = {
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
   },
 
+  // Failed escape: red "!" over every enemy and a small jolt as they cut off the way
+  alertEnemies: function(game) {
+    var b = game.battle;
+    if (!b.pops) b.pops = [];
+    var now = Date.now();
+    for (var i = 0; i < b.enemies.length; i++) {
+      var en = b.enemies[i];
+      if (!en.alive || en.sx === undefined) continue;
+      b.pops.push({
+        target: en, isParty: false, kind: 'alert', text: '!',
+        fixed: { x: en.sx, y: en.sfoot - 22 * en.sscale - 62 * en.sscale },
+        t0: now
+      });
+    }
+    this.shake(game, 6, 300);
+  },
+
   ENEMY_CAST_DELAY: 450,  // ms an enemy charges a spell before it lands
   ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyHeal: '80,230,130' },
   ENEMY_HIT_DELAY: 170,   // ms between an enemy starting its lunge and the hit landing
@@ -160,19 +177,20 @@ var BattleSystem = {
           y = pp.target.sfoot - 22 * pp.target.sscale - 38 * pp.target.sscale;
         }
       }
-      var val = pp.kind === 'exp' ? 0 : (parseInt(pp.text, 10) || 0);
+      var val = (pp.kind === 'exp' || pp.kind === 'alert') ? 0 : (parseInt(pp.text, 10) || 0);
       // Bigger numbers for bigger hits (damage only)
-      var size = pp.kind === 'exp' ? 26 : 44 + (pp.kind === 'dmg' ? Math.min(24, val / 4) : 0);
+      var size = pp.kind === 'alert' ? 48 : pp.kind === 'exp' ? 26 : 44 + (pp.kind === 'dmg' ? Math.min(24, val / 4) : 0);
       var rise = 1 - Math.pow(1 - Math.min(1, t / 900), 3);   // easeOutCubic
-      var bounce = (pp.kind !== 'exp' && t < 300) ? Math.abs(Math.sin(t / 300 * Math.PI)) * 22 : 0;
+      var bounce = (pp.kind !== 'exp' && pp.kind !== 'alert' && t < 300) ? Math.abs(Math.sin(t / 300 * Math.PI)) * 22 : 0;
       var sc = pp.kind === 'exp' ? (t < 200 ? 0.6 + 0.4 * (t / 200) : 1) : (t < 160 ? 2.2 - 1.2 * (t / 160) : 1);   // slam in from large (exp: gentle pop)
       var alpha = t > 1050 ? 1 - (t - 1050) / 350 : 1;
       var top = '#ffffff', bot = '#ffe14d', glow = '#ffb300';
       if (pp.kind === 'heal') { top = '#eaffee'; bot = '#4dff7a'; glow = '#1fd45a'; }
       else if (pp.kind === 'mp') { top = '#eef6ff'; bot = '#5aa8ff'; glow = '#2b7cff'; }
+      else if (pp.kind === 'alert') { top = '#ffd0d0'; bot = '#ff2a2a'; glow = '#ff0000'; }
       else if (pp.kind === 'exp') { top = '#fff6b0'; bot = '#ffc400'; glow = '#ff9d00'; }
       else if (pp.isParty) { top = '#ffd0d0'; bot = '#ff3030'; glow = '#ff0000'; }
-      var text = (pp.kind === 'dmg' || pp.kind === 'exp') ? pp.text : '+' + pp.text;
+      var text = (pp.kind === 'dmg' || pp.kind === 'exp' || pp.kind === 'alert') ? pp.text : '+' + pp.text;
       var sx = (pp.isParty && pp.kind === 'dmg' && t < 400) ? Math.sin(t / 25) * 5 : 0;   // party hits jitter
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -665,14 +683,17 @@ var BattleSystem = {
       if (anyBoss) {
         b.messages = ['しかし 逃げられない！'];
         b.messageTimer = 40;
+        this.alertEnemies(game);
       } else if (Math.random() < 0.5 + b.escapeAttempts * 0.1) {
         b.messages = ['うまく逃げ切れた！'];
-        b.messageTimer = 40;
+        b.messageTimer = 75;           // leave time for the getaway scene
+        b.escapeStart = Date.now();
         b.phase = 'run';
         SoundSystem.escape();
       } else {
         b.messages = ['しかし 回り込まれてしまった！'];
         b.messageTimer = 40;
+        this.alertEnemies(game);
       }
       return;
     }
@@ -1085,6 +1106,49 @@ var BattleSystem = {
       };
     }
     return null;
+  },
+
+  renderEscape: function(ctx, w, h, t) {
+    var i;
+    ctx.save();
+
+    // Horizontal speed lines streaking past (ramp up, then keep going)
+    var ramp = Math.min(1, t / 250);
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.45 * ramp) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (i = 0; i < 22; i++) {
+      var y = this.fxRnd(i + 900) * h * 0.85;
+      var len = 70 + this.fxRnd(i + 950) * 110;
+      var speed = 1.2 + this.fxRnd(i + 990) * 1.2;
+      var x = w - ((t * speed + this.fxRnd(i + 1000) * (w + 300)) % (w + 300)) + 100;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len, y);
+    }
+    ctx.stroke();
+
+    // Dust puffs kicked up along the floor
+    for (i = 0; i < 10; i++) {
+      var dt = t - i * 70;
+      if (dt < 0 || dt > 600) continue;
+      var dp = dt / 600;
+      ctx.fillStyle = 'rgba(210,200,225,' + 0.55 * (1 - dp) + ')';
+      ctx.beginPath();
+      ctx.arc(w * 0.62 - dp * 150 + this.fxRnd(i + 1100) * 30, h * 0.6 + this.fxRnd(i + 1200) * 18 - dp * 10, 8 + dp * 16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Iris closes on the battle
+    var wt = (t - 700) / 500;
+    if (wt > 0) {
+      var maxR = Math.sqrt(w * w + h * h) / 2;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.rect(-5, -5, w + 10, h + 10);
+      ctx.arc(w / 2, h * 0.45, maxR * Math.max(0, 1 - wt), 0, Math.PI * 2, true);
+      ctx.fill('evenodd');
+    }
+    ctx.restore();
   },
 
   // Victory scene: golden rays, VICTORY! banner and confetti
@@ -1649,6 +1713,12 @@ var BattleSystem = {
           lungeDy = 38 * amt;
         }
       }
+      // Getaway: enemies shrink toward the horizon as we run
+      if (b.escapeStart) {
+        var ek = Math.min(1, (now - b.escapeStart) / 900);
+        lungeK *= 1 - 0.3 * ek;
+        lungeDy -= 24 * ek;
+      }
       // Spell charge-up: hover, glowing aura and orbiting sparks in the spell's colour
       var castFx = b.enemyCast;
       if (castFx && castFx.idx === aliveEnemies[j].index) {
@@ -1712,6 +1782,11 @@ var BattleSystem = {
     // Victory scene (drawn under the message windows)
     if (b.phase === 'win' && b.winStart) {
       this.renderVictory(ctx, canvasW, canvasH, now - b.winStart);
+    }
+
+    // Getaway scene: speed lines, dust trail, then the screen irises shut
+    if (b.escapeStart) {
+      this.renderEscape(ctx, canvasW, canvasH, now - b.escapeStart);
     }
 
     // Battle-start iris wipe: black closes in, then opens from the centre
