@@ -1450,62 +1450,145 @@ var BattleSystem = {
     ctx.restore();
   },
 
-  // Defeat animation: white blink, then the enemy collapses and scatters into particles
+  // Defeat animation: white blink, then the enemy shatters into flying chunks, a soul
+  // drifts upward and debris scatters. Bosses blink longer and erupt in chained explosions.
   renderDeaths: function(ctx, game, now) {
     var b = game.battle;
+    var cw = ctx.canvas.width, ch = ctx.canvas.height;
     for (var i = 0; i < b.enemies.length; i++) {
       var en = b.enemies[i];
       if (en.alive || en.sx === undefined) continue;
       if (!en.deathStart) {
         en.deathStart = now;
-        // Show the EXP this enemy is worth, floating up from where it fell
-        if (!b.pops) b.pops = [];
-        b.pops.push({
-          target: en, isParty: false, kind: 'exp', text: 'EXP +' + en.exp,
-          fixed: { x: en.sx, y: en.sfoot - 22 * en.sscale - 70 * en.sscale },
-          t0: now + 350
-        });
+        // Show the EXP this enemy is worth (bosses give none), floating up from where it fell
+        if (en.exp > 0) {
+          if (!b.pops) b.pops = [];
+          b.pops.push({
+            target: en, isParty: false, kind: 'exp', text: 'EXP +' + en.exp,
+            fixed: { x: en.sx, y: en.sfoot - 22 * en.sscale - 70 * en.sscale },
+            t0: now + 350
+          });
+        }
         if (en.boss) this.shake(game, 10, 900);
       }
-      var dur = en.boss ? 1400 : 700;
+      var boss = !!en.boss;
+      var blinkEnd = boss ? 1300 : 200;          // white blinking before it breaks apart
+      var shatterDur = boss ? 900 : 750;
+      var dur = blinkEnd + shatterDur;
       var t = now - en.deathStart;
       if (t >= dur) continue;
-      var p = t / dur;
-      var blinkEnd = en.boss ? 450 : 220;
-      var sc = en.sscale, ex = en.sx, foot = en.sfoot;
+      var sc = en.sscale, ex = en.sx, foot = en.sfoot, cy = foot - 22 * sc;
+      var k, rnd;
+      var seed = i * 37;
 
-      ctx.save();
+      // ---- Phase 1: blinking, boss gets chained explosions ----
       if (t < blinkEnd) {
-        // Hit-flash: alternate bright white and normal
-        if (Math.floor(t / 55) % 2 === 0) ctx.filter = 'brightness(6)';
-        UI.drawEnemy(ctx, en, ex, foot - 22 * sc, sc);
-      } else {
-        var q = (t - blinkEnd) / (dur - blinkEnd);
-        ctx.globalAlpha = 1 - q;
-        ctx.translate(ex, foot);
-        ctx.scale(1 + q * 0.15, 1 - q * 0.9);   // squash down toward the ground
-        ctx.translate(-ex, -foot);
-        ctx.filter = 'brightness(' + (1 + (1 - q) * 3) + ')';
-        UI.drawEnemy(ctx, en, ex, foot - 22 * sc, sc);
+        ctx.save();
+        if (Math.floor(t / (boss ? 70 : 55)) % 2 === 0) ctx.filter = 'brightness(6)';
+        ctx.translate(Math.sin(t / 25) * (boss ? 4 : 2), 0);   // trembling
+        UI.drawEnemy(ctx, en, ex, cy, sc);
+        ctx.restore();
+        if (boss) {
+          var bursts = [450, 650, 850, 1050, 1200];
+          if (!en.burstDone) en.burstDone = {};
+          for (k = 0; k < bursts.length; k++) {
+            var bt = t - bursts[k];
+            if (bt < 0) continue;
+            if (!en.burstDone[k]) { en.burstDone[k] = true; this.shake(game, 7, 220); }
+            if (bt < 380) {
+              var bp = bt / 380;
+              var bx = ex + (this.fxRnd(k + 70 + seed) - 0.5) * 90 * sc;
+              var by = cy + (this.fxRnd(k + 80 + seed) - 0.5) * 70 * sc;
+              var bg = ctx.createRadialGradient(bx, by, 2, bx, by, (24 + bp * 34) * sc);
+              bg.addColorStop(0, 'rgba(255,255,255,' + (0.9 * (1 - bp)) + ')');
+              bg.addColorStop(0.5, 'rgba(255,150,40,' + (0.7 * (1 - bp)) + ')');
+              bg.addColorStop(1, 'rgba(255,60,0,0)');
+              ctx.fillStyle = bg;
+              ctx.fillRect(bx - 70 * sc, by - 70 * sc, 140 * sc, 140 * sc);
+            }
+          }
+        }
+        continue;
+      }
+
+      // ---- Phase 2: shatter ----
+      var st = t - blinkEnd;                 // ms since the break
+      var q = st / shatterDur;               // 0..1
+      var COLS = boss ? 9 : 7, ROWS = 3;
+      var halfW = 46 * sc, top = cy - 62 * sc, rowH = 104 * sc / ROWS;
+      var colW = halfW * 2 / COLS;
+      for (var r = 0; r < ROWS; r++) {
+        for (var c = 0; c < COLS; c++) {
+          var cid = r * COLS + c;
+          var dirx = (c - (COLS - 1) / 2) / ((COLS - 1) / 2);
+          rnd = this.fxRnd(cid + 200 + seed);
+          var vx = (dirx * 70 + (rnd - 0.5) * 30) * sc;
+          var vy = -(30 + this.fxRnd(cid + 300 + seed) * 70 - r * 12) * sc;
+          var ox = vx * q * 1.2;
+          var oy = vy * q + 130 * sc * q * q;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 1 - Math.pow(q, 1.6));
+          ctx.translate(ox, oy);
+          ctx.beginPath();
+          ctx.rect(ex - halfW + c * colW, top + r * rowH, colW + 0.5, rowH + 0.5);
+          ctx.clip();
+          if (q < 0.25) ctx.filter = 'brightness(' + (1 + (1 - q / 0.25) * 3) + ')';
+          UI.drawEnemy(ctx, en, ex, cy, sc);
+          ctx.restore();
+        }
+      }
+
+      // Burst flash and ground ring at the moment it breaks
+      if (st < 260) {
+        var fp = st / 260;
+        var fg = ctx.createRadialGradient(ex, cy, 2, ex, cy, (boss ? 130 : 70) * sc * (0.6 + fp));
+        fg.addColorStop(0, 'rgba(255,255,255,' + (0.85 * (1 - fp)) + ')');
+        fg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = fg;
+        ctx.fillRect(ex - 140 * sc, cy - 140 * sc, 280 * sc, 280 * sc);
+      }
+      if (st < 450) {
+        var rp = st / 450;
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.7 * (1 - rp)) + ')';
+        ctx.lineWidth = 3 * (1 - rp) + 1;
+        ctx.beginPath();
+        ctx.ellipse(ex, foot + 2, (14 + rp * (boss ? 200 : 70)) * sc, (4 + rp * (boss ? 34 : 12)) * sc, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (boss && st < 300) {      // full-screen whiteout when the boss breaks
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.6 * (1 - st / 300)) + ')';
+        ctx.fillRect(-20, -20, cw + 40, ch + 40);
+      }
+
+      // Debris: coloured chunks and white sparks fly out and fall with gravity
+      ctx.save();
+      var n = boss ? 60 : 24;
+      for (k = 0; k < n; k++) {
+        var ang = this.fxRnd(k + 400 + seed) * Math.PI * 2;
+        var spd = (40 + this.fxRnd(k + 500 + seed) * 90) * sc;
+        var px = ex + Math.cos(ang) * spd * q * 1.3;
+        var py = cy + Math.sin(ang) * spd * q * 0.9 + 90 * sc * q * q;
+        var sz = (boss ? 7 : 5) * (1 - q * 0.7) * (0.6 + this.fxRnd(k + 600 + seed) * 0.8);
+        ctx.globalAlpha = Math.max(0, 1 - q);
+        ctx.fillStyle = k % 4 === 0 ? '#ffffff' : en.color;
+        ctx.fillRect(px - sz / 2, py - sz / 2, sz, sz);
       }
       ctx.restore();
 
-      // Particles burst out once the flash ends
-      if (t >= blinkEnd * 0.6) {
-        var pt = (t - blinkEnd * 0.6) / (dur - blinkEnd * 0.6);
-        var n = en.boss ? 40 : 16;
-        ctx.save();
-        ctx.fillStyle = en.color;
-        for (var k = 0; k < n; k++) {
-          var ang = this.fxRnd(k + i * 31) * Math.PI * 2;
-          var dist = (30 + this.fxRnd(k + 50) * 60) * sc * pt;
-          ctx.globalAlpha = 1 - pt;
-          var px = ex + Math.cos(ang) * dist;
-          var py = foot - 22 * sc - Math.abs(Math.sin(ang)) * dist - pt * 25;
-          var sz = (en.boss ? 7 : 5) * (1 - pt * 0.6);
-          ctx.fillRect(px - sz / 2, py - sz / 2, sz, sz);
+      // Soul: a pale orb drifts upward and fades
+      if (st > 80) {
+        var ot = (st - 80) / (shatterDur - 80 + 400);
+        if (ot < 1) {
+          var ox2 = ex + Math.sin(ot * 6) * 8 * sc;
+          var oy2 = cy - ot * 80 * sc;
+          var oa = Math.sin(Math.PI * Math.min(1, ot * 1.1));
+          var og = ctx.createRadialGradient(ox2, oy2, 1, ox2, oy2, (boss ? 22 : 13) * sc);
+          og.addColorStop(0, 'rgba(255,255,255,' + oa + ')');
+          og.addColorStop(0.5, 'rgba(200,230,255,' + (0.6 * oa) + ')');
+          og.addColorStop(1, 'rgba(200,230,255,0)');
+          ctx.fillStyle = og;
+          ctx.fillRect(ox2 - 30 * sc, oy2 - 30 * sc, 60 * sc, 60 * sc);
         }
-        ctx.restore();
       }
     }
   },
