@@ -151,22 +151,28 @@ var BattleSystem = {
         x = w / 2 + (k - (game.party.length - 1) / 2) * 110;
         y = h * 0.52;
       } else {
-        if (pp.target.sx === undefined) continue;
-        x = pp.target.sx;
-        y = pp.target.sfoot - 22 * pp.target.sscale - 38 * pp.target.sscale;
+        if (pp.fixed) {
+          x = pp.fixed.x;
+          y = pp.fixed.y;
+        } else {
+          if (pp.target.sx === undefined) continue;
+          x = pp.target.sx;
+          y = pp.target.sfoot - 22 * pp.target.sscale - 38 * pp.target.sscale;
+        }
       }
-      var val = parseInt(pp.text, 10) || 0;
+      var val = pp.kind === 'exp' ? 0 : (parseInt(pp.text, 10) || 0);
       // Bigger numbers for bigger hits (damage only)
-      var size = 44 + (pp.kind === 'dmg' ? Math.min(24, val / 4) : 0);
+      var size = pp.kind === 'exp' ? 26 : 44 + (pp.kind === 'dmg' ? Math.min(24, val / 4) : 0);
       var rise = 1 - Math.pow(1 - Math.min(1, t / 900), 3);   // easeOutCubic
-      var bounce = t < 300 ? Math.abs(Math.sin(t / 300 * Math.PI)) * 22 : 0;
-      var sc = t < 160 ? 2.2 - 1.2 * (t / 160) : 1;           // slam in from large
+      var bounce = (pp.kind !== 'exp' && t < 300) ? Math.abs(Math.sin(t / 300 * Math.PI)) * 22 : 0;
+      var sc = pp.kind === 'exp' ? (t < 200 ? 0.6 + 0.4 * (t / 200) : 1) : (t < 160 ? 2.2 - 1.2 * (t / 160) : 1);   // slam in from large (exp: gentle pop)
       var alpha = t > 1050 ? 1 - (t - 1050) / 350 : 1;
       var top = '#ffffff', bot = '#ffe14d', glow = '#ffb300';
       if (pp.kind === 'heal') { top = '#eaffee'; bot = '#4dff7a'; glow = '#1fd45a'; }
       else if (pp.kind === 'mp') { top = '#eef6ff'; bot = '#5aa8ff'; glow = '#2b7cff'; }
+      else if (pp.kind === 'exp') { top = '#fff6b0'; bot = '#ffc400'; glow = '#ff9d00'; }
       else if (pp.isParty) { top = '#ffd0d0'; bot = '#ff3030'; glow = '#ff0000'; }
-      var text = (pp.kind === 'dmg' ? '' : '+') + pp.text;
+      var text = (pp.kind === 'dmg' || pp.kind === 'exp') ? pp.text : '+' + pp.text;
       var sx = (pp.isParty && pp.kind === 'dmg' && t < 400) ? Math.sin(t / 25) * 5 : 0;   // party hits jitter
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -1222,6 +1228,13 @@ var BattleSystem = {
       if (en.alive || en.sx === undefined) continue;
       if (!en.deathStart) {
         en.deathStart = now;
+        // Show the EXP this enemy is worth, floating up from where it fell
+        if (!b.pops) b.pops = [];
+        b.pops.push({
+          target: en, isParty: false, kind: 'exp', text: 'EXP +' + en.exp,
+          fixed: { x: en.sx, y: en.sfoot - 22 * en.sscale - 70 * en.sscale },
+          t0: now + 350
+        });
         if (en.boss) this.shake(game, 10, 900);
       }
       var dur = en.boss ? 1400 : 700;
