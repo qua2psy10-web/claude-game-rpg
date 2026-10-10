@@ -121,6 +121,22 @@ var SoundSystem = (function() {
       if (big) { osc(90, 'square', 0.3, t, 0.2, 40); noise(0.4, t, 0.25, 800); }
     },
 
+    itemToss: function() {               // アイテムを投げる/使う: 軽い風切り音
+      resume();
+      var t = ctx.currentTime;
+      noise(0.2, t, 0.14, 2500);
+      osc(500, 'sine', 0.1, t, 0.15, 900);
+    },
+
+    itemHit: function(id) {              // アイテム効果音(アイテムごと)
+      resume();
+      var t = ctx.currentTime;
+      if (id === 'bomb') { noise(0.75, t, 0.55, 1400); osc(140, 'sawtooth', 0.3, t, 0.35, 40); }
+      else if (id === 'phoenix') { [392, 523, 659, 784, 1047].forEach(function(f, i) { osc(f, 'triangle', 0.14, t + i * 0.09, 0.5); }); noise(0.25, t, 0.5, 1800); }
+      else if (id === 'magicWater') { [880, 1175, 1568].forEach(function(f, i) { osc(f, 'sine', 0.12, t + i * 0.07, 0.25, f * 0.7); }); }
+      else { [523, 659, 784].forEach(function(f, i) { osc(f, 'sine', 0.13, t + i * 0.07, 0.22); }); noise(0.1, t, 0.2, 3000); }
+    },
+
     damage: function() {
       resume();
       var t = ctx.currentTime;
