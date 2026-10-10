@@ -881,48 +881,147 @@ var BattleSystem = {
     return null;
   },
 
+  // Perspective battle backdrop: sky, mountains, fogged horizon, gridded floor
+  renderBackdrop: function(ctx, w, h, groundY) {
+    var sky = ctx.createLinearGradient(0, 0, 0, groundY);
+    sky.addColorStop(0, '#05051a');
+    sky.addColorStop(0.7, '#2a1a4a');
+    sky.addColorStop(1, '#5a3a62');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, groundY);
+
+    // Stars
+    ctx.fillStyle = 'rgba(255,255,220,0.7)';
+    for (var st = 0; st < 30; st++) {
+      ctx.fillRect((st * 97) % w, (st * 53) % (groundY * 0.6), 1, 1);
+    }
+
+    // Far mountains (two layers for parallax depth)
+    var layers = [{ c: '#2a2044', amp: 34, f: 0.011, base: groundY - 6 },
+                  { c: '#1a1530', amp: 22, f: 0.019, base: groundY }];
+    for (var l = 0; l < layers.length; l++) {
+      ctx.fillStyle = layers[l].c;
+      ctx.beginPath();
+      ctx.moveTo(0, groundY);
+      for (var x = 0; x <= w; x += 8) {
+        var y = layers[l].base - layers[l].amp * (0.5 + 0.5 * Math.sin(x * layers[l].f + l * 2) * Math.cos(x * 0.004 + l));
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(w, groundY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Floor
+    var floor = ctx.createLinearGradient(0, groundY, 0, h);
+    floor.addColorStop(0, '#3a3450');
+    floor.addColorStop(1, '#0c0b16');
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, groundY, w, h - groundY);
+
+    // Perspective grid: lines converge on the vanishing point
+    var vx = w / 2;
+    ctx.strokeStyle = 'rgba(160,150,200,0.22)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (var k = -12; k <= 12; k++) {
+      ctx.moveTo(vx + k * 14, groundY);
+      ctx.lineTo(vx + k * 120, h);
+    }
+    // Horizontal lines spaced by t^2 (nearer = wider apart)
+    for (var r = 1; r <= 9; r++) {
+      var t = r / 9;
+      var yy = groundY + (h - groundY) * t * t;
+      ctx.moveTo(0, yy);
+      ctx.lineTo(w, yy);
+    }
+    ctx.stroke();
+
+    // Horizon fog
+    var fog = ctx.createLinearGradient(0, groundY - 30, 0, groundY + 50);
+    fog.addColorStop(0, 'rgba(120,90,150,0)');
+    fog.addColorStop(0.5, 'rgba(120,90,150,0.35)');
+    fog.addColorStop(1, 'rgba(120,90,150,0)');
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, groundY - 30, w, 80);
+  },
+
   // ===== BATTLE RENDERING =====
   render: function(ctx, game, canvasW, canvasH) {
     var b = game.battle;
     if (!b) return;
 
-    // Black background
-    ctx.fillStyle = '#111122';
-    ctx.fillRect(0, 0, canvasW, canvasH);
+    var groundY = Math.floor(canvasH * 0.42);
+    var now = Date.now();
+    this.renderBackdrop(ctx, canvasW, canvasH, groundY);
 
-    // Draw ground
-    var groundY = canvasH * 0.45;
-    ctx.fillStyle = '#2a2a3a';
-    ctx.fillRect(0, groundY, canvasW, canvasH - groundY);
-
-    // Draw enemies
+    // Draw enemies in 3D-ish depth (alternating rows, back row smaller & higher)
     var aliveEnemies = [];
     for (var i = 0; i < b.enemies.length; i++) {
       if (b.enemies[i].alive) aliveEnemies.push({ enemy: b.enemies[i], index: i });
     }
     var spacing = canvasW / (aliveEnemies.length + 1);
-    for (var j = 0; j < aliveEnemies.length; j++) {
+    var order = aliveEnemies.map(function(e, n) { return n; });
+    // Draw back row first so front enemies overlap correctly
+    order.sort(function(p, q) { return (q % 2) - (p % 2); });
+    for (var oi = 0; oi < order.length; oi++) {
+      var j = order[oi];
+      var en = aliveEnemies[j].enemy;
+      var back = (aliveEnemies.length > 1 && j % 2 === 1);
+      var depth = back ? 0.85 : 1.1;
+      var scale = (en.boss ? 1.8 : 1) * depth;
       var ex = spacing * (j + 1);
-      var ey = groundY - 20;
-      var scale = aliveEnemies[j].enemy.boss ? 1.8 : 1;
+      var footY = groundY + (back ? 46 : 84) + (en.boss ? 10 : 0);
+      var bob = Math.sin(now / 420 + j * 1.7) * 3;
+      var ey = footY - 22 * scale + bob;
+
+      // Boss aura
+      if (en.boss) {
+        var aura = ctx.createRadialGradient(ex, ey, 10, ex, ey, 120);
+        aura.addColorStop(0, 'rgba(200,40,60,0.35)');
+        aura.addColorStop(1, 'rgba(200,40,60,0)');
+        ctx.fillStyle = aura;
+        ctx.fillRect(ex - 130, ey - 130, 260, 260);
+      }
+
+      // Ground shadow (shrinks as the enemy bobs up)
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.beginPath();
+      ctx.ellipse(ex, footY + 2, 30 * scale - bob, 7 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+
       // Flash effect
       if (b.flashEnemy === aliveEnemies[j].index) {
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillRect(ex - 40, ey - 60, 80, 80);
+        ctx.fillRect(ex - 40 * scale, ey - 60 * scale, 80 * scale, 80 * scale);
       }
-      UI.drawEnemy(ctx, aliveEnemies[j].enemy, ex, ey, scale);
+      UI.drawEnemy(ctx, en, ex, ey, scale);
+
+      // Atmospheric fog on distant enemies
+      if (back) {
+        ctx.fillStyle = 'rgba(30,30,60,0.18)';
+        ctx.fillRect(ex - 45 * scale, ey - 55 * scale, 90 * scale, 90 * scale);
+      }
 
       // Target cursor
-      if ((b.phase === 'targeting') && j === b.targetIndex) {
+      if (b.phase === 'targeting' && j === b.targetIndex) {
+        var cy0 = ey - 50 * scale - 20 + Math.sin(now / 150) * 3;
         ctx.fillStyle = '#ff0';
         ctx.beginPath();
-        ctx.moveTo(ex, ey - 50 * scale - 20);
-        ctx.lineTo(ex - 8, ey - 50 * scale - 32);
-        ctx.lineTo(ex + 8, ey - 50 * scale - 32);
+        ctx.moveTo(ex, cy0);
+        ctx.lineTo(ex - 8, cy0 - 12);
+        ctx.lineTo(ex + 8, cy0 - 12);
         ctx.closePath();
         ctx.fill();
       }
     }
+
+    // Vignette for depth/cinematic feel
+    var vg = ctx.createRadialGradient(canvasW / 2, canvasH * 0.45, canvasH * 0.3, canvasW / 2, canvasH * 0.45, canvasW * 0.65);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,10,0.6)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, canvasW, canvasH);
 
     // Party status panel (right side)
     UI.drawWindow(ctx, canvasW - 220, canvasH - 200, 215, 120);
