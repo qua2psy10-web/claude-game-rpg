@@ -163,6 +163,7 @@ var BattleSystem = {
       case 'levelup':
         if (key === 'confirm') {
           b.levelUpIndex++;
+          if (b.levelUpIndex < b.levelUps.length) SoundSystem.levelUp();
           if (b.levelUpIndex >= b.levelUps.length) {
             game.state = 'map';
             game.battle = null;
@@ -877,6 +878,7 @@ var BattleSystem = {
     if (b.levelUps.length > 0) {
       b.phase = 'levelup';
       b.levelUpIndex = 0;
+      SoundSystem.levelUp();
     } else {
       game.state = 'map';
       game.battle = null;
@@ -904,8 +906,6 @@ var BattleSystem = {
       char.int += charDef.growth.int + Math.floor(Math.random() * 2);
       char.hp = char.maxHp;
       char.mp = char.maxMp;
-      SoundSystem.levelUp();
-
       // Check for new spells
       var newSpell = null;
       for (var i = 0; i < charDef.spells.length; i++) {
@@ -980,6 +980,81 @@ var BattleSystem = {
     ctx.strokeText('VICTORY!', 0, 0);
     ctx.fillStyle = tg;
     ctx.fillText('VICTORY!', 0, 0);
+    ctx.restore();
+  },
+
+  // Level-up scene: golden burst, rising sparkles, popping window, counting stats
+  renderLevelUp: function(ctx, lu, w, h, t) {
+    var cx = 320, cy = 180, i;
+    ctx.save();
+
+    // Radial burst behind the window (flash, then a steady glow)
+    var glowA = Math.max(0.25, 0.9 - t / 500);
+    var gg = ctx.createRadialGradient(cx, cy, 10, cx, cy, 70 + Math.min(t, 400) * 0.9);
+    gg.addColorStop(0, 'rgba(255,240,150,' + glowA + ')');
+    gg.addColorStop(1, 'rgba(255,200,60,0)');
+    ctx.fillStyle = gg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Rising sparkles
+    for (i = 0; i < 28; i++) {
+      var period = 1600 + this.fxRnd(i + 600) * 1200;
+      var ph = ((t + this.fxRnd(i + 700) * period) % period) / period;
+      var sx = 110 + this.fxRnd(i + 800) * 420;
+      var sy = 290 - ph * 260;
+      ctx.globalAlpha = Math.sin(Math.PI * ph) * 0.9;
+      ctx.fillStyle = i % 2 ? '#fff6b0' : '#ffd700';
+      ctx.fillRect(sx - 1, sy - 4, 2, 8);
+      ctx.fillRect(sx - 4, sy - 1, 8, 2);
+    }
+    ctx.globalAlpha = 1;
+
+    // Window pop-in (easeOutBack)
+    var q = Math.min(1, t / 300);
+    var sc = 1 + 2.7 * Math.pow(q - 1, 3) + 1.7 * Math.pow(q - 1, 2);
+    ctx.translate(cx, cy);
+    ctx.scale(sc, sc);
+    ctx.translate(-cx, -cy);
+    UI.drawWindow(ctx, 100, 80, 440, 200);
+
+    // Title pulses
+    var pulse = 1 + Math.sin(t / 120) * 0.04;
+    ctx.save();
+    ctx.translate(cx, 62);
+    ctx.scale(pulse, pulse);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 28px monospace';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#3a1a00';
+    ctx.strokeText('LEVEL UP!', 0, 0);
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText('LEVEL UP!', 0, 0);
+    ctx.restore();
+
+    UI.drawText(ctx, lu.name + 'は レベル ' + lu.level + 'に あがった！', 120, 95, '#ffd700');
+
+    // Stats reveal one by one; numbers count up from old to new
+    var stats = ['hp', 'mp', 'atk', 'def', 'spd', 'int'];
+    var statNames = ['HP', 'MP', 'ATK', 'DEF', 'SPD', 'INT'];
+    for (var si = 0; si < stats.length; si++) {
+      var rt = t - (350 + si * 110);
+      if (rt < 0) continue;
+      var k = Math.min(1, rt / 350);
+      var oldV = lu.oldStats[stats[si]], newV = lu.newStats[stats[si]];
+      var cur = Math.round(oldV + (newV - oldV) * k);
+      var diff = newV - oldV;
+      var ry = 125 + si * 22;
+      UI.drawText(ctx, statNames[si] + ': ' + oldV + ' → ' + cur, 120, ry, '#fff', UI.FONT_SMALL);
+      if (k >= 1) {
+        var flashOn = rt < 700 && Math.floor(rt / 90) % 2 === 0;
+        UI.drawText(ctx, '(+' + diff + ')', 300, ry, flashOn ? '#ffffff' : '#7dff8a', UI.FONT_SMALL);
+      }
+    }
+    if (lu.newSpell && t > 350 + stats.length * 110 + 200) {
+      UI.drawText(ctx, lu.newSpell + 'を おぼえた！', 120, 260, '#8ff');
+    }
     ctx.restore();
   },
 
@@ -1444,20 +1519,10 @@ var BattleSystem = {
       UI.drawMessageWindow(ctx, b.messages, canvasW, canvasH);
     }
 
-    // Level up display
+    // Level up display (animated)
     if (b.phase === 'levelup' && b.levelUpIndex < b.levelUps.length) {
-      var lu = b.levelUps[b.levelUpIndex];
-      UI.drawWindow(ctx, 100, 80, 440, 200);
-      UI.drawText(ctx, lu.name + 'は レベル ' + lu.level + 'に あがった！', 120, 95, '#ffd700');
-      var stats = ['hp', 'mp', 'atk', 'def', 'spd', 'int'];
-      var statNames = ['HP', 'MP', 'ATK', 'DEF', 'SPD', 'INT'];
-      for (var s = 0; s < stats.length; s++) {
-        var diff = lu.newStats[stats[s]] - lu.oldStats[stats[s]];
-        UI.drawText(ctx, statNames[s] + ': ' + lu.oldStats[stats[s]] + ' → ' + lu.newStats[stats[s]] + ' (+' + diff + ')', 120, 125 + s * 22, '#fff', UI.FONT_SMALL);
-      }
-      if (lu.newSpell) {
-        UI.drawText(ctx, lu.newSpell + 'を おぼえた！', 120, 260, '#8ff');
-      }
+      if (b.luShown !== b.levelUpIndex) { b.luShown = b.levelUpIndex; b.luStart = Date.now(); }
+      this.renderLevelUp(ctx, b.levelUps[b.levelUpIndex], canvasW, canvasH, Date.now() - b.luStart);
     }
   },
 };
