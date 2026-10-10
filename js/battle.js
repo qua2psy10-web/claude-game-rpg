@@ -96,8 +96,9 @@ var BattleSystem = {
       var x, y;
       if (pp.isParty) {
         var k = game.party.indexOf(pp.target);
-        x = w - 60;
-        y = h - 190 + k * 36;
+        // Centre of the screen, one column per party member so numbers don't overlap
+        x = w / 2 + (k - (game.party.length - 1) / 2) * 110;
+        y = h * 0.52;
       } else {
         if (pp.target.sx === undefined) continue;
         x = pp.target.sx;
@@ -136,6 +137,15 @@ var BattleSystem = {
       gr.addColorStop(1, bot);
       ctx.fillStyle = gr;
       ctx.fillText(text, 0, 0);
+      if (pp.isParty) {
+        // Name tag under the number so it's clear who it belongs to
+        ctx.font = 'bold 14px monospace';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#000';
+        ctx.strokeText(pp.target.name, 0, size * 0.62);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(pp.target.name, 0, size * 0.62);
+      }
       ctx.restore();
     }
     b.pops = live;
