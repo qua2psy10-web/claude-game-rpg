@@ -94,7 +94,7 @@ var BattleSystem = {
     this.shake(game, 6, 300);
   },
 
-  ENEMY_CAST_DELAY: 450,  // ms an enemy charges a spell before it lands
+  ENEMY_CAST_DELAY: 650,  // ms an enemy charges a spell before it lands
   ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyHeal: '80,230,130' },
   ENEMY_HIT_DELAY: 260,   // ms between an enemy starting its lunge and the hit landing (peak of the charge)
 
@@ -119,6 +119,80 @@ var BattleSystem = {
       target.hitMag = Math.min(1, 0.35 + (value / (target.maxHp || 1)) * 2.5);
     }
     b.pops.push({ target: target, isParty: isParty, text: String(value), kind: kind, t0: Date.now() + (delay || 0) });
+  },
+
+  // Enemy spell delivery: a fireball flies to its target or a dark wave sweeps the screen,
+  // then the whole screen reacts at impact (embers / vortex)
+  renderEnemyCastLate: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var cf = b.enemyCast;
+    if (!cf || cf.ed === undefined) return;
+    var t = now - cf.t0;
+    if (t < 0 || t > cf.ed + 380) return;
+    var caster = b.enemies[cf.idx];
+    if (!caster || caster.sx === undefined) return;
+    var rgb = cf.tint, i;
+    ctx.save();
+
+    // Travel phase (last 260 ms of the charge)
+    var tp = (t - (cf.ed - 260)) / 260;
+    if (tp > 0 && tp < 1 && cf.side === 'party') {
+      if (cf.spellId === 'enemyFire' && cf.targetIdx >= 0) {
+        var tx = w - 150, ty = h - 178 + cf.targetIdx * 36;
+        var sx0 = caster.sx, sy0 = caster.sy;
+        for (i = 6; i >= 0; i--) {                     // glowing trail
+          var tq = Math.max(0, tp - i * 0.05);
+          var fx = sx0 + (tx - sx0) * tq;
+          var fy = sy0 + (ty - sy0) * tq - Math.sin(tq * Math.PI) * 50;
+          var fr = 16 - i * 1.6;
+          var fg = ctx.createRadialGradient(fx, fy, 1, fx, fy, fr * 1.6);
+          fg.addColorStop(0, 'rgba(255,240,180,' + (0.95 - i * 0.12) + ')');
+          fg.addColorStop(0.5, 'rgba(' + rgb + ',' + (0.8 - i * 0.1) + ')');
+          fg.addColorStop(1, 'rgba(' + rgb + ',0)');
+          ctx.fillStyle = fg;
+          ctx.fillRect(fx - fr * 2, fy - fr * 2, fr * 4, fr * 4);
+        }
+      } else if (cf.targetIdx === -1) {                // party-wide: expanding wave from the caster
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.8 * (1 - tp * 0.4)) + ')';
+        ctx.lineWidth = 10 * (1 - tp * 0.5);
+        ctx.shadowColor = 'rgb(' + rgb + ')';
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.ellipse(caster.sx, caster.sy, tp * w * 0.9, tp * h * 0.7, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Impact phase
+    var lt = t - cf.ed;
+    if (lt >= 0 && lt < 380 && cf.side === 'party') {
+      var ip = lt / 380;
+      if (cf.spellId === 'enemyFire') {
+        ctx.fillStyle = 'rgba(255,120,30,' + (0.4 * (1 - ip)) + ')';
+        ctx.fillRect(0, 0, w, h);
+        for (i = 0; i < 22; i++) {                     // embers raining down
+          var ex2 = this.fxRnd(i + 1500) * w;
+          var ey2 = (this.fxRnd(i + 1600) * 0.4 + ip * (0.6 + this.fxRnd(i + 1700) * 0.5)) * h;
+          ctx.globalAlpha = 1 - ip;
+          ctx.fillStyle = i % 3 ? '#ff9a2a' : '#ffe066';
+          ctx.fillRect(ex2, ey2, 4, 4);
+        }
+      } else {
+        var vg = ctx.createRadialGradient(w / 2, h * 0.45, h * 0.15, w / 2, h * 0.45, w * 0.7);
+        vg.addColorStop(0, 'rgba(' + rgb + ',0)');
+        vg.addColorStop(1, 'rgba(20,0,40,' + (0.75 * (1 - ip)) + ')');
+        ctx.fillStyle = vg;
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.7 * (1 - ip)) + ')';
+        ctx.lineWidth = 5;
+        for (i = 0; i < 3; i++) {                      // violet ripples
+          ctx.beginPath();
+          ctx.arc(w / 2, h * 0.5, 40 + ip * (260 + i * 90), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
   },
 
   // Claw slashes over the struck party member's status row + red edge flash
@@ -855,7 +929,7 @@ var BattleSystem = {
     // Enemy casters charge up first; effect, shake and numbers land after ed ms
     var ed = cmd.actorType === 'enemy' ? this.ENEMY_CAST_DELAY : 0;
     var tint = this.ENEMY_CAST_TINT[cmd.spellId] || '200,200,255';
-    if (ed) b.enemyCast = { idx: cmd.actor, t0: Date.now(), dur: ed + 350, tint: tint };
+    if (ed) b.enemyCast = { idx: cmd.actor, t0: Date.now(), dur: ed + 350, tint: tint, spellId: cmd.spellId, ed: ed };
 
     // 呪文のビジュアルエフェクト
     var fxSide = 'enemy', fxIdx = -1;
@@ -870,6 +944,7 @@ var BattleSystem = {
       else { fxSide = 'party'; fxIdx = cmd.target; }
     }
     this.startEffect(game, cmd.spellId, fxSide, fxIdx, ed);
+    if (ed && b.enemyCast) { b.enemyCast.side = fxSide; b.enemyCast.targetIdx = fxIdx; }
     if (ed && fxSide === 'party' && spell.type !== 'heal') {
       b.partyHit = { idx: fxIdx, t0: Date.now() + ed, tint: tint };
     }
@@ -888,6 +963,7 @@ var BattleSystem = {
     if (spell.type === 'magic' || spell.type === 'physical') {
       var bigHit = (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy' || cmd.targetType === 'partyAll');
       var shakeMag = bigHit ? 12 : 7, shakeDur = bigHit ? 450 : 300;
+      if (ed) { shakeMag = Math.round(shakeMag * 1.4); shakeDur += 100; }
       if (ed) {
         setTimeout(function() { if (game.battle === b) BattleSystem.shake(game, shakeMag, shakeDur); }, ed);
       } else {
@@ -1922,6 +1998,15 @@ var BattleSystem = {
       ctx.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
     }
     this.renderBackdrop(ctx, canvasW, canvasH, groundY);
+    // The scene dims while an enemy gathers magic
+    var dimFx = b.enemyCast;
+    if (dimFx) {
+      var dimT = (now - dimFx.t0) / dimFx.dur;
+      if (dimT >= 0 && dimT < 1) {
+        ctx.fillStyle = 'rgba(0,0,10,' + (0.4 * Math.sin(Math.PI * Math.min(1, dimT / 0.9))) + ')';
+        ctx.fillRect(-20, -20, canvasW + 40, canvasH + 40);
+      }
+    }
 
     // Draw enemies in 3D-ish depth (alternating rows, back row smaller & higher)
     var aliveEnemies = [];
@@ -2069,6 +2154,47 @@ var BattleSystem = {
           var ramp = Math.min(1, ct / 0.7);
           lungeDy -= 14 * Math.sin(Math.min(1, ct / 0.8) * Math.PI);
           var ar = 30 * scale * (0.8 + 0.6 * ramp);
+          // Rotating magic circle on the ground
+          ctx.save();
+          ctx.globalAlpha = ramp;
+          ctx.strokeStyle = 'rgb(' + castFx.tint + ')';
+          ctx.shadowColor = 'rgb(' + castFx.tint + ')';
+          ctx.shadowBlur = 10;
+          ctx.lineWidth = 2;
+          for (var mc = 0; mc < 2; mc++) {
+            ctx.setLineDash([6, 5 + mc * 4]);
+            ctx.lineDashOffset = (mc ? 1 : -1) * now / 40;
+            ctx.beginPath();
+            ctx.ellipse(ex, footY + 2, (46 - mc * 14) * scale * ramp, (12 - mc * 4) * scale * ramp, 0, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          ctx.restore();
+          // Energy orb swelling above the caster
+          var orbR = (4 + 16 * ramp) * scale;
+          var orbG = ctx.createRadialGradient(ex, ey - 46 * scale, 1, ex, ey - 46 * scale, orbR * 1.8);
+          orbG.addColorStop(0, 'rgba(255,255,255,' + (0.9 * ramp) + ')');
+          orbG.addColorStop(0.4, 'rgba(' + castFx.tint + ',' + (0.8 * ramp) + ')');
+          orbG.addColorStop(1, 'rgba(' + castFx.tint + ',0)');
+          ctx.fillStyle = orbG;
+          ctx.fillRect(ex - orbR * 2, ey - 46 * scale - orbR * 2, orbR * 4, orbR * 4);
+          // Spell name flashes up over the caster
+          var spName = SPELLS[castFx.spellId] ? SPELLS[castFx.spellId].name : '';
+          if (spName && ct < 0.85) {
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, ct / 0.12) * (ct > 0.7 ? 1 - (ct - 0.7) / 0.15 : 1);
+            ctx.font = 'bold 18px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#000';
+            ctx.strokeText(spName, ex, ey - 88 * scale);
+            ctx.fillStyle = 'rgb(' + castFx.tint + ')';
+            ctx.shadowColor = 'rgb(' + castFx.tint + ')';
+            ctx.shadowBlur = 10;
+            ctx.fillText(spName, ex, ey - 88 * scale);
+            ctx.restore();
+          }
           var ag = ctx.createRadialGradient(ex, ey, 4, ex, ey, ar * 1.6);
           ag.addColorStop(0, 'rgba(' + castFx.tint + ',' + (0.55 * ramp) + ')');
           ag.addColorStop(1, 'rgba(' + castFx.tint + ',0)');
@@ -2333,6 +2459,7 @@ var BattleSystem = {
       UI.drawMessageWindow(ctx, b.messages, canvasW, canvasH);
     }
 
+    this.renderEnemyCastLate(ctx, game, canvasW, canvasH, Date.now());
     this.renderPartyHit(ctx, game, canvasW, canvasH, Date.now());
     this.renderPops(ctx, game, canvasW, canvasH, Date.now());
 
