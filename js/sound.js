@@ -229,6 +229,45 @@ var SoundSystem = (function() {
       osc(300, 'sawtooth', 0.1, t + 0.1, 0.18, 120);
     },
 
+    enemyAppear: function(shape) {       // 敵の種族ごとの登場音
+      resume();
+      var t = ctx.currentTime, i;
+      switch (shape) {
+        case 'slime':
+          osc(200, 'sine', 0.25, t, 0.12, 500);
+          osc(500, 'sine', 0.2, t + 0.12, 0.1, 300);
+          break;
+        case 'goblin':
+          osc(140, 'sawtooth', 0.22, t, 0.18, 90);
+          osc(180, 'square', 0.1, t + 0.05, 0.12, 110);
+          break;
+        case 'wolf':                                   // 遠吠え
+          osc(400, 'sine', 0.25, t, 0.55, 700);
+          osc(405, 'triangle', 0.12, t, 0.55, 705);
+          noise(0.1, t, 0.3, 1200);
+          break;
+        case 'bat':                                    // 甲高い鳴き声
+          for (i = 0; i < 3; i++) osc(2200 + i * 200, 'square', 0.09, t + i * 0.1, 0.07, 3200 + i * 200);
+          break;
+        case 'skeleton':                               // 骨のガラガラ音
+          for (i = 0; i < 5; i++) {
+            noise(0.35, t + i * 0.06, 0.04, 3000);
+            osc(300 + (i % 2) * 120, 'square', 0.08, t + i * 0.06, 0.03);
+          }
+          break;
+        case 'knight':                                 // 金属の打音
+          osc(900, 'square', 0.2, t, 0.06, 600);
+          noise(0.35, t, 0.12, 4000);
+          osc(150, 'sine', 0.3, t, 0.2, 60);
+          break;
+        case 'mage':                                   // 転移のきらめき
+          for (i = 0; i < 6; i++) osc(600 + i * 140, 'sine', 0.12, t + i * 0.05, 0.25);
+          break;
+        default:
+          osc(120, 'sine', 0.3, t, 0.12, 50);
+      }
+    },
+
     thud: function() {                   // 敵の着地: 短い低音
       resume();
       var t = ctx.currentTime;

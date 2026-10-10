@@ -100,6 +100,13 @@ var BattleSystem = {
   ATTACK_STYLES: { slime: 'hop', wolf: 'pounce', bat: 'dive', knight: 'heavy', demonKing: 'heavy',
                    skeleton: 'slash', goblin: 'slash', mage: 'slash' },
   ATTACK_TINTS: { hop: '90,190,255', pounce: '255,60,60', dive: '200,30,60', heavy: '255,140,40', slash: '255,60,60' },
+  // Eye positions per species (unscaled offsets from the sprite origin) for the stance glint
+  EYE_TABLE: {
+    slime: [[-5, 6], [6, 6]], goblin: [[-3.5, -13.5], [4.5, -13.5]], wolf: [[-26, -10]],
+    bat: [[-3.5, -2.5], [4.5, -2.5]], skeleton: [[-3, -17.5], [3, -17.5]],
+    knight: [[-2.5, -20.5], [3.5, -20.5]], mage: [[-2.5, -20.5], [3.5, -20.5]],
+    demonKing: [[-8, -25], [8, -25]]
+  },
   ENEMY_HIT_DELAY: 260,   // ms between an enemy starting its lunge and the hit landing (peak of the charge)
 
   // Lunge curve: -0.25 (wind-up) -> 1 (full charge, hit lands) -> 0 (back in place); at in 0..1
@@ -2179,6 +2186,11 @@ var BattleSystem = {
         var delay = en.boss ? 700 : j * 200;
         introQ = Math.max(0, Math.min(1, (now - b.introStart - delay) / (en.boss ? 1100 : 620)));
         if (introQ <= 0) continue;
+        // Each species announces itself with its own sound as it appears
+        if (!en.introSfx) {
+          en.introSfx = true;
+          if (!en.boss) SoundSystem.enemyAppear(en.shape);
+        }
         // Regular enemies: a small thud and jolt on touchdown
         if (!en.landAt && introQ >= landQ) {
           en.landAt = now;
@@ -2561,6 +2573,25 @@ var BattleSystem = {
       UI.drawEnemy(ctx, en, ex, ey, scale);
       ctx.restore();
 
+      // Eyes flare as the enemy takes its stance after landing
+      if (en.landAt) {
+        var eyT = now - en.landAt;
+        var eyes = this.EYE_TABLE[en.shape];
+        if (eyes && eyT > 100 && eyT < 900) {
+          var eyA = Math.sin(Math.PI * (eyT - 100) / 800);
+          var eyRgb = en.shape === 'mage' ? '255,255,120' : (en.shape === 'slime' ? '255,255,255' : '255,70,70');
+          for (var eyi = 0; eyi < eyes.length; eyi++) {
+            var eyx = ex + eyes[eyi][0] * scale, eyy = ey + eyes[eyi][1] * scale;
+            var eyg = ctx.createRadialGradient(eyx, eyy, 0, eyx, eyy, 17 * scale);
+            eyg.addColorStop(0, 'rgba(255,255,255,' + eyA + ')');
+            eyg.addColorStop(0.3, 'rgba(' + eyRgb + ',' + (0.9 * eyA) + ')');
+            eyg.addColorStop(1, 'rgba(' + eyRgb + ',0)');
+            ctx.fillStyle = eyg;
+            ctx.fillRect(eyx - 18 * scale, eyy - 18 * scale, 36 * scale, 36 * scale);
+          }
+        }
+      }
+
       // Impact sparks radiating from the hit point
       if (hitT >= 0 && hitT < 320) {
         var sp = hitT / 320;
@@ -2668,6 +2699,19 @@ var BattleSystem = {
     // Getaway scene: speed lines, dust trail, then the screen irises shut
     if (b.escapeStart) {
       this.renderEscape(ctx, canvasW, canvasH, now - b.escapeStart);
+    }
+
+    // Encounter warning: the screen edges flash red twice as the fight begins (boss fights have their own)
+    if (b.introStart && !b.bossIntro) {
+      var wt0 = now - b.introStart;
+      if (wt0 < 700) {
+        var wa = Math.max(0, Math.sin(wt0 / 350 * Math.PI * 2)) * 0.4;
+        var wvg = ctx.createRadialGradient(canvasW / 2, canvasH * 0.45, canvasH * 0.3, canvasW / 2, canvasH * 0.45, canvasW * 0.65);
+        wvg.addColorStop(0, 'rgba(255,0,0,0)');
+        wvg.addColorStop(1, 'rgba(255,0,0,' + wa + ')');
+        ctx.fillStyle = wvg;
+        ctx.fillRect(0, 0, canvasW, canvasH);
+      }
     }
 
     // Battle-start iris wipe: black closes in, then opens from the centre
