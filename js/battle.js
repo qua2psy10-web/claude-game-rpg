@@ -74,6 +74,59 @@ var BattleSystem = {
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
   },
 
+  // Queue a floating number over a combatant. kind: 'dmg' | 'heal' | 'mp'
+  pop: function(game, target, value, kind) {
+    var b = game.battle;
+    if (!b || !target) return;
+    if (!b.pops) b.pops = [];
+    var isParty = game.party.indexOf(target) >= 0;
+    b.pops.push({ target: target, isParty: isParty, text: String(value), kind: kind, t0: Date.now() });
+  },
+
+  // Draw floating numbers (called last so party numbers sit above the status window)
+  renderPops: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    if (!b.pops || b.pops.length === 0) return;
+    var live = [];
+    for (var i = 0; i < b.pops.length; i++) {
+      var pp = b.pops[i];
+      var t = now - pp.t0;
+      if (t >= 1000) continue;
+      live.push(pp);
+      var x, y;
+      if (pp.isParty) {
+        var k = game.party.indexOf(pp.target);
+        x = w - 60;
+        y = h - 182 + k * 36;
+      } else {
+        if (pp.target.sx === undefined) continue;
+        x = pp.target.sx;
+        y = pp.target.sfoot - 22 * pp.target.sscale - 38 * pp.target.sscale;
+      }
+      var rise = 1 - Math.pow(1 - Math.min(1, t / 700), 3);   // easeOutCubic
+      var bounce = t < 250 ? Math.abs(Math.sin(t / 250 * Math.PI)) * 14 : 0;
+      var sc = t < 120 ? 1.5 - 0.5 * (t / 120) : 1;
+      var alpha = t > 750 ? 1 - (t - 750) / 250 : 1;
+      var fill = pp.kind === 'heal' ? '#7dff8a' : pp.kind === 'mp' ? '#7db8ff' : (pp.isParty ? '#ff6a6a' : '#ffffff');
+      var text = (pp.kind === 'dmg' ? '' : '+') + pp.text;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, y - rise * 34 - bounce);
+      ctx.scale(sc, sc);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 26px monospace';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#000';
+      ctx.strokeText(text, 0, 0);
+      ctx.fillStyle = fill;
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    }
+    b.pops = live;
+  },
+
   // Start a spell effect. side: 'enemy'|'party', idx: target index or -1 for all
   startEffect: function(game, spellId, side, idx) {
     var b = game.battle;
@@ -602,6 +655,7 @@ var BattleSystem = {
     if (defender.defending) def = Math.floor(def * 1.5);
     var damage = Math.max(1, Math.floor(atk / 2 - def / 4 + (Math.random() * 5 - 2)));
     defender.hp = Math.max(0, defender.hp - damage);
+    this.pop(game, defender, damage, 'dmg');
 
     b.messages = [attacker.name + 'の こうげき！', defender.name + 'に ' + damage + 'の ダメージ！'];
     if (cmd.actorType === 'party') {
@@ -677,6 +731,7 @@ var BattleSystem = {
           if (targets[i].alive) {
             var dmg = this.calcSpellDamage(caster, targets[i], spell);
             targets[i].hp = Math.max(0, targets[i].hp - dmg);
+            this.pop(game, targets[i], dmg, 'dmg');
             b.messages.push(targets[i].name + 'に ' + dmg + 'の ダメージ！');
             if (targets[i].hp <= 0) {
               targets[i].alive = false;
@@ -691,6 +746,7 @@ var BattleSystem = {
           if (game.party[j].alive) {
             var dmg2 = this.calcSpellDamage(caster, game.party[j], spell);
             game.party[j].hp = Math.max(0, game.party[j].hp - dmg2);
+            this.pop(game, game.party[j], dmg2, 'dmg');
             b.messages.push(game.party[j].name + 'に ' + dmg2 + 'の ダメージ！');
             if (game.party[j].hp <= 0) {
               game.party[j].alive = false;
@@ -714,6 +770,7 @@ var BattleSystem = {
             dmg3 = Math.max(1, Math.floor(this.getEffectiveStat(caster, 'atk') * spell.power / 2 - this.getEffectiveStat(target, 'def') / 4));
           }
           target.hp = Math.max(0, target.hp - dmg3);
+          this.pop(game, target, dmg3, 'dmg');
           b.messages.push(target.name + 'に ' + dmg3 + 'の ダメージ！');
           if (spell.stun && Math.random() < spell.stun) {
             b.messages.push(target.name + 'は しびれて 動けない！');
@@ -736,6 +793,7 @@ var BattleSystem = {
       if (healTarget && healTarget.alive) {
         var heal = spell.power + Math.floor(Math.random() * 10 - 5);
         healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + heal);
+        this.pop(game, healTarget, heal, 'heal');
         b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
       }
     } else if (spell.type === 'buff') {
@@ -770,15 +828,18 @@ var BattleSystem = {
       var target = game.party[cmd.target] || game.party[0];
       var heal = item.power;
       target.hp = Math.min(target.maxHp, target.hp + heal);
+      this.pop(game, target, heal, 'heal');
       b.messages.push(target.name + 'の HPが ' + heal + ' かいふくした！');
     } else if (item.type === 'healMp') {
       var tgt = game.party[cmd.target] || game.party[0];
       tgt.mp = Math.min(tgt.maxMp, tgt.mp + item.power);
+      this.pop(game, tgt, item.power, 'mp');
       b.messages.push(tgt.name + 'の MPが ' + item.power + ' かいふくした！');
     } else if (item.type === 'damage') {
       var enemy = b.enemies[cmd.target];
       if (enemy && enemy.alive) {
         enemy.hp = Math.max(0, enemy.hp - item.power);
+        this.pop(game, enemy, item.power, 'dmg');
         b.messages.push(enemy.name + 'に ' + item.power + 'の ダメージ！');
         if (enemy.hp <= 0) {
           enemy.alive = false;
@@ -1572,6 +1633,8 @@ var BattleSystem = {
     if (b.messages.length > 0) {
       UI.drawMessageWindow(ctx, b.messages, canvasW, canvasH);
     }
+
+    this.renderPops(ctx, game, canvasW, canvasH, Date.now());
 
     // Level up display (animated)
     if (b.phase === 'levelup' && b.levelUpIndex < b.levelUps.length) {
