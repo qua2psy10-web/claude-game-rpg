@@ -463,6 +463,18 @@ var SoundSystem = (function() {
       osc(55, 'sine', 0.5, t + 0.05, 0.8, 30);
     },
 
+    gameoverToll: function() {           // ゲームオーバー画面: 弔いの鐘と魂のささやき
+      resume();
+      var t = ctx.currentTime;
+      [0, 1.1].forEach(function(d) {
+        osc(196, 'sine', 0.2, t + d, 1.4);
+        osc(392, 'sine', 0.1, t + d, 1.1);
+        osc(588, 'sine', 0.06, t + d, 0.8);
+        osc(98, 'triangle', 0.18, t + d, 1.2, 80);
+      });
+      noise(0.1, t + 1.3, 1.6, 600);
+    },
+
     gameOver: function() {
       resume();
       var t = ctx.currentTime;

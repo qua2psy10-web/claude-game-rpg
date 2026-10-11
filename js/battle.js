@@ -1489,6 +1489,7 @@ var BattleSystem = {
     if (allDead) {
       game.battle.messages = ['全滅してしまった…'];
       game.battle.phase = 'lose';
+      game.battle.loseStart = Date.now();
       game.battle.messageTimer = 60;
       SoundSystem.gameOver();
       return true;
@@ -4214,6 +4215,64 @@ var BattleSystem = {
       }
     }
 
+    // Party wipe: the colour drains out, a dark red vignette closes in, cracks spread and ash falls
+    if (b.phase === 'lose' && b.loseStart) {
+      var lt2 = now - b.loseStart;
+      var lq = Math.min(1, lt2 / 1200);
+      ctx.save();
+      ctx.globalCompositeOperation = 'saturation';
+      ctx.globalAlpha = lq;
+      ctx.fillStyle = '#808080';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(30,0,6,' + (0.5 * lq) + ')';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      var lvg = ctx.createRadialGradient(canvasW / 2, canvasH * 0.45, canvasH * (0.55 - 0.3 * lq), canvasW / 2, canvasH * 0.45, canvasW * 0.7);
+      lvg.addColorStop(0, 'rgba(0,0,0,0)');
+      lvg.addColorStop(1, 'rgba(0,0,0,' + (0.85 * lq) + ')');
+      ctx.fillStyle = lvg;
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      // cracks spreading from the centre
+      if (lt2 > 150) {
+        var ck = Math.min(1, (lt2 - 150) / 600);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 * (1 - 0.4 * ck)) + ')';
+        ctx.lineWidth = 1.5;
+        for (var cki = 0; cki < 6; cki++) {
+          var cang = cki / 6 * Math.PI * 2 + 0.3;
+          var cx0 = canvasW / 2, cy0 = canvasH * 0.45;
+          ctx.beginPath();
+          ctx.moveTo(cx0, cy0);
+          for (var cj = 1; cj <= 6; cj++) {
+            var cr = cj * 55 * ck;
+            var jit = (this.fxRnd(cki * 10 + cj) - 0.5) * 0.5;
+            ctx.lineTo(cx0 + Math.cos(cang + jit) * cr, cy0 + Math.sin(cang + jit) * cr * 0.8);
+          }
+          ctx.stroke();
+        }
+      }
+      // falling ash
+      for (var ai = 0; ai < 40; ai++) {
+        var ap2 = ((lt2 / (3500 + (ai % 5) * 500)) + ai * 0.19) % 1;
+        ctx.globalAlpha = lq * 0.6;
+        ctx.fillStyle = ai % 6 === 0 ? '#ff7a3a' : '#bdbac8';
+        ctx.fillRect((ai * 83) % canvasW + Math.sin(lt2 / 500 + ai) * 10, ap2 * canvasH, 2, 2);
+      }
+      ctx.globalAlpha = 1;
+      // heavy title dropping in
+      var ta = Math.min(1, Math.max(0, (lt2 - 400) / 700));
+      ctx.font = 'bold 40px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = 'rgba(40,0,0,' + ta + ')';
+      ctx.fillStyle = 'rgba(210,50,50,' + ta + ')';
+      var ty2 = canvasH * 0.3 - (1 - ta) * 40 + (lt2 < 1000 ? Math.sin(lt2 / 25) * 2 * (1 - ta) : 0);
+      ctx.strokeText('全 滅', canvasW / 2, ty2);
+      ctx.fillText('全 滅', canvasW / 2, ty2);
+      ctx.restore();
+    }
+
     // Party status panel (right side): slides in from the edge as the battle begins
     ctx.save();
     var slideQ = b.introStart ? Math.min(1, (now - b.introStart) / 500) : 1;
@@ -4325,6 +4384,10 @@ var BattleSystem = {
       }
     }
     b.panelT = now;
+    if (b.phase === 'lose' && b.loseStart) {
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.5 * Math.min(1, (now - b.loseStart) / 1200)) + ')';
+      ctx.fillRect(canvasW - 220, canvasH - 200, 215, 120);
+    }
     ctx.restore();
 
     // Command menu (during command phase)
