@@ -4,7 +4,9 @@
 
 var SoundSystem = (function() {
   var ctx = null;
-  var masterVol = 0.5;
+  var baseVol = 0.5;
+  var seFactor = 1, ambFactor = 1, mul = false;   // player volume settings; mul is true while an ambient one-shot plays
+  function masterVol() { return baseVol * (mul ? ambFactor : seFactor); }
   var muted = false;
 
   function init() {
@@ -33,7 +35,7 @@ var SoundSystem = (function() {
     if (endFreq !== undefined) {
       o.frequency.linearRampToValueAtTime(endFreq, t + dur);
     }
-    g.gain.setValueAtTime(vol * masterVol, t);
+    g.gain.setValueAtTime(vol * masterVol(), t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.start(t);
     o.stop(t + dur + 0.01);
@@ -54,7 +56,7 @@ var SoundSystem = (function() {
     filt.type = 'lowpass';
     filt.frequency.value = maxFreq || 2000;
     var g = ctx.createGain();
-    g.gain.setValueAtTime(vol * masterVol, t);
+    g.gain.setValueAtTime(vol * masterVol(), t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(filt);
     filt.connect(g);
@@ -122,12 +124,22 @@ var SoundSystem = (function() {
       level = 0.085;
     }
     g.gain.setValueAtTime(0, ctx.currentTime);
-    g.gain.linearRampToValueAtTime(level * masterVol, ctx.currentTime + 1.5);
-    return { name: name, gain: g, nodes: nodes };
+    g.gain.linearRampToValueAtTime(level * baseVol * ambFactor, ctx.currentTime + 1.5);
+    return { name: name, gain: g, nodes: nodes, level: level };
   }
 
   return {
     init: init,
+    setSeVolume: function(f) { seFactor = f; },
+    setAmbVolume: function(f) {
+      ambFactor = f;
+      if (amb && ctx) {   // retarget the running bed
+        var t = ctx.currentTime;
+        amb.gain.gain.cancelScheduledValues(t);
+        amb.gain.gain.setValueAtTime(amb.gain.gain.value, t);
+        amb.gain.gain.linearRampToValueAtTime(amb.level * baseVol * f, t + 0.1);
+      }
+    },
     setAmbience: function(name) {
       if (!ctx || muted) name = null;
       if (name !== 'world' && name !== 'millhaven' && name !== 'forest' && name !== 'castle') name = null;
@@ -138,14 +150,18 @@ var SoundSystem = (function() {
     birdsFar: function(forest) {          // 遠くの鳥の声 (森ではフクロウ風)
       resume();
       var t = ctx.currentTime;
-      if (forest) { osc(430, 'sine', 0.04, t, 0.4, 380); osc(430, 'sine', 0.04, t + 0.55, 0.45, 370); return; }
+      mul = true;
+      if (forest) { osc(430, 'sine', 0.04, t, 0.4, 380); osc(430, 'sine', 0.04, t + 0.55, 0.45, 370); mul = false; return; }
       [0, 0.16, 0.34].forEach(function(d, i) { osc(2700 + i * 380, 'sine', 0.025, t + d, 0.09, 3400); });
+      mul = false;
     },
     distantThunder: function() {          // 魔王城: 壁越しの遠雷
       resume();
       var t = ctx.currentTime;
+      mul = true;
       noise(0.3, t, 1.8, 500);
       osc(48, 'sawtooth', 0.14, t, 1.3, 30);
+      mul = false;
     },
     resume: resume,
     isReady: function() { return !!ctx; },

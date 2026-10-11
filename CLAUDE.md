@@ -56,6 +56,14 @@ This file provides guidance for Claude and human developers working on this proj
 - **Ambient audio:** quiet looping beds under the BGM per area (breeze; forest wind + crickets; castle drone + howl), crossfaded on map change and off outside exploration, plus occasional distant birds / owl / thunder. `AmbienceSystem.update` schedules the one-shots; `SoundSystem.setAmbience` owns the loops.
 - **Code:** `js/ambience.js` (`AmbienceSystem`); `map.js` calls into it from `render`.
 
+### Settings
+
+- **Options:** BGM / 効果音 / 環境音 volume (0-10 steps; 7 = the original loudness, 10 = ~1.4x, 0 = silent) and 画面のゆれ ON/OFF (battle shake and the encounter zoom-shake). Left/Right adjusts; changing 効果音 / 環境音 plays a sample (BGM is already audible).
+- **Where:** title menu (せってい) and the in-game menu (せってい). Opened as an overlay (`game.settings`) over whatever state is running; `update` routes input to it and `render` draws it on top, so the music and ambience keep playing underneath.
+- **Storage:** `localStorage` key `eldrasia_settings`, separate from the save so a new game or a corrupt save never resets it.
+- **Wiring:** `SettingsSystem.apply()` pushes values into `MusicSystem.setVolume`, `SoundSystem.setSeVolume` and `SoundSystem.setAmbVolume` (the ambient loop retargets live; the one-shot birds/thunder use the ambience factor).
+- **Code:** `js/settings.js` (`SettingsSystem`), loaded before `sound.js`.
+
 ### Shops & Inn presentation
 
 - **Shop:** entering plays a door bell and fades in from black. A shopkeeper message window (greeting, price confirmation, "まいどあり！", "おかねが たりないようだ…") and a comparison window sit at the bottom: for equipment, each party member's stat before -> after (green up / red down arrow, "そうび できない" if the class cannot wear it) plus how many the party owns; for consumables, the description and owned count. Buying plays a coin SFX, flies coins from the gold counter to the row, floats "-NG", and counts the gold down. Unaffordable items cannot be selected (denied buzz + shake of the gold counter) and are drawn dim.
@@ -142,10 +150,11 @@ python3 -m http.server 8000
 /js/opening.js      # Title scenery/logo and the new-game opening cinematic
 /js/town.js         # Shop info/buy effects and the inn's night scene
 /js/ambience.js     # Animated tiles, area atmosphere, wandering NPCs, area banner
+/js/settings.js     # Player options (volumes, shake) and their panel
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → main.js
 
 ---
 

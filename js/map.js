@@ -21,8 +21,9 @@ var MapSystem = {
       ctx.save();
       var ez = 1 + 0.22 * et * et;
       var ecx = vpW * ts / 2, ecy = vpH * ts / 2;
-      ctx.translate(ecx + (Math.random() - 0.5) * 6 * et, ecy + (Math.random() - 0.5) * 6 * et);
-      ctx.rotate(Math.sin(et * 9) * 0.015 * et);
+      var sk = SettingsSystem.get('shake') ? 1 : 0;
+      ctx.translate(ecx + (Math.random() - 0.5) * 6 * et * sk, ecy + (Math.random() - 0.5) * 6 * et * sk);
+      ctx.rotate(Math.sin(et * 9) * 0.015 * et * sk);
       ctx.scale(ez, ez);
       ctx.translate(-ecx, -ecy);
     }
