@@ -21,6 +21,9 @@ function initGame() {
   game = {
     state: 'title',
     titleIndex: 0,
+    titleT0: null,       // when the title screen started animating
+    titleGo: null,       // { t0, next } while the title fades out into a new/loaded game
+    opening: null,       // { t0, cue, skipAt } during the new-game opening
     party: [],
     inventory: [],
     equipInventory: [],
@@ -116,7 +119,9 @@ function newGame() {
     '世界を救う旅に 出発せよ！',
   ];
   game.dialogueIndex = 0;
-  game.state = 'dialogue';
+  game.titleT0 = null; game.titleGo = null;
+  game.opening = { t0: Date.now(), cue: 0, skipAt: 0 };
+  game.state = 'opening';   // the opening cinematic, then the village chief's dialogue
 }
 
 // ===== SAVE/LOAD SYSTEM =====
@@ -255,6 +260,7 @@ function loadGame() {
     game.transitionTimer = 0;
     moveTimer = 0;
     game.loadFx = { t0: Date.now() };
+    game.titleT0 = null; game.titleGo = null;
     game.state = 'map';
     return true;
   } catch(e) {
@@ -415,6 +421,7 @@ function updateBgm() {
   MusicSystem.setIntensity(battleIntensity());
   MusicSystem.setBoost(partyBuffed());
   if (s === 'title')                                          return setBgm('title');
+  if (s === 'opening')                                        return setBgm(game.opening ? OpeningSystem.bgmAt(Date.now() - game.opening.t0) : null);
   if (s === 'battle')                                         return setBgm(getBattleBgm());
   if (s === 'gameover')                                       return setBgm('defeat');
   if (s === 'ending')                                         return setBgm(null);
@@ -429,7 +436,7 @@ function gameLoop(timestamp) {
   var dt = timestamp - lastTime;
   lastTime = timestamp;
 
-  if (game.state !== 'title') gameScore.playTime += dt / 1000;
+  if (game.state !== 'title' && game.state !== 'opening') gameScore.playTime += dt / 1000;
 
   update(dt);
   render();
@@ -444,6 +451,9 @@ function update(dt) {
   switch (game.state) {
     case 'title':
       updateTitle();
+      break;
+    case 'opening':
+      updateOpening();
       break;
     case 'map':
       updateMap(dt);
@@ -476,55 +486,98 @@ function update(dt) {
 }
 
 // ===== TITLE SCREEN =====
+var TITLE_MENU_AT = 2600;   // ms after the title starts at which the menu has faded in
+
 function updateTitle() {
   var input = getInput();
+  var now = Date.now();
+  if (!game.titleT0) game.titleT0 = now;
+  var tt = now - game.titleT0;
+
+  // Fading out into a new / loaded game
+  if (game.titleGo) {
+    if (now - game.titleGo.t0 > 650) {
+      var next = game.titleGo.next;
+      game.titleGo = null;
+      if (next === 'new') newGame(); else loadGame();
+    }
+    return;
+  }
+  // Any confirm during the intro animation just skips to the finished title
+  if (tt < TITLE_MENU_AT) {
+    if (input === 'confirm') game.titleT0 = now - TITLE_MENU_AT;
+    return;
+  }
+
   var hasSave = !!getSaveInfo();
   if (input === 'up') { game.titleIndex = (game.titleIndex - 1 + 2) % 2; SoundSystem.cursor(); }
   if (input === 'down') { game.titleIndex = (game.titleIndex + 1) % 2; SoundSystem.cursor(); }
   if (input === 'confirm') {
     if (game.titleIndex === 0) {
-      SoundSystem.confirm();
-      newGame();
+      SoundSystem.gameStart();
+      game.titleGo = { t0: now, next: 'new' };
     } else if (game.titleIndex === 1 && hasSave) {
-      SoundSystem.confirm();
-      loadGame();
+      SoundSystem.gameStart();
+      game.titleGo = { t0: now, next: 'load' };
     } else if (game.titleIndex === 1 && readSave().status === 'corrupt') {
       SoundSystem.cancel();
     }
   }
 }
 
-function renderTitle(ctx) {
-  // Background
-  ctx.fillStyle = '#0a0a2a';
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
-  // Stars
-  var starSeed = 42;
-  for (var i = 0; i < 80; i++) {
-    starSeed = (starSeed * 1103515245 + 12345) & 0x7fffffff;
-    var sx = starSeed % CANVAS_W;
-    starSeed = (starSeed * 1103515245 + 12345) & 0x7fffffff;
-    var sy = starSeed % (CANVAS_H - 100);
-    var blink = Math.sin(Date.now() / 500 + i) * 0.3 + 0.7;
-    ctx.fillStyle = 'rgba(255,255,200,' + blink + ')';
-    ctx.fillRect(sx, sy, 2, 2);
+// ===== OPENING CINEMATIC (new game) =====
+function updateOpening() {
+  var op = game.opening;
+  if (!op) { game.state = 'dialogue'; return; }
+  var now = Date.now(), t = now - op.t0;
+  if (!op.skipAt) {
+    while (op.cue < OpeningSystem.CUES.length && t >= OpeningSystem.CUES[op.cue].t) {
+      SoundSystem[OpeningSystem.CUES[op.cue].fn]();
+      op.cue++;
+    }
+    var input = getInput();
+    if (t > 300 && (input === 'confirm' || input === 'cancel')) op.skipAt = now;
   }
+  if ((op.skipAt && now - op.skipAt > 450) || t >= OpeningSystem.DURATION) {
+    game.opening = null;
+    game.state = 'dialogue';
+    game.dialogueIndex = 0;
+  }
+}
 
-  // Title text
-  ctx.fillStyle = '#ffd700';
-  ctx.font = 'bold 36px monospace';
+function renderOpening(ctx) {
+  var op = game.opening;
+  if (!op) return;
+  var now = Date.now();
+  OpeningSystem.render(ctx, now - op.t0, op.skipAt ? Math.min(1, (now - op.skipAt) / 450) : 0);
+}
+
+function renderTitle(ctx) {
+  var now = Date.now();
+  if (!game.titleT0) game.titleT0 = now;
+  var tt = now - game.titleT0;
+
+  // Night landscape: calm sky, the far castle smoulders, lightning now and then
+  var lc = tt % 11000, flash = 0;
+  if (lc > 10200 && lc < 10650) flash = (1 - (lc - 10200) / 450) * (lc < 10290 ? 1 : 0.7);
+  OpeningSystem.drawScene(ctx, { t: now, storm: 0.22, castle: Math.min(1, tt / 900), glow: 0.3 + 0.1 * Math.sin(now / 900), flash: flash, dawn: 0, heroes: 0 });
+  ctx.fillStyle = 'rgba(0,0,0,' + Math.max(0, 1 - tt / 700) + ')'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);   // fade in
+
+  // Logo, then the subtitles and the menu fade in
+  var landed = OpeningSystem.drawLogo(ctx, tt);
   ctx.textAlign = 'center';
-  ctx.fillText('エルドラシア戦記', CANVAS_W / 2, 120);
-
-  ctx.fillStyle = '#aaa';
+  ctx.globalAlpha = Math.max(0, Math.min(1, (tt - landed) / 500));
+  ctx.fillStyle = '#c8c8d8';
   ctx.font = '14px monospace';
   ctx.fillText('~ The Chronicles of Eldrasia ~', CANVAS_W / 2, 158);
-
-  // Subtitle
-  ctx.fillStyle = '#8ac';
+  ctx.globalAlpha = Math.max(0, Math.min(1, (tt - landed - 350) / 500));
+  ctx.fillStyle = '#9bd';
   ctx.font = '16px monospace';
   ctx.fillText('勇者サム、魔法使いダリオ、僧侶スンダーの冒険', CANVAS_W / 2, 200);
+  ctx.globalAlpha = 1;
+  var menuA = Math.max(0, Math.min(1, (tt - TITLE_MENU_AT + 400) / 400));
+  ctx.save();
+  ctx.globalAlpha = menuA;
 
   // Menu
   ctx.textAlign = 'left';
@@ -566,12 +619,21 @@ function renderTitle(ctx) {
     UI.drawText(ctx, 'プレイ: ' + ptMin + ':' + (ptSec < 10 ? '0' : '') + ptSec, 446, 382, '#aaa', UI.FONT_SMALL);
   }
 
+  ctx.restore();
+
   // Footer
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#555';
+  ctx.fillStyle = '#778';
   ctx.font = '12px monospace';
-  ctx.fillText('Arrow Keys: 移動   Z/Enter: 決定   X/Esc: キャンセル', CANVAS_W / 2, CANVAS_H - 20);
+  ctx.fillText(tt < TITLE_MENU_AT ? 'Z: スキップ' : 'Arrow Keys: 移動   Z/Enter: 決定   X/Esc: キャンセル', CANVAS_W / 2, CANVAS_H - 20);
   ctx.textAlign = 'left';
+
+  // Starting: a white flash, then the screen fades to black
+  if (game.titleGo) {
+    var gt = (now - game.titleGo.t0) / 650;
+    ctx.fillStyle = 'rgba(255,248,220,' + Math.max(0, 0.8 * (1 - gt * 3)) + ')'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = 'rgba(0,0,0,' + Math.max(0, Math.min(1, (gt - 0.2) / 0.8)) + ')'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  }
 }
 
 // ===== MAP UPDATES =====
@@ -1063,7 +1125,7 @@ function updateGameover() {
   // Ignore the confirm key for a moment so a mashed Enter can't skip the scene
   if (input === 'confirm' && Date.now() - game.goStart > 1500) {
     game.state = 'title';
-    game.titleIndex = 0;
+    game.titleIndex = 0; game.titleT0 = null; game.titleGo = null;
     game.goStart = 0;
   }
 }
@@ -1275,6 +1337,9 @@ function render() {
     case 'title':
       renderTitle(ctx);
       break;
+    case 'opening':
+      renderOpening(ctx);
+      break;
     case 'map':
       MapSystem.render(ctx, game);
       MapSystem.renderHUD(ctx, game);
@@ -1335,7 +1400,7 @@ function endGameAndSave() {
   _currentBgm = null;
   if (game) {
     game.state = 'title';
-    game.titleIndex = 0;
+    game.titleIndex = 0; game.titleT0 = null; game.titleGo = null;
     game.battle = null;
     game.menuState = null;
   }

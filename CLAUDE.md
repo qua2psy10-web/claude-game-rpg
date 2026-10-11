@@ -47,6 +47,12 @@ This file provides guidance for Claude and human developers working on this proj
   - **Stun:** Shield Bash (30% chance) stuns the target enemy; a stunned enemy skips its next action (1 turn). Bosses resist (half the chance), and an already-stunned enemy cannot be re-stunned.
   - **Debuffs:** Weaken (ウィークン, Dario Lv4: one enemy ATK x0.7, 3 turns) and Armor Break (ブレイク, Sundar Lv8: all enemies DEF x0.7, 3 turns) reuse the buff system via `getEffectiveStat`/`tickBuffs`.
 
+### Title & Opening
+
+- **Title:** a night landscape (moon, shooting star, village lights, the Demon King's castle smouldering on a far peak, occasional lightning) with the logo dropping in letter by letter; subtitles and the menu fade in at 2.6 s. Z during that intro skips to the finished title. Choosing はじめから / つづきから plays a start SFX and fades out before `newGame()` / `loadGame()` runs.
+- **Opening (new game only):** `state = 'opening'`, ~22 s, Z/X skips (fades out). Four narrated scenes (peaceful village -> the Demon King awakens with storm and thunder -> darkness spreads -> the three heroes rise at dawn), then the village chief's dialogue starts as before. BGM: title theme in scenes 1 and 4, silence plus SFX (rumble/thunder) in between. Loading a save never plays it.
+- **Code:** `js/opening.js` (`OpeningSystem`) holds the shared scenery, logo, narration text, sound cues and scene timeline; `main.js` owns the state machine (`updateTitle`, `updateOpening`, `renderOpening`).
+
 ### Save / Load
 
 - **Storage:** `localStorage` key `eldrasia_save`, JSON with `version` (currently 2). Party, inventory, equipment, gold, map/position, flags, play time, timestamp.
@@ -118,10 +124,11 @@ python3 -m http.server 8000
 /js/ui.js           # UI rendering (DQ-style windows, menus, text)
 /js/map.js          # World map rendering & movement
 /js/battle.js       # Turn-based battle system
+/js/opening.js      # Title scenery/logo and the new-game opening cinematic
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → map.js → battle.js → main.js
+Script load order matters: data.js → ui.js → sound.js → music.js → map.js → battle.js → opening.js → main.js
 
 ---
 
