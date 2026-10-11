@@ -260,7 +260,7 @@ function setBgm(name) {
   if (_currentBgm === name) return;
   _currentBgm = name;
   if (name === null) { MusicSystem.fadeOut(0.4); return; }
-  MusicSystem.changeTo(name);
+  MusicSystem.changeTo(name, name === 'victory' || name === 'defeat');   // jingles cut in quickly
 }
 
 // Battle music: silence for the victory/defeat/escape scenes, a dedicated track for bosses
@@ -269,7 +269,8 @@ function getBattleBgm() {
   var b = game.battle;
   if (!b) return 'battle';
   var ph = b.phase;
-  if (ph === 'win' || ph === 'levelup' || ph === 'lose' || ph === 'run') return null;
+  if (ph === 'win') return 'victory';   // fanfare for the party's win
+  if (ph === 'levelup' || ph === 'lose' || ph === 'run') return null;
   if (b.bossIntro) {
     var intro = Date.now() - b.introStart;
     return (b.bossLandAt || intro > 2200) ? 'boss' : null;
@@ -294,12 +295,24 @@ function battleIntensity() {
   return level;
 }
 
+// True while any living party member has an active buff (War Cry / Protect)
+function partyBuffed() {
+  if (game.state !== 'battle' || !game.battle) return false;
+  for (var i = 0; i < game.party.length; i++) {
+    var bf = game.party[i].buffs;
+    if (game.party[i].alive && bf && (bf.atk || bf.def)) return true;
+  }
+  return false;
+}
+
 function updateBgm() {
   var s = game.state;
   MusicSystem.setIntensity(battleIntensity());
+  MusicSystem.setBoost(partyBuffed());
   if (s === 'title')                                          return setBgm('title');
   if (s === 'battle')                                         return setBgm(getBattleBgm());
-  if (s === 'gameover' || s === 'ending')                     return setBgm(null);
+  if (s === 'gameover')                                       return setBgm('defeat');
+  if (s === 'ending')                                         return setBgm(null);
   if (s === 'map' || s === 'menu'     || s === 'dialogue' ||
       s === 'shop' || s === 'inn'     || s === 'mapTransition') {
     return setBgm(getMapBgm(game.currentMap));

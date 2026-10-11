@@ -1473,8 +1473,8 @@ var BattleSystem = {
       game.gold += totalGold;
       b.phase = 'win';
       b.winStart = Date.now();
-      b.messageTimer = 150;   // long enough to enjoy the victory scene
-      SoundSystem.victory();
+      b.messageTimer = 360;   // long enough for the victory fanfare to play out (confirm skips it)
+      // The victory fanfare is now the BGM track (see getBattleBgm in main.js)
       return true;
     }
     return false;
