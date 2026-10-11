@@ -49,6 +49,23 @@ This file provides guidance for Claude and human developers working on this proj
 - **Transient battle fields** (buffs, poison, gauge animation values, ...) are stripped on save; buffs/defending are reset on load.
 - **Safe load:** a save that fails structural validation (3 valid party members, known classes, known map) is treated as corrupt: 「つづきから」 stays disabled and the title says so. The data is not deleted.
 
+### Balance
+
+Enemy damage uses `ATK/2 - DEF/4`, so an enemy needs roughly 2x the party's DEF in ATK to hurt; magic ignores most DEF. Enemy stats are therefore much higher than the raw party stats suggest. Targets for the simple "sensible player" policy in `tools/balance-sim.js` (full HP/MP at the start of each fight, no rest between fights inside a run):
+
+| Area | Intended party Lv | HP lost / battle | Wipe | Rounds |
+|---|---|---|---|---|
+| Grassland | 1-4 | 0-10% | ~0% | 1-2 |
+| Dark Forest | 5-8 | 10-20% | <5% | 2-3 |
+| Demon's Castle | 9-13 | 25-45% at Lv9, <15% by Lv12 | <30% at Lv9 | 4-6 |
+| Demon King | 13 | ~60% | ~35-45% | 10-18 |
+
+Gold per battle is roughly 7 (grass) / 22 (forest) / 55 (castle), enough for one shop upgrade per ~10-25 battles early on.
+
+**Tool:** `node tools/balance-sim.js [runs] [seed]` runs full playthroughs through the real `BattleSystem` (stats per area and per level, boss win rate); add `matrix` as the 3rd argument for an area x level table. Re-run it after touching enemy stats, spells, growth, EXP or shop prices.
+
+Known gaps: Sam's physical attacks stay weak against high-DEF enemies (damage is magic-dominated); the shops do not sell flameSword/holySword/crystalStaff/sacredRod/plateArmor/dragonArmor/holyRobe/lifeRing, so late gold has few sinks; level pacing (about 100 battles to Lv16) is not tuned for play time.
+
 ### Progression & Economy
 
 - **Currency:** Gold (G)
