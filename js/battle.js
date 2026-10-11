@@ -32,6 +32,8 @@ var BattleSystem = {
         skills: template.skills || [],
         alive: true,
         buffs: {},
+        bossPhase: 0,       // 0 / 1 (HP <= 66%) / 2 (HP <= 33%): boss form changes
+        charging: false,    // boss is storing a big attack for next round
       });
     }
 
@@ -925,16 +927,46 @@ var BattleSystem = {
     b.messageTimer = 0;
   },
 
+  // Boss form change: when its HP first drops to 66% / 33% the boss powers up
+  // (more big attacks, see getEnemyAction) with a short cinematic. Returns true while that plays.
+  checkBossPhase: function(game) {
+    var b = game.battle;
+    for (var i = 0; i < b.enemies.length; i++) {
+      var e = b.enemies[i];
+      if (!e.boss || !e.alive) continue;
+      var r = e.hp / e.maxHp;
+      var np = r <= 0.33 ? 2 : (r <= 0.66 ? 1 : 0);
+      if (np > (e.bossPhase || 0)) {
+        e.bossPhase = np;
+        b.bossPhaseFx = { idx: i, t0: Date.now(), phase: np };
+        b.messages = [e.name + 'の 全身から ' + (np === 1 ? 'どす黒い 瘴気が あふれ出した！' : '真紅の 闇が 爆発した！'),
+                      np === 1 ? '魔王の 力が 増していく…！' : '魔王は 怒り狂っている！'];
+        b.messageTimer = 100;
+        SoundSystem.bossPhase(np);
+        this.shake(game, 12, 700);
+        return true;
+      }
+    }
+    return false;
+  },
+
   getEnemyAction: function(enemy, game) {
     var idx = game.battle.enemies.indexOf(enemy);
+
+    // Boss: a stored attack is released this round, at full force
+    if (enemy.boss && enemy.charging) {
+      return { actor: idx, actorType: 'enemy', action: 'spell', spellId: 'enemyDark', target: -1, targetType: 'partyAll', charged: true };
+    }
 
     // Boss AI
     if (enemy.boss && enemy.hp < enemy.maxHp * 0.3 && enemy.skills.indexOf('enemyHeal') >= 0 && Math.random() < 0.4) {
       return { actor: idx, actorType: 'enemy', action: 'spell', spellId: 'enemyHeal', target: idx, targetType: 'self' };
     }
-    if (enemy.skills.length > 0 && Math.random() < 0.35) {
+    if (enemy.skills.length > 0 && Math.random() < 0.35 + (enemy.boss ? 0.12 * (enemy.bossPhase || 0) : 0)) {
       var skill = enemy.skills[Math.floor(Math.random() * enemy.skills.length)];
       var spell = SPELLS[skill];
+      // The boss's party-wide attack is telegraphed: it spends a turn charging first
+      if (enemy.boss && skill === 'enemyDark') return { actor: idx, actorType: 'enemy', action: 'charge', target: -1 };
       if (spell.target === 'partyAll') {
         return { actor: idx, actorType: 'enemy', action: 'spell', spellId: skill, target: -1, targetType: 'partyAll' };
       } else if (spell.target === 'self') {
@@ -960,6 +992,7 @@ var BattleSystem = {
   // Execute the next action in the turn queue
   executeNextAction: function(game) {
     var b = game.battle;
+    if (this.checkBossPhase(game)) return;
     if (b.currentAction >= b.turnQueue.length) {
       // All actions done — check win/lose, then new round
       if (this.checkWin(game)) return;
@@ -986,6 +1019,7 @@ var BattleSystem = {
       var stEn = b.enemies[cmd.actor];
       stEn.stunTurns--;
       b.messages = [stEn.name + 'は しびれて 動けない！'];
+      if (stEn.charging) { stEn.charging = false; b.messages.push('ためていた 力が 霧散した！'); }
       b.messageTimer = 45;
       stEn.stunAt = Date.now();
       SoundSystem.stunHit();
@@ -1014,6 +1048,18 @@ var BattleSystem = {
         this.alertEnemies(game);
         this.escapeFailFx(game, false);
       }
+      return;
+    }
+
+    // Boss telegraph: it stores a big attack and releases it next round
+    if (cmd.action === 'charge') {
+      var chEn = b.enemies[cmd.actor];
+      chEn.charging = true;
+      b.chargeFx = { idx: cmd.actor, t0: Date.now() };
+      b.messages = [chEn.name + 'は 暗黒の力を ためている…！', 'ぼうぎょで 備えよ！'];
+      b.messageTimer = 100;
+      SoundSystem.bossCharge();
+      this.shake(game, 4, 600);
       return;
     }
 
@@ -1171,6 +1217,11 @@ var BattleSystem = {
     }
 
     b.messages = [caster.name + 'は ' + spell.name + 'を となえた！'];
+    if (cmd.charged) {
+      caster.charging = false;
+      b.messages = ['ためていた 力が 解き放たれた！', caster.name + 'の 全力の ' + spell.name + '！'];
+      b.chargedBlast = { t0: Date.now() + this.ENEMY_CAST_DELAY + 250 };
+    }
 
     // Enemy casters charge up first; effect, shake and numbers land after ed ms
     var ed = cmd.actorType === 'enemy' ? (caster.boss ? this.ENEMY_CAST_DELAY + 250 : this.ENEMY_CAST_DELAY) : 0;
@@ -1219,6 +1270,7 @@ var BattleSystem = {
     if (spell.type === 'magic' || spell.type === 'physical') {
       var bigHit = (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy' || cmd.targetType === 'partyAll');
       var shakeMag = bigHit ? 12 : 7, shakeDur = bigHit ? 450 : 300;
+      if (cmd.charged) { shakeMag = 18; shakeDur = 800; }
       if (ed) { shakeMag = Math.round(shakeMag * 1.4); shakeDur += 100; }
       if (pd) { shakeMag = Math.round(shakeMag * 1.25); shakeDur += 80; }
       if (fd) {
@@ -1246,6 +1298,10 @@ var BattleSystem = {
         for (var j = 0; j < game.party.length; j++) {
           if (game.party[j].alive) {
             var dmg2 = this.calcSpellDamage(caster, game.party[j], spell);
+            if (cmd.charged) {                       // a stored attack hits 1.5x; guarding halves it
+              dmg2 = Math.floor(dmg2 * 1.5);
+              if (game.party[j].defending) { dmg2 = Math.floor(dmg2 * 0.5); b.messages.push(game.party[j].name + 'は ガードで 衝撃を やわらげた！'); }
+            }
             game.party[j].hp = Math.max(0, game.party[j].hp - dmg2);
             this.pop(game, game.party[j], dmg2, 'dmg', ed);
             b.messages.push(game.party[j].name + 'に ' + dmg2 + 'の ダメージ！');
@@ -1488,10 +1544,13 @@ var BattleSystem = {
       b.totalExp = totalExp;
       b.totalGold = totalGold;
       b.messages = ['戦闘に 勝利した！', totalExp + 'の 経験値を 獲得！', totalGold + 'ゴールド 手に入れた！'];
+      var bossWin = b.enemies.some(function(e) { return e.boss; });
+      if (bossWin) b.messages = ['魔王ヴァルザードを たおした！', '世界に 光が もどっていく…'];
       game.gold += totalGold;
       b.phase = 'win';
       b.winStart = Date.now();
-      b.messageTimer = 360;   // long enough for the victory fanfare to play out (confirm skips it)
+      b.bossWin = bossWin;
+      b.messageTimer = bossWin ? 330 : 360;   // long enough for the victory fanfare to play out (confirm skips it)
       // The victory fanfare is now the BGM track (see getBattleBgm in main.js)
       return true;
     }
@@ -2303,6 +2362,7 @@ var BattleSystem = {
     if (b && b.itemFx) this.renderItemFx(ctx, game, w, h, now);
     if (b) this.renderGuard(ctx, game, w, h, now);
     if (b) this.renderStun(ctx, game, now);
+    if (b) this.renderBossFx(ctx, game, w, h, now);
     if (b) this.renderDebuff(ctx, game, now);
     if (b) this.renderPoisonCure(ctx, game, w, h, now);
     if (b && b.escapeFail) this.renderEscapeFail(ctx, game, w, h, now);
@@ -2453,6 +2513,94 @@ var BattleSystem = {
         ctx.arc(ox, oy, 5, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+    ctx.restore();
+  },
+
+  // Boss-only overlays: form-change shockwave, charge warning, the released blast, victory whiteout
+  renderBossFx: function(ctx, game, w, h, now) {
+    var b = game.battle, i;
+    // ---- Form change: white flash, expanding shock rings and a tinted vignette
+    var pf = b.bossPhaseFx;
+    if (pf) {
+      var pt = now - pf.t0, PD = 1300;
+      if (pt >= PD) { b.bossPhaseFx = null; }
+      else {
+        var en = b.enemies[pf.idx], cx = en && en.sx !== undefined ? en.sx : w / 2, cy = en && en.sy !== undefined ? en.sy : h * 0.4;
+        var rgb = pf.phase === 1 ? '190,30,140' : '255,110,40';
+        ctx.save();
+        if (pt < 160) { ctx.fillStyle = 'rgba(255,255,255,' + 0.7 * (1 - pt / 160) + ')'; ctx.fillRect(0, 0, w, h); }
+        var vg = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.85);
+        vg.addColorStop(0, 'rgba(' + rgb + ',0)');
+        vg.addColorStop(1, 'rgba(' + rgb + ',' + 0.45 * Math.sin(Math.min(1, pt / PD) * Math.PI) + ')');
+        ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+        for (var ri = 0; ri < 3; ri++) {
+          var rq = (pt - ri * 180) / 800;
+          if (rq <= 0 || rq >= 1) continue;
+          ctx.globalAlpha = (1 - rq) * 0.8;
+          ctx.strokeStyle = 'rgb(' + rgb + ')'; ctx.lineWidth = 6 * (1 - rq) + 1;
+          ctx.beginPath(); ctx.ellipse(cx, cy, 30 + rq * 330, 12 + rq * 130, 0, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgb(' + rgb + ')';       // shards of darkness burst upward
+        for (var sk = 0; sk < 26; sk++) {
+          var sq = Math.min(1, pt / 900), sa = this.fxRnd(sk + 800) * Math.PI * 2, sr = (30 + this.fxRnd(sk + 830) * 170) * sq;
+          ctx.globalAlpha = 1 - sq;
+          ctx.fillRect(cx + Math.cos(sa) * sr - 2, cy + Math.sin(sa) * sr * 0.8 - sq * 50 - 2, 4, 4);
+        }
+        ctx.restore();
+      }
+    }
+    // ---- Warning while a boss is storing an attack: pulsing red edges + banner
+    var storing = false;
+    for (i = 0; i < b.enemies.length; i++) if (b.enemies[i].boss && b.enemies[i].alive && b.enemies[i].charging) storing = true;
+    if (storing && b.phase !== 'win' && b.phase !== 'lose' && b.phase !== 'levelup') {
+      var wp = 0.5 + 0.5 * Math.sin(now / 160);
+      ctx.save();
+      var eg = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, h * 0.8);
+      eg.addColorStop(0, 'rgba(160,0,40,0)');
+      eg.addColorStop(1, 'rgba(160,0,40,' + (0.25 + 0.3 * wp) + ')');
+      ctx.fillStyle = eg; ctx.fillRect(0, 0, w, h);
+      ctx.globalAlpha = 0.55 + 0.45 * wp;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 20px monospace';
+      ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a0010'; ctx.fillStyle = '#ff6a8a';
+      var wtxt = '▲ 暗黒の波動の 予兆 ▲  ぼうぎょで 備えよ';
+      ctx.strokeText(wtxt, w / 2, 40); ctx.fillText(wtxt, w / 2, 40);
+      ctx.restore();
+    }
+    // ---- Released blast: a white-red flash with rays from the boss
+    var cb = b.chargedBlast;
+    if (cb) {
+      var bt = now - cb.t0;
+      if (bt > 700) { b.chargedBlast = null; }
+      else if (bt >= 0) {
+        var ba = 1 - bt / 700;
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,230,230,' + 0.75 * ba + ')'; ctx.fillRect(0, 0, w, h);
+        ctx.translate(w / 2, h * 0.38);
+        ctx.fillStyle = 'rgba(255,60,90,' + 0.5 * ba + ')';
+        for (var ry = 0; ry < 12; ry++) {
+          ctx.save(); ctx.rotate(ry / 12 * Math.PI * 2 + bt / 900);
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(w, -14 - bt / 25); ctx.lineTo(w, 14 + bt / 25); ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+        ctx.restore();
+      }
+    }
+  },
+
+  // Boss defeated: everything (windows included) whitens and a line fades in before the ending
+  renderBossVictory: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    if (!b || !b.bossWin || !b.winStart) return;
+    var wt = now - b.winStart;
+    if (wt <= 2800) return;
+    var wa = Math.min(1, (wt - 2800) / 1600);
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,252,235,' + wa + ')'; ctx.fillRect(0, 0, w, h);
+    if (wt > 3600) {
+      ctx.globalAlpha = Math.min(1, (wt - 3600) / 700);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '20px monospace'; ctx.fillStyle = '#8a6a20';
+      ctx.fillText('…そして 世界に 朝が おとずれた', w / 2, h / 2);
     }
     ctx.restore();
   },
@@ -3688,11 +3836,34 @@ var BattleSystem = {
 
       // Boss aura
       if (en.boss) {
-        var aura = ctx.createRadialGradient(ex, ey, 10, ex, ey, 120);
-        aura.addColorStop(0, 'rgba(200,40,60,0.35)');
-        aura.addColorStop(1, 'rgba(200,40,60,0)');
+        // The aura grows and burns hotter with each form; a stored attack turns it violet and pulsing
+        var bph = en.bossPhase || 0, chg = !!en.charging;
+        var pulse = 0.5 + 0.5 * Math.sin(now / (chg ? 110 : 320));
+        var arad = 120 + bph * 24 + (chg ? 34 * pulse : 0);
+        var acol = chg ? '150,40,230' : (bph === 0 ? '200,40,60' : (bph === 1 ? '190,30,120' : '255,110,40'));
+        var aal = (chg ? 0.5 + 0.25 * pulse : 0.35 + bph * 0.12);
+        var aura = ctx.createRadialGradient(ex, ey, 10, ex, ey, arad);
+        aura.addColorStop(0, 'rgba(' + acol + ',' + aal + ')');
+        aura.addColorStop(1, 'rgba(' + acol + ',0)');
         ctx.fillStyle = aura;
-        ctx.fillRect(ex - 130, ey - 130, 260, 260);
+        ctx.fillRect(ex - arad - 10, ey - arad - 10, arad * 2 + 20, arad * 2 + 20);
+        if (chg) {                                    // dark motes are drawn in from all sides
+          ctx.fillStyle = 'rgba(190,120,255,0.8)';
+          for (var cp = 0; cp < 18; cp++) {
+            var cq = (now / 800 + cp / 18) % 1, ca = cp * 2.4 + 0.5;
+            var cr = 190 * (1 - cq) + 14;
+            ctx.globalAlpha = Math.min(1, cq * 2) * 0.9;
+            ctx.fillRect(ex + Math.cos(ca) * cr - 2, ey + Math.sin(ca) * cr * 0.7 - 2, 4, 4);
+          }
+          ctx.globalAlpha = 1;
+        } else if (bph >= 1) {                        // embers rise off an enraged boss
+          for (var ep = 0; ep < 6 + bph * 4; ep++) {
+            var eq = (now / 1400 + ep * 0.137) % 1;
+            ctx.fillStyle = bph === 1 ? 'rgba(220,60,160,' : 'rgba(255,170,60,';
+            ctx.fillStyle += (1 - eq) * 0.8 + ')';
+            ctx.fillRect(ex + (this.fxRnd(ep + 700) - 0.5) * 120, ey + 40 - eq * 130, 3, 3);
+          }
+        }
       }
 
       // Ground shadow (shrinks as the enemy bobs up)
@@ -4469,5 +4640,6 @@ var BattleSystem = {
       }
       this.renderLevelUp(ctx, b.levelUps[b.levelUpIndex], canvasW, canvasH, Date.now() - b.luStart, luChar && luChar.color);
     }
+    this.renderBossVictory(ctx, game, canvasW, canvasH, Date.now());
   },
 };

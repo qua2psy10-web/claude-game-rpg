@@ -471,6 +471,25 @@ var SoundSystem = (function() {
       osc(55, 'sine', 0.5, t + 0.05, 0.8, 30);
     },
 
+    bossPhase: function(n) {              // 魔王の形態変化: 咆哮と、闇が膨らむ低音
+      resume();
+      var t = ctx.currentTime;
+      osc(90, 'sawtooth', 0.4, t, 0.9, 45 + n * 10);
+      osc(180, 'square', 0.18, t, 0.7, 70);
+      osc(60, 'sine', 0.5, t + 0.05, 1.0, 30);
+      noise(0.4, t, 0.8, 500 + n * 300);
+      for (var k = 0; k < 4 + n * 2; k++) osc(300 + k * 90, 'sawtooth', 0.05, t + 0.2 + k * 0.06, 0.25, 80);
+    },
+
+    bossCharge: function() {              // 大技の予兆: 低く唸りながら力が収束する
+      resume();
+      var t = ctx.currentTime;
+      osc(55, 'sawtooth', 0.35, t, 1.2, 140);
+      osc(110, 'sine', 0.25, t, 1.1, 280);
+      noise(0.25, t, 1.0, 900);
+      for (var k = 0; k < 5; k++) osc(200 + k * 40, 'triangle', 0.06, t + 0.5 + k * 0.1, 0.3, 700);
+    },
+
     gameoverToll: function() {           // ゲームオーバー画面: 弔いの鐘と魂のささやき
       resume();
       var t = ctx.currentTime;

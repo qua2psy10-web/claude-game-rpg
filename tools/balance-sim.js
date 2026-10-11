@@ -64,9 +64,11 @@ function weakest(b) { var best = -1; b.enemies.forEach(function(e, i) { if (e.al
 function strongest(b) { var best = -1; b.enemies.forEach(function(e, i) { if (e.alive && (best < 0 || e.hp > b.enemies[best].hp)) best = i; }); return best; }
 function planRound(g) {
   var b = g.battle, cmds = [], ne = aliveEnemies(b).length;
+  var storing = b.enemies.some(function(e) { return e.alive && e.charging; });
   g.party.forEach(function(c, i) {
     if (!c.alive) return;
     var P = function(o) { o.actor = i; o.actorType = 'party'; cmds.push(o); };
+    if (storing && c.classId !== 'sundar') return P({ action: 'defend' });   // brace for the boss's stored attack
     var hpr = c.hp / c.maxHp;
     var herb = g.inventory.filter(function(x) { return x.id === 'herb' && x.count > 0; })[0];
     var avail = BattleSystem.getAvailableSpells(c).map(function(s) { return s.id; }).filter(function(id) { return SPELLS[id].mp <= c.mp; });

@@ -394,7 +394,7 @@ function battleIntensity() {
     if (game.party[i].alive && game.party[i].hp < game.party[i].maxHp * 0.25) { level++; break; }
   }
   for (i = 0; i < b.enemies.length; i++) {
-    if (b.enemies[i].boss && b.enemies[i].alive && b.enemies[i].hp < b.enemies[i].maxHp * 0.5) { level++; break; }
+    if (b.enemies[i].boss && b.enemies[i].alive && (b.enemies[i].bossPhase || 0) >= 1) { level++; break; }
   }
   return level;
 }
