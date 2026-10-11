@@ -4193,11 +4193,95 @@ var BattleSystem = {
       var nameColor = p.alive ? '#fff' : '#888';
       if (p.alive && p.poisoned) nameColor = '#d08aff';
       if (b.flashParty === k) nameColor = '#f44';
+
+      // Animated gauges: the main bar follows the real value quickly, a pale "ghost" bar lags behind
+      // on damage, and a green sweep marks healing
+      if (p.hpShown === undefined) { p.hpShown = p.hp; p.hpGhost = p.hp; p.mpShown = p.mp; p.hpLast = p.hp; }
+      if (p.hp > p.hpLast) p.healAt = now;
+      p.hpLast = p.hp;
+      var ft = Math.min(0.5, (now - (b.panelT || now)) / 1000);
+      p.hpShown += (p.hp - p.hpShown) * Math.min(1, ft * 9);
+      if (Math.abs(p.hp - p.hpShown) < 0.3) p.hpShown = p.hp;
+      if (p.hpGhost > p.hpShown) p.hpGhost = Math.max(p.hpShown, p.hpGhost - p.maxHp * ft * 0.35);
+      else p.hpGhost = p.hpShown;
+      p.mpShown += (p.mp - p.mpShown) * Math.min(1, ft * 9);
+      if (Math.abs(p.mp - p.mpShown) < 0.3) p.mpShown = p.mp;
+      var hpR = p.maxHp ? Math.max(0, Math.min(1, p.hpShown / p.maxHp)) : 0;
+      var ghR = p.maxHp ? Math.max(0, Math.min(1, p.hpGhost / p.maxHp)) : 0;
+      var mpR = p.maxMp ? Math.max(0, Math.min(1, p.mpShown / p.maxMp)) : 0;
+      var low = p.alive && p.hp <= p.maxHp * 0.25;
+      var pulse = 0.55 + 0.45 * Math.sin(now / 140);
+
+      // Whose turn it is: gold frame and a bobbing marker
+      if (b.phase === 'command' && b.currentChar === k && p.alive) {
+        ctx.strokeStyle = 'rgba(255,215,0,' + (0.55 + 0.35 * Math.sin(now / 160)) + ')';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(canvasW - 216, py - 5, 207, 35);
+        ctx.fillStyle = '#ffd700';
+        var mx = canvasW - 224 + Math.sin(now / 130) * 2;
+        ctx.beginPath(); ctx.moveTo(mx, py + 8); ctx.lineTo(mx - 7, py + 2); ctx.lineTo(mx - 7, py + 14); ctx.closePath(); ctx.fill();
+      }
+      // Danger: the frame blinks red when HP is critical
+      if (low) {
+        ctx.strokeStyle = 'rgba(255,40,40,' + (0.25 + 0.5 * pulse) + ')';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(canvasW - 216, py - 5, 207, 35);
+      }
+
+      var shownHp = Math.round(p.hpShown), shownMp = Math.round(p.mpShown);
       UI.drawText(ctx, p.name, px, py, nameColor, UI.FONT_SMALL);
-      UI.drawText(ctx, 'HP ' + p.hp + '/' + p.maxHp, px + 72, py, p.hp <= p.maxHp * 0.25 ? '#f44' : '#fff', UI.FONT_SMALL);
-      UI.drawText(ctx, 'MP ' + p.mp + '/' + p.maxMp, px + 72, py + 16, '#aaf', UI.FONT_SMALL);
-      if (p.alive && p.poisoned) UI.drawText(ctx, '毒', px, py + 16, '#d08aff', UI.FONT_SMALL);
+      UI.drawText(ctx, 'HP ' + shownHp + '/' + p.maxHp, px + 72, py, low ? '#f66' : '#fff', UI.FONT_SMALL);
+      if (p.alive) UI.drawText(ctx, 'MP ' + shownMp + '/' + p.maxMp, px + 72, py + 17, '#aaf', UI.FONT_SMALL);
+      if (p.alive && p.poisoned) UI.drawText(ctx, '毒', px, py + 17, '#d08aff', UI.FONT_SMALL);
+
+      // HP gauge (track, ghost, main, heal sweep)
+      var gx = px + 72, gw = 122, gy = py + 14;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(gx, gy, gw, 4);
+      ctx.fillStyle = 'rgba(255,230,230,0.75)';
+      ctx.fillRect(gx, gy, gw * ghR, 4);
+      ctx.fillStyle = hpR > 0.5 ? '#4ade6a' : (hpR > 0.25 ? '#ffd84a' : 'rgba(255,60,60,' + (0.6 + 0.4 * pulse) + ')');
+      ctx.fillRect(gx, gy, gw * hpR, 4);
+      var hs = now - (p.healAt || 0);
+      if (hs >= 0 && hs < 600) {
+        var sx2 = gx + gw * (hs / 600);
+        ctx.fillStyle = 'rgba(210,255,225,' + (1 - hs / 600) + ')';
+        ctx.fillRect(sx2 - 8, gy - 1, 16, 6);
+      }
+      // MP gauge
+      var gy2 = py + 31;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(gx, gy2, gw, 3);
+      ctx.fillStyle = '#5a9cff';
+      ctx.fillRect(gx, gy2, gw * (p.alive ? mpR : 0), 3);
+
+      // Active buffs: small badges with the turns left
+      if (p.alive && p.buffs) {
+        var bxo = px + 140;
+        var kinds = [['atk', '攻', '#ff8a3c'], ['def', '防', '#5aa8ff']];
+        for (var bk = 0; bk < kinds.length; bk++) {
+          var bf = p.buffs[kinds[bk][0]];
+          if (!bf) continue;
+          var bbx = bxo + bk * 28;
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(bbx, py + 17, 26, 12);
+          ctx.strokeStyle = kinds[bk][2];
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bbx + 0.5, py + 17.5, 25, 11);
+          ctx.fillStyle = kinds[bk][2];
+          ctx.font = 'bold 10px monospace';
+          ctx.textBaseline = 'top';
+          ctx.fillText(kinds[bk][1] + '↑' + bf.turns, bbx + 2, py + 18);
+        }
+      }
+      // Fallen members: greyed out with a tag
+      if (!p.alive) {
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(canvasW - 216, py - 5, 207, 35);
+        UI.drawText(ctx, '戦闘不能', px + 72, py + 17, '#f66', UI.FONT_SMALL);
+      }
     }
+    b.panelT = now;
 
     // Command menu (during command phase)
     if (b.phase === 'command' && b.currentChar < game.party.length) {
