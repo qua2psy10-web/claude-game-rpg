@@ -20,6 +20,7 @@ var MusicSystem = (function() {
   var pTime = 0;             // percussion cursor (battle / boss)
   var pIdx = 0;              // beat counter for the percussion pattern
   var aTime = 0, aIdx = 0;   // arpeggio layer cursor (plays only when intensity > 0)
+  var boost = false;         // true while the party has an active buff (adds a bright layer)
   var intensity = 0;         // 0 normal, 1 danger, 2 critical (adds a fast arpeggio layer)
   var fadeToken = 0;         // invalidates pending fade-outs when new music starts
 
@@ -47,6 +48,40 @@ var MusicSystem = (function() {
   // All tracks: 32 beats melody + 32 beats bass (loop-seamless)
 
   var tracks = {
+
+    // ── 勝利ファンファーレ (132 BPM, C major, 一度だけ鳴る) ──── //
+    victory: {
+      bpm: 150,
+      once: true,
+      harmony: 0.8,
+      melody: [
+        [N.C5,.5],[N.C5,.5],[N.C5,.5],[N.C5,1.5],   // ta-ta-ta-taa
+        [N.Ab4,1.5],[N.Bb4,1.5],[N.C5,1],[N.R,.5],
+        [N.C5,.5],[N.C5,.5],[N.C5,.5],[N.C5,1],[N.Bb4,.5],[N.C5,1],[N.R,.5],
+        [N.D5,1],[N.E5,1],[N.G5,2],[N.C6,4],
+      ],
+      bass: [
+        [N.C3,.5],[N.C3,.5],[N.C3,.5],[N.C3,1.5],
+        [N.F3,1.5],[N.G3,1.5],[N.C3,1],[N.R,.5],
+        [N.C3,2],[N.F3,2],
+        [N.G3,2],[N.G3,2],[N.C3,4],
+      ],
+    },
+
+    // ── 敗北 (66 BPM, A minor, 一度だけ鳴る) ─────────────── //
+    defeat: {
+      bpm: 66,
+      once: true,
+      harmony: 0.84,
+      melody: [
+        [N.A4,2],[N.G4,2],[N.F4,2],[N.E4,2],
+        [N.D4,2],[N.E4,2],[N.A3,4],
+      ],
+      bass: [
+        [N.F3,4],[N.E3,4],
+        [N.D3,4],[N.A3,4],
+      ],
+    },
 
     // ── タイトル (108 BPM, C major, majestic) ────────────── //
     title: {
@@ -271,11 +306,13 @@ var MusicSystem = (function() {
 
     // Schedule melody notes (square wave — bright, classic chiptune)
     while (mTime < now + LOOKAHEAD) {
+      if (track.once && mIdx >= track.melody.length) { mTime = Infinity; break; }   // one-shot jingle: stop after one pass
       var mn = track.melody[mIdx % track.melody.length];
       var mdur = beatDur * mn[1];
       if (mn[0]) {
         playNote(mn[0], 'square', 0.14, mTime, mdur);
         if (track.harmony) playNote(mn[0] * track.harmony, 'square', 0.07, mTime, mdur);
+        if (boost && !track.once) playNote(mn[0] * 2, 'square', 0.04, mTime, mdur * 0.9);   // party buffed: bright octave shimmer
       }
       mTime += mdur;
       mIdx++;
@@ -283,6 +320,7 @@ var MusicSystem = (function() {
 
     // Schedule bass notes (triangle wave — softer, rounder)
     while (bTime < now + LOOKAHEAD) {
+      if (track.once && bIdx >= track.bass.length) { bTime = Infinity; break; }
       var bn = track.bass[bIdx % track.bass.length];
       var bdur = beatDur * bn[1];
       if (bn[0]) playNote(bn[0], 'triangle', 0.2, bTime, bdur);
@@ -301,6 +339,7 @@ var MusicSystem = (function() {
         } else if (track.drums !== 'kick') {
           playHat(pTime, 0.35);
         }
+        if (boost && onBeat) playHat(pTime + beatDur / 4, 0.22);   // buffed: extra sixteenth hat
         if (track.drums === 'boss' && pIdx % 8 === 7) playKick(pTime);
         pTime += beatDur / 2;
         pIdx++;
@@ -357,15 +396,16 @@ var MusicSystem = (function() {
     },
 
     // Smooth crossfade to a new track
-    changeTo: function(name) {
+    changeTo: function(name, quick) {
       if (currentTrack === name && isPlaying) return;
       if (!isPlaying || !masterGain) { play(name); return; }
+      var fadeSec = quick ? 0.08 : 0.35;
 
       // Fade out current track
       var now = ctx.currentTime;
       masterGain.gain.cancelScheduledValues(now);
       masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-      masterGain.gain.linearRampToValueAtTime(0, now + 0.35);
+      masterGain.gain.linearRampToValueAtTime(0, now + fadeSec);
 
       var self = this;
       setTimeout(function() {
@@ -376,7 +416,7 @@ var MusicSystem = (function() {
         play(name);
         // Fade in new track
         masterGain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.35);
-      }, 380);
+      }, fadeSec * 1000 + 30);
     },
 
     stop: stop,
@@ -407,6 +447,10 @@ var MusicSystem = (function() {
     // 0 normal, 1 danger, 2 critical: layers a fast arpeggio over the current track
     setIntensity: function(n) { intensity = n; },
     getIntensity: function() { return intensity; },
+
+    // true while the party is buffed: adds a bright octave layer and extra hats
+    setBoost: function(on) { boost = !!on; },
+    getBoost: function() { return boost; },
 
     current: function() { return currentTrack; },
   };
