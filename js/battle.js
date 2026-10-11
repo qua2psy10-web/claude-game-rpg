@@ -1983,6 +1983,52 @@ var BattleSystem = {
     }
     ctx.globalAlpha = 1;
 
+    // Descending pillar of light that strikes the window, then lingers as a faint column
+    var pillarA = t < 450 ? Math.min(1, t / 150) : Math.max(0.12, 1 - (t - 450) / 700);
+    var plw = 54 + (t < 450 ? (1 - t / 450) * 30 : 0);
+    var plg = ctx.createLinearGradient(cx - plw, 0, cx + plw, 0);
+    plg.addColorStop(0, 'rgba(' + tint + ',0)');
+    plg.addColorStop(0.5, 'rgba(255,255,235,' + (0.75 * pillarA) + ')');
+    plg.addColorStop(1, 'rgba(' + tint + ',0)');
+    ctx.fillStyle = plg;
+    ctx.fillRect(cx - plw, 0, plw * 2, 190 * Math.min(1, t / 160) + 90);
+
+    // Fireworks bursting around the window
+    var fwSpots = [[70, 60], [570, 70], [50, 230], [590, 210], [320, 30]];
+    for (i = 0; i < fwSpots.length; i++) {
+      var ft = t - 500 - i * 260;
+      if (ft < 0 || ft > 900) continue;
+      var fp = ft / 900;
+      for (var fk = 0; fk < 12; fk++) {
+        var fa = fk / 12 * Math.PI * 2 + i;
+        var fd = (1 - Math.pow(1 - fp, 2)) * 46;
+        ctx.globalAlpha = 1 - fp;
+        ctx.fillStyle = fk % 2 ? '#fff6b0' : 'rgb(' + tint + ')';
+        ctx.fillRect(fwSpots[i][0] + Math.cos(fa) * fd - 1.5, fwSpots[i][1] + Math.sin(fa) * fd + fp * fp * 14 - 1.5, 3, 3);
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Class runes circling the window's frame (Sam: martial, Dario: arcane, Sundar: holy)
+    var runes = { 'サム': '剣勇力闘', 'ダリオ': '炎氷雷魔', 'スンダー': '癒祈聖光' }[lu.name] || '勇者星光';
+    ctx.save();   // keep the rune text settings from leaking into the window text
+    var rw = 480, rh = 240, rx0 = 80, ry0 = 60;   // just outside the window frame
+    var perim = 2 * (rw + rh);
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(' + tint + ',' + (0.9 * Math.min(1, t / 500)) + ')';
+    for (i = 0; i < 16; i++) {
+      var pd = ((t * 0.12) + i * perim / 16) % perim;
+      var rx, ry2;
+      if (pd < rw) { rx = rx0 + pd; ry2 = ry0; }
+      else if (pd < rw + rh) { rx = rx0 + rw; ry2 = ry0 + (pd - rw); }
+      else if (pd < 2 * rw + rh) { rx = rx0 + rw - (pd - rw - rh); ry2 = ry0 + rh; }
+      else { rx = rx0; ry2 = ry0 + rh - (pd - 2 * rw - rh); }
+      ctx.fillText(runes.charAt(i % runes.length), rx, ry2);
+    }
+    ctx.restore();
+
     // Window pop-in (easeOutBack)
     var q = Math.min(1, t / 300);
     var sc = 1 + 2.7 * Math.pow(q - 1, 3) + 1.7 * Math.pow(q - 1, 2);
