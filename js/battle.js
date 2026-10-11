@@ -37,7 +37,9 @@ var BattleSystem = {
       });
     }
 
+    var newEntries = BestiarySystem.recordSeen(game, enemyIds);   // first meetings are announced after the win
     game.battle = {
+      newEntries: newEntries,
       enemies: enemies,
       phase: 'start',        // start, command, targeting, spellSelect, itemSelect, execute, result, win, lose, levelup
       currentChar: 0,        // Which party member is selecting command
@@ -1544,6 +1546,7 @@ var BattleSystem = {
       b.totalExp = totalExp;
       b.totalGold = totalGold;
       b.messages = ['戦闘に 勝利した！', totalExp + 'の 経験値を 獲得！', totalGold + 'ゴールド 手に入れた！'];
+      if (b.newEntries && b.newEntries.length) b.messages.push(b.newEntries.join('、') + 'を ずかんに とうろくした！');
       var bossWin = b.enemies.some(function(e) { return e.boss; });
       if (bossWin) b.messages = ['魔王ヴァルザードを たおした！', '世界に 光が もどっていく…'];
       game.gold += totalGold;

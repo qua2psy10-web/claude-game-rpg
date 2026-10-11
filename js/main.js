@@ -43,6 +43,7 @@ function initGame() {
     menuState: null,
     shopState: null,
     innState: null,
+    bestiary: {},
   };
 
   SoundSystem.init();
@@ -77,6 +78,7 @@ function newGame() {
   game.facing = 'down';
   game.steps = 0;
   game.flags = {};
+  game.bestiary = {};
   game.battle = null;
   game.currentNPC = null;
   game.pendingBoss = null;
@@ -159,6 +161,7 @@ function updateScoreAfterBattle(b) {
       if (b.enemies[i].boss) bossCount++;
     }
   }
+  BestiarySystem.recordDefeated(game, b.enemies.filter(function(e) { return !e.alive; }).map(function(e) { return e.id; }));
   gameScore.enemiesDefeated += enemyCount;
   gameScore.bossesDefeated  += bossCount;
   gameScore.battlesWon++;
@@ -188,6 +191,7 @@ function saveGame(manual) {
       facing: game.facing,
       steps: game.steps,
       flags: game.flags,
+      bestiary: game.bestiary,
       playTime: gameScore.playTime,
       savedAt: Date.now(),
     };
@@ -251,6 +255,7 @@ function loadGame() {
     game.facing = data.facing || 'down';
     game.steps = data.steps || 0;
     game.flags = data.flags || {};
+    game.bestiary = BestiarySystem.sanitize(data.bestiary);   // saves from before the ずかん have none
     if (typeof data.playTime === 'number') gameScore.playTime = Math.max(gameScore.playTime, data.playTime);
     game.battle = null;
     game.currentNPC = null;
@@ -755,18 +760,22 @@ function updateMenu() {
 
   if (!ms.subState) {
     // Main menu
-    var menuItems = ['どうぐ', 'そうび', 'つよさ', 'セーブ', 'せってい', 'とじる'];
+    var menuItems = ['どうぐ', 'そうび', 'つよさ', 'ずかん', 'セーブ', 'せってい', 'とじる'];
     if (input === 'up') { ms.index = (ms.index - 1 + menuItems.length) % menuItems.length; SoundSystem.cursor(); }
     if (input === 'down') { ms.index = (ms.index + 1) % menuItems.length; SoundSystem.cursor(); }
     if (input === 'cancel') { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
     if (input === 'confirm') {
-      if (ms.index === 5) { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
-      if (ms.index === 3) { saveGame(true); return; }
-      if (ms.index === 4) { SoundSystem.confirm(); game.settings = { index: 0 }; return; }
+      if (ms.index === 6) { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
+      if (ms.index === 4) { saveGame(true); return; }
+      if (ms.index === 3) { SoundSystem.confirm(); ms.subState = 'bestiary'; ms.bIndex = 0; return; }
+      if (ms.index === 5) { SoundSystem.confirm(); game.settings = { index: 0 }; return; }
       if (ms.index === 0) ms.subState = 'items';
       if (ms.index === 1) { ms.subState = 'equipChar'; ms.charIndex = 0; }
       if (ms.index === 2) { ms.subState = 'stats'; ms.charIndex = 0; }
     }
+  } else if (ms.subState === 'bestiary') {
+    if (BestiarySystem.update(ms, game, input)) ms.subState = null;
+    return;
   } else if (ms.subState === 'items') {
     if (input === 'cancel') { ms.subState = null; return; }
     if (game.inventory.length === 0) { ms.subState = null; return; }
@@ -881,13 +890,14 @@ function renderMenu(ctx) {
   // Darken background
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  if (ms.subState === 'bestiary') { BestiarySystem.render(ctx, ms, game); return; }
 
   // Main menu
-  UI.drawMenu(ctx, 20, 20, 140, ['どうぐ', 'そうび', 'つよさ', 'セーブ', 'せってい', 'とじる'], ms.index);
+  UI.drawMenu(ctx, 20, 20, 140, ['どうぐ', 'そうび', 'つよさ', 'ずかん', 'セーブ', 'せってい', 'とじる'], ms.index);
 
   // Gold
-  UI.drawWindow(ctx, 20, 214, 140, 32);
-  UI.drawText(ctx, game.gold + ' G', 34, 222, '#ffd700');
+  UI.drawWindow(ctx, 20, 240, 140, 32);
+  UI.drawText(ctx, game.gold + ' G', 34, 248, '#ffd700');
 
   // Party overview
   UI.drawWindow(ctx, 180, 20, 440, 160);
