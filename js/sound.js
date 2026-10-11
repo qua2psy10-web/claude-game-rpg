@@ -205,6 +205,14 @@ var SoundSystem = (function() {
       [659, 784, 988, 1319].forEach(function(f, i) { osc(f, 'sine', 0.13, t + 0.1 + i * 0.07, 0.3); });
     },
 
+    step: function(tile) {               // マップの足音: 地形ごとの小さな音
+      if (!ctx || muted) return;
+      var t = ctx.currentTime;
+      var soft = { G: 1400, F: 1100, S: 2200, R: 1800, D: 700 }[tile] || 900;
+      noise(0.06, t, 0.04, soft);
+      if (tile === 'f' || tile === 'd' || tile === 'T') osc(110, 'square', 0.025, t, 0.03, 80);   // 床/ドア: 乾いたコツ
+    },
+
     damage: function() {
       resume();
       var t = ctx.currentTime;
