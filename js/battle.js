@@ -1268,7 +1268,7 @@ var BattleSystem = {
         if (target && target.alive) {
           var dmg3 = this.calcSpellDamage(caster, target, spell);
           if (spell.type === 'physical') {
-            dmg3 = Math.max(1, Math.floor(this.getEffectiveStat(caster, 'atk') * spell.power / 2 - this.getEffectiveStat(target, 'def') / 4));
+            dmg3 = Math.max(1, Math.floor(this.getEffectiveStat(caster, 'atk') * spell.power / 2 - this.getEffectiveStat(target, 'def') * (1 - (spell.pierce || 0)) / 4));
           }
           target.hp = Math.max(0, target.hp - dmg3);
           this.pop(game, target, dmg3, 'dmg', fd);

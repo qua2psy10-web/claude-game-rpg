@@ -27,8 +27,9 @@ function newGameState() {
 }
 
 // ---- shopping: buy the best affordable upgrade per slot per character
-var SHOP_W = ['woodenSword', 'ironSword', 'steelSword', 'oakStaff', 'healingRod', 'mysticStaff'];
-var SHOP_A = ['clothArmor', 'leatherArmor', 'chainMail', 'silkRobe', 'mysticRobe'];
+function shopIds(shopId, type) { return SHOPS[shopId].items.filter(function(i) { return i.type === type; }).map(function(i) { return i.id; }); }
+var SHOP_W = shopIds('weaponShop', 'weapon');
+var SHOP_A = shopIds('armorShop', 'armor');
 function slotScore(def, cls) { return cls === 'sam' ? (def.atk || 0) + (def.def || 0) : (def.int || 0) + (def.def || 0) + (def.atk || 0) * 0.3; }
 function shop(g, reserveHerbs) {
   var herbs = (g.inventory.filter(function(i) { return i.id === 'herb'; })[0] || { count: 0 }).count;
@@ -92,6 +93,7 @@ function planRound(g) {
   return cmds;
 }
 
+var DMG = {};
 // Fights one battle. Returns { won, rounds }
 function fight(g, ids) {
   BattleSystem.startBattle(g, ids);
@@ -102,7 +104,14 @@ function fight(g, ids) {
     b.commands = planRound(g);
     BattleSystem.startExecution(g);
     var guard = 0;
-    while (b.phase === 'execute' && guard++ < 200) BattleSystem.executeNextAction(g);
+    while (b.phase === 'execute' && guard++ < 200) {
+      var cm = b.turnQueue[b.currentAction], hb = b.enemies.reduce(function(x, e) { return x + e.hp; }, 0);
+      BattleSystem.executeNextAction(g);
+      if (cm && cm.actorType === 'party') {
+        var d = hb - b.enemies.reduce(function(x, e) { return x + Math.max(0, e.hp); }, 0);
+        if (d > 0) DMG[g.party[cm.actor].classId] = (DMG[g.party[cm.actor].classId] || 0) + d;
+      }
+    }
     if (b.phase === 'win') { BattleSystem.handleWin(g); g.state = 'battle'; g.battle = null; return { won: true, rounds: rounds }; }
     if (b.phase === 'lose') { g.battle = null; return { won: false, rounds: rounds }; }
     if (b.phase !== 'command') break;
@@ -166,7 +175,7 @@ function playthrough(s) {
   return report;
 }
 
-if (require.main !== module) { module.exports = { playthrough: playthrough, fight: fight, newGameState: newGameState, planRound: planRound, seedRng: seedRng }; return; }
+if (require.main !== module) { module.exports = { DMG: DMG, playthrough: playthrough, fight: fight, newGameState: newGameState, planRound: planRound, seedRng: seedRng }; return; }
 var runs = +process.argv[2] || 40, base = +process.argv[3] || 1;
 var agg = ROUTE.map(function(s) { return { name: s.name, battles: 0, wipes: 0, rests: 0, goldGain: 0, rounds: 0, caps: 0 }; });
 var byLv = {}, bossWin = 0, bossRounds = 0, last = null, lvs = {};
@@ -210,5 +219,6 @@ agg.forEach(function(a) {
 });
 console.log('minLv  battles/run  hpLost%/battle  wipe%');
 Object.keys(byLv).sort(function(a, b) { return a - b; }).forEach(function(l) { var x = byLv[l]; console.log(String(l).padStart(5) + (x.b / runs).toFixed(1).padStart(13) + (x.loss / x.b * 100).toFixed(1).padStart(16) + (x.wipes / x.b * 100).toFixed(1).padStart(8)); });
+console.log('damage share (party attack damage): ' + ['sam', 'dario', 'sundar'].map(function(k) { var t = (DMG.sam || 0) + (DMG.dario || 0) + (DMG.sundar || 0); return k + ' ' + ((DMG[k] || 0) / t * 100).toFixed(0) + '%'; }).join('  '));
 console.log('boss win rate: ' + (bossWin / runs * 100).toFixed(0) + '%  avg rounds: ' + (bossRounds / runs).toFixed(1));
 console.log('sample end state: Lv ' + last.boss.lv + '  gear ' + last.boss.gear);

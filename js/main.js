@@ -914,6 +914,14 @@ function openShop(shopId) {
   game.state = 'shop';
 }
 
+var SHOP_ROWS = 9;   // visible rows; longer lists scroll
+function adjustShopScroll(ss, shop) {
+  var top = ss.top || 0;
+  if (ss.index < top) top = ss.index;
+  if (ss.index >= top + SHOP_ROWS) top = ss.index - SHOP_ROWS + 1;
+  ss.top = Math.max(0, Math.min(top, Math.max(0, shop.items.length - SHOP_ROWS)));
+}
+
 function updateShop() {
   var input = getInput();
   var ss = game.shopState;
@@ -923,6 +931,7 @@ function updateShop() {
     if (input === 'cancel') { game.state = 'map'; game.shopState = null; return; }
     if (input === 'up') ss.index = (ss.index - 1 + shop.items.length) % shop.items.length;
     if (input === 'down') ss.index = (ss.index + 1) % shop.items.length;
+    if (input === 'up' || input === 'down') adjustShopScroll(ss, shop);
     if (input === 'confirm') {
       ss.phase = 'confirm';
       ss.confirmIndex = 0;
@@ -961,12 +970,15 @@ function renderShop(ctx) {
   UI.drawWindow(ctx, 20, 20, 600, 36);
   UI.drawText(ctx, shop.name + '  所持金: ' + game.gold + 'G', 36, 30, '#ffd700');
 
-  UI.drawWindow(ctx, 20, 66, 600, shop.items.length * 28 + 30);
-  for (var i = 0; i < shop.items.length; i++) {
+  var rows = Math.min(SHOP_ROWS, shop.items.length), top = ss.top || 0;
+  UI.drawWindow(ctx, 20, 66, 600, rows * 28 + 30);
+  if (top > 0) UI.drawText(ctx, '▲', 590, 72, '#aaa', UI.FONT_SMALL);
+  if (top + rows < shop.items.length) UI.drawText(ctx, '▼', 590, 66 + rows * 28 + 12, '#aaa', UI.FONT_SMALL);
+  for (var i = top; i < top + rows; i++) {
     var si = shop.items[i];
     var table = si.type === 'weapon' ? WEAPONS : si.type === 'armor' ? ARMORS : si.type === 'accessory' ? ACCESSORIES : ITEMS;
     var def = table[si.id];
-    var iy = 80 + i * 28;
+    var iy = 80 + (i - top) * 28;
     if (i === ss.index) UI.drawText(ctx, UI.CURSOR, 34, iy);
     var nameColor = game.gold >= def.price ? '#fff' : '#888';
     UI.drawText(ctx, def.name, 58, iy, nameColor);
@@ -976,6 +988,8 @@ function renderShop(ctx) {
     if (def.atk) bonus += 'ATK+' + def.atk + ' ';
     if (def.def) bonus += 'DEF+' + def.def + ' ';
     if (def.int) bonus += 'INT+' + def.int + ' ';
+    if (def.spd) bonus += 'SPD+' + def.spd + ' ';
+    if (def.hp) bonus += 'HP+' + def.hp + ' ';
     if (def.desc) bonus = def.desc;
     UI.drawText(ctx, bonus, 360, iy, '#aaa', UI.FONT_SMALL);
   }
