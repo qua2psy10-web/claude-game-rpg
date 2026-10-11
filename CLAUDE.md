@@ -47,6 +47,12 @@ This file provides guidance for Claude and human developers working on this proj
   - **Stun:** Shield Bash (30% chance) stuns the target enemy; a stunned enemy skips its next action (1 turn). Bosses resist (half the chance), and an already-stunned enemy cannot be re-stunned.
   - **Debuffs:** Weaken (ウィークン, Dario Lv4: one enemy ATK x0.7, 3 turns) and Armor Break (ブレイク, Sundar Lv8: all enemies DEF x0.7, 3 turns) reuse the buff system via `getEffectiveStat`/`tickBuffs`.
 
+### Shops & Inn presentation
+
+- **Shop:** entering plays a door bell and fades in from black. A shopkeeper message window (greeting, price confirmation, "まいどあり！", "おかねが たりないようだ…") and a comparison window sit at the bottom: for equipment, each party member's stat before -> after (green up / red down arrow, "そうび できない" if the class cannot wear it) plus how many the party owns; for consumables, the description and owned count. Buying plays a coin SFX, flies coins from the gold counter to the row, floats "-NG", and counts the gold down. Unaffordable items cannot be selected (denied buzz + shake of the gold counter) and are drawn dim.
+- **Inn:** the confirm window shows the current gold and says so when gold is short (denied buzz). Accepting starts a ~8 s night scene (`TownSystem.renderNight`): the heroes sleep while the moon sets and dawn rises (lullaby, dawn chime, birdsong), then the status panel's HP/MP gauges refill (revived members show 復活！) before the morning dialogue. Z skips to the waking moment. The heal is applied and saved when the stay is paid, the animation only replays it.
+- **Code:** `js/town.js` (`TownSystem`) draws the info windows, buy effects and the night scene; `main.js` holds the state (`updateShop`, `updateInn`).
+
 ### Title & Opening
 
 - **Title:** a night landscape (moon, shooting star, village lights, the Demon King's castle smouldering on a far peak, occasional lightning) with the logo dropping in letter by letter; subtitles and the menu fade in at 2.6 s. Z during that intro skips to the finished title. Choosing はじめから / つづきから plays a start SFX and fades out before `newGame()` / `loadGame()` runs.
@@ -125,10 +131,11 @@ python3 -m http.server 8000
 /js/map.js          # World map rendering & movement
 /js/battle.js       # Turn-based battle system
 /js/opening.js      # Title scenery/logo and the new-game opening cinematic
+/js/town.js         # Shop info/buy effects and the inn's night scene
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → sound.js → music.js → map.js → battle.js → opening.js → main.js
+Script load order matters: data.js → ui.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → main.js
 
 ---
 
