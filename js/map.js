@@ -14,19 +14,33 @@ var MapSystem = {
     var vpW = this.VIEWPORT_W;
     var vpH = this.VIEWPORT_H;
 
-    // Calculate camera offset to center on player
-    var camX = game.playerX - Math.floor(vpW / 2);
-    var camY = game.playerY - Math.floor(vpH / 2);
-    camX = Math.max(0, Math.min(camX, map.width - vpW));
-    camY = Math.max(0, Math.min(camY, map.height - vpH));
+    // Smooth movement: the player (and the followers behind) glide from the previous tile
+    var now = Date.now();
+    var GLIDE_MS = 110;
+    // A trail or glide recorded on another map must not leak into this one
+    if (game.trailMap !== game.currentMap) { game.trail = []; game.moveAnim = null; game.stepFx = []; game.trailMap = game.currentMap; }
+    var ma = game.moveAnim;
+    var mp = ma ? Math.min(1, (now - ma.t0) / GLIDE_MS) : 1;
+    var mpe = 1 - Math.pow(1 - mp, 2);              // ease-out
+    var drawPX = ma ? ma.fx + (game.playerX - ma.fx) * mpe : game.playerX;
+    var drawPY = ma ? ma.fy + (game.playerY - ma.fy) * mpe : game.playerY;
 
-    // Draw tiles
-    for (var ty = 0; ty < vpH; ty++) {
-      for (var tx = 0; tx < vpW; tx++) {
-        var mx = camX + tx;
-        var my = camY + ty;
-        var px = tx * ts;
-        var py = ty * ts;
+    // Camera follows the interpolated position (fractional scroll)
+    var camXf = drawPX - Math.floor(vpW / 2);
+    var camYf = drawPY - Math.floor(vpH / 2);
+    camXf = Math.max(0, Math.min(camXf, map.width - vpW));
+    camYf = Math.max(0, Math.min(camYf, map.height - vpH));
+    var camX = camXf, camY = camYf;
+    var ix = Math.floor(camXf), iy = Math.floor(camYf);
+    var offX = (camXf - ix) * ts, offY = (camYf - iy) * ts;
+
+    // Draw tiles (one extra row/column so the fractional scroll never shows a gap)
+    for (var ty = 0; ty <= vpH; ty++) {
+      for (var tx = 0; tx <= vpW; tx++) {
+        var mx = ix + tx;
+        var my = iy + ty;
+        var px = tx * ts - offX;
+        var py = ty * ts - offY;
         if (mx >= 0 && mx < map.width && my >= 0 && my < map.height) {
           var ch = map.tiles[my][mx];
           UI.drawTile(ctx, ch, px, py, ts);
@@ -48,6 +62,9 @@ var MapSystem = {
       }
     }
 
+    // Footsteps: little kicked-up puffs and a fading footprint on the tile just left
+    this.renderSteps(ctx, game, camX, camY, ts, now);
+
     // Draw NPCs
     if (map.npcs) {
       for (var i = 0; i < map.npcs.length; i++) {
@@ -60,10 +77,66 @@ var MapSystem = {
       }
     }
 
-    // Draw player
-    var playerScreenX = (game.playerX - camX) * ts;
-    var playerScreenY = (game.playerY - camY) * ts;
-    UI.drawPlayer(ctx, playerScreenX, playerScreenY, ts, game.facing);
+    // Party train: Dario and Sundar follow in Sam's footsteps along his path
+    var path = [{ x: game.playerX, y: game.playerY }].concat(game.trail || []);
+    var lastKnown = path[path.length - 1];
+    while (path.length < 4) path.push(lastKnown);
+    var walking = mp < 1;
+    var followers = [{ k: 2, body: '#44cc88', hair: '#22995e' }, { k: 1, body: '#cc4488', hair: '#992266' }];
+    var drawn = [];
+    for (var fi = 0; fi < followers.length; fi++) {
+      var fk = followers[fi].k;
+      var from = path[fk + 1], to = path[fk];
+      var fxp = walking ? from.x + (to.x - from.x) * mpe : to.x;
+      var fyp = walking ? from.y + (to.y - from.y) * mpe : to.y;
+      if (Math.abs(fxp - drawPX) + Math.abs(fyp - drawPY) < 0.35) continue;   // still tucked in behind the leader
+      drawn.push({ x: fxp, y: fyp, c: followers[fi], ph: fk * 0.9 });
+    }
+    var bobAt = function(ph) { return walking ? -Math.abs(Math.sin((mp + ph) * Math.PI)) * 3 : Math.sin(now / 520 + ph) * 0.8; };
+    for (var di = 0; di < drawn.length; di++) {
+      var dx0 = (drawn[di].x - camX) * ts, dy0 = (drawn[di].y - camY) * ts;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.ellipse(dx0 + ts / 2, dy0 + ts - 6, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+      UI.drawPlayer(ctx, dx0, dy0 + bobAt(drawn[di].ph), ts, game.facing, drawn[di].c);
+    }
+
+    // Draw player (leader): shadow, walking bob and a small squash on landing
+    var playerScreenX = (drawPX - camX) * ts;
+    var playerScreenY = (drawPY - camY) * ts;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(playerScreenX + ts / 2, playerScreenY + ts - 6, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+    UI.drawPlayer(ctx, playerScreenX, playerScreenY + bobAt(0), ts, game.facing);
+  },
+
+  // Dust / grass / sand puffs and fading footprints behind the party
+  renderSteps: function(ctx, game, camX, camY, ts, now) {
+    var list = game.stepFx;
+    if (!list || !list.length) return;
+    var live = [];
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i];
+      var t = (now - f.t0) / 520;
+      if (t >= 1) continue;
+      live.push(f);
+      if (t < 0) continue;
+      var sx = (f.x - camX) * ts + ts / 2, sy = (f.y - camY) * ts + ts - 6;
+      var col = { G: '#8fd05a', F: '#4f8a38', S: '#ead9a0', R: '#d8c294', D: '#7a6ab0' }[f.tile] || '#c8c0b0';
+      // footprint
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.18 * (1 - t)) + ')';
+      ctx.beginPath(); ctx.ellipse(sx, sy + 1, 6 * (1 - t * 0.3), 2.5, 0, 0, Math.PI * 2); ctx.fill();
+      // puffs
+      for (var k = 0; k < 4; k++) {
+        var a = (k - 1.5) * 0.7;
+        var d = t * (7 + k * 2);
+        ctx.globalAlpha = Math.max(0, 0.75 * (1 - t));
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(sx + Math.sin(a) * d * 1.3, sy - t * 7 - Math.cos(a) * d * 0.4, 2.4 * (1 - t * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    game.stepFx = live;
   },
 
   // Draw marker for town/dungeon entrances on world map
@@ -110,6 +183,16 @@ var MapSystem = {
         if (map.npcs[i].x === nx && map.npcs[i].y === ny) return false;
       }
     }
+
+    // Record the glide, the follower trail and a footstep before moving
+    var oldX = game.playerX, oldY = game.playerY;
+    if (game.trailMap !== game.currentMap) { game.trail = []; game.trailMap = game.currentMap; }
+    game.trail = [{ x: oldX, y: oldY }].concat(game.trail || []).slice(0, 4);
+    game.moveAnim = { fx: oldX, fy: oldY, t0: Date.now() };
+    if (!game.stepFx) game.stepFx = [];
+    game.stepFx.push({ x: oldX, y: oldY, tile: map.tiles[oldY][oldX], t0: Date.now() });
+    if (game.stepFx.length > 8) game.stepFx.shift();
+    if (typeof SoundSystem !== 'undefined' && SoundSystem.step) SoundSystem.step(tileChar);
 
     // Move
     game.playerX = nx;

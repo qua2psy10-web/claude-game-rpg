@@ -165,17 +165,17 @@ var UI = {
   },
 
   // Draw player sprite
-  drawPlayer: function(ctx, px, py, size, facing) {
+  drawPlayer: function(ctx, px, py, size, facing, colors) {
     var cx = px + size / 2;
     var cy = py + size / 2;
     // Body
-    ctx.fillStyle = '#4488cc';
+    ctx.fillStyle = colors ? colors.body : '#4488cc';
     ctx.fillRect(cx - 6, cy - 4, 12, 14);
     // Head
     ctx.fillStyle = '#ffcc88';
     ctx.fillRect(cx - 5, cy - 12, 10, 10);
     // Hair/hat
-    ctx.fillStyle = '#2266aa';
+    ctx.fillStyle = colors ? colors.hair : '#2266aa';
     ctx.fillRect(cx - 6, cy - 14, 12, 5);
     // Eyes
     ctx.fillStyle = '#222';
