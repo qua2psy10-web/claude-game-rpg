@@ -417,6 +417,9 @@ function partyBuffed() {
 
 function updateBgm() {
   var s = game.state;
+  // Area ambience (wind, crickets, castle drone) under the BGM while exploring
+  var onMap = s === 'map' || s === 'menu' || s === 'dialogue' || s === 'shop' || s === 'mapTransition' || (s === 'inn' && !(game.innState && game.innState.phase === 'sleep'));
+  SoundSystem.setAmbience(onMap ? game.currentMap : null);
   if (game.encounterFx) return setBgm(null);   // the field music fades out as the encounter hits
   MusicSystem.setIntensity(battleIntensity());
   MusicSystem.setBoost(partyBuffed());
@@ -639,6 +642,7 @@ function renderTitle(ctx) {
 
 // ===== MAP UPDATES =====
 function updateMap(dt) {
+  AmbienceSystem.update(game, Date.now());   // wandering NPCs, birds, distant thunder
   // Encounter transition: input is locked until the flash/zoom/wipe finishes, then the battle begins
   if (game.encounterFx) {
     var efx = game.encounterFx;
@@ -1420,6 +1424,7 @@ function render() {
     case 'map':
       MapSystem.render(ctx, game);
       MapSystem.renderHUD(ctx, game);
+      AmbienceSystem.renderBanner(ctx, game, Date.now());
       break;
     case 'mapTransition':
       // Fade effect
@@ -1427,10 +1432,7 @@ function render() {
       var alpha = game.transitionTimer / 30;
       ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-      var mapObj = MAPS[game.currentMap];
-      if (mapObj) {
-        UI.drawText(ctx, mapObj.name, CANVAS_W / 2 - 60, CANVAS_H / 2 - 10, '#fff');
-      }
+      // (the area name is announced by the banner once the fade ends)
       break;
     case 'battle':
       BattleSystem.render(ctx, game, CANVAS_W, CANVAS_H);

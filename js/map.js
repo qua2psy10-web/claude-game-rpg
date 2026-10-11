@@ -57,6 +57,7 @@ var MapSystem = {
         if (mx >= 0 && mx < map.width && my >= 0 && my < map.height) {
           var ch = map.tiles[my][mx];
           UI.drawTile(ctx, ch, px, py, ts);
+          AmbienceSystem.tileAnim(ctx, ch, px, py, ts, now, mx, my);
           // Draw chest events
           var key = mx + ',' + my;
           var ev = map.events[key];
@@ -82,10 +83,15 @@ var MapSystem = {
     if (map.npcs) {
       for (var i = 0; i < map.npcs.length; i++) {
         var npc = map.npcs[i];
-        var sx = (npc.x - camX) * ts;
-        var sy = (npc.y - camY) * ts;
+        var np = AmbienceSystem.npcPos(npc, now, i);      // wandering NPCs glide between tiles
+        var sx = (np.x - camX) * ts;
+        var sy = (np.y - camY) * ts;
         if (sx >= -ts && sx < vpW * ts + ts && sy >= -ts && sy < vpH * ts + ts) {
-          UI.drawNPC(ctx, npc, sx, sy, ts);
+          if (npc.wander) {
+            ctx.fillStyle = 'rgba(0,0,0,0.25)';
+            ctx.beginPath(); ctx.ellipse(sx + ts / 2, sy + ts - 6, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+          }
+          UI.drawNPC(ctx, npc, sx, sy + np.bob, ts);
         }
       }
     }
@@ -119,6 +125,9 @@ var MapSystem = {
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath(); ctx.ellipse(playerScreenX + ts / 2, playerScreenY + ts - 6, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
     UI.drawPlayer(ctx, playerScreenX, playerScreenY + bobAt(0), ts, game.facing);
+
+    // Area atmosphere: light, weather, drifting life
+    AmbienceSystem.renderOverlay(ctx, game, now, vpW * ts, vpH * ts);
 
     if (efx) {
       ctx.restore();
@@ -390,6 +399,8 @@ var MapSystem = {
     for (var i = 0; i < map.npcs.length; i++) {
       var npc = map.npcs[i];
       if (npc.x === fx && npc.y === fy) {
+        npc.dir = { left: 'right', right: 'left', up: 'down', down: 'up' }[game.facing] || npc.dir;   // turns to face the party
+        npc.anim = null;
         game.currentNPC = npc;
         game.dialogue = npc.dialogue;
         game.dialogueIndex = 0;
@@ -412,12 +423,12 @@ var MapSystem = {
   // Render HUD overlay on map
   renderHUD: function(ctx, game) {
     // Party status window (top-right)
-    UI.drawWindow(ctx, 400, 4, 234, 80);
+    UI.drawWindow(ctx, 400, 4, 234, 96);
     for (var i = 0; i < game.party.length; i++) {
       UI.drawCharStatus(ctx, game.party[i], 414, 14 + i * 22, true);
     }
     // Gold display
-    UI.drawText(ctx, game.gold + 'G', 414, 64, '#ffd700', UI.FONT_SMALL);
+    UI.drawText(ctx, game.gold + 'G', 414, 82, '#ffd700', UI.FONT_SMALL);
     // Location name
     var map = MAPS[game.currentMap];
     if (map) {

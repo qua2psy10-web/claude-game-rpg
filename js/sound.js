@@ -62,8 +62,91 @@ var SoundSystem = (function() {
     src.start(t);
   }
 
+  // ── Area ambience: quiet looping beds under the BGM (wind, crickets, castle drone) ──
+  var amb = null, ambNoise = null;
+  function noiseBuf() {
+    if (ambNoise) return ambNoise;
+    var len = ctx.sampleRate * 2, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    return (ambNoise = b);
+  }
+  function stopAmb(a) {
+    if (!a) return;
+    var t = ctx.currentTime;
+    a.gain.gain.cancelScheduledValues(t);
+    a.gain.gain.setValueAtTime(a.gain.gain.value, t);
+    a.gain.gain.linearRampToValueAtTime(0, t + 1);
+    setTimeout(function() {
+      a.nodes.forEach(function(n) { try { n.stop(); } catch (e) {} });
+      try { a.gain.disconnect(); } catch (e) {}
+    }, 1300);
+  }
+  function startAmb(name) {
+    var g = ctx.createGain(), nodes = [], level = 0.05, f, wg;
+    g.gain.value = 0;
+    g.connect(ctx.destination);
+    var windNoise = function(freq, q, type) {
+      var s = ctx.createBufferSource(); s.buffer = noiseBuf(); s.loop = true;
+      var fl = ctx.createBiquadFilter(); fl.type = type || 'bandpass'; fl.frequency.value = freq; fl.Q.value = q;
+      s.connect(fl); s.start(); nodes.push(s); return fl;
+    };
+    var lfo = function(rate, depth, target, type) {
+      var o = ctx.createOscillator(); o.type = type || 'sine'; o.frequency.value = rate;
+      var d = ctx.createGain(); d.gain.value = depth; o.connect(d); d.connect(target); o.start(); nodes.push(o);
+    };
+    if (name === 'world' || name === 'millhaven') {            // a breeze that swells and fades
+      wg = ctx.createGain(); wg.gain.value = 0.5;
+      windNoise(name === 'world' ? 650 : 480, 0.6).connect(wg); wg.connect(g);
+      lfo(0.13, 0.35, wg.gain);
+      level = name === 'world' ? 0.06 : 0.035;
+    } else if (name === 'forest') {                             // soft wind in the leaves + crickets
+      wg = ctx.createGain(); wg.gain.value = 0.5;
+      windNoise(380, 0.5, 'lowpass').connect(wg); wg.connect(g);
+      lfo(0.1, 0.3, wg.gain);
+      var cr = ctx.createOscillator(), cg = ctx.createGain(), cm = ctx.createGain();
+      cr.type = 'sine'; cr.frequency.value = 4300; cg.gain.value = 0.5; cm.gain.value = 0.12;
+      lfo(11, 0.5, cg.gain, 'square');
+      cr.connect(cg); cg.connect(cm); cm.connect(g); cr.start(); nodes.push(cr);
+      level = 0.045;
+    } else if (name === 'castle') {                             // a low drone and a howling draught
+      f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 240; f.connect(g);
+      [55, 82.7].forEach(function(fr, i) {
+        var o = ctx.createOscillator(), og = ctx.createGain();
+        o.type = 'sawtooth'; o.frequency.value = fr; og.gain.value = i ? 0.35 : 0.6;
+        o.connect(og); og.connect(f); o.start(); nodes.push(o);
+        lfo(0.07 + i * 0.03, 1.2, o.frequency);
+      });
+      wg = ctx.createGain(); wg.gain.value = 0.4;
+      windNoise(300, 1.4).connect(wg); wg.connect(g);
+      lfo(0.09, 0.3, wg.gain);
+      level = 0.085;
+    }
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(level * masterVol, ctx.currentTime + 1.5);
+    return { name: name, gain: g, nodes: nodes };
+  }
+
   return {
     init: init,
+    setAmbience: function(name) {
+      if (!ctx || muted) name = null;
+      if (name !== 'world' && name !== 'millhaven' && name !== 'forest' && name !== 'castle') name = null;
+      if ((amb ? amb.name : null) === name) return;
+      stopAmb(amb); amb = null;
+      if (name) { resume(); amb = startAmb(name); }
+    },
+    birdsFar: function(forest) {          // 遠くの鳥の声 (森ではフクロウ風)
+      resume();
+      var t = ctx.currentTime;
+      if (forest) { osc(430, 'sine', 0.04, t, 0.4, 380); osc(430, 'sine', 0.04, t + 0.55, 0.45, 370); return; }
+      [0, 0.16, 0.34].forEach(function(d, i) { osc(2700 + i * 380, 'sine', 0.025, t + d, 0.09, 3400); });
+    },
+    distantThunder: function() {          // 魔王城: 壁越しの遠雷
+      resume();
+      var t = ctx.currentTime;
+      noise(0.3, t, 1.8, 500);
+      osc(48, 'sawtooth', 0.14, t, 1.3, 30);
+    },
     resume: resume,
     isReady: function() { return !!ctx; },
     getCtx: function() { return ctx; },    // AudioContextを共有 (MusicSystem用)

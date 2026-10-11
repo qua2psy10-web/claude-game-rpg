@@ -144,6 +144,7 @@ var ACCESSORIES = {
 var MAPS = {
   world: {
     name: 'エルドラシア大陸',
+    nameEn: "THE CONTINENT OF ELDRASIA",
     width: 30, height: 22,
     tiles: [
       'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
@@ -200,6 +201,7 @@ var MAPS = {
 
   millhaven: {
     name: 'ミルヘイブン村',
+    nameEn: "MILLHAVEN VILLAGE",
     width: 16, height: 14,
     tiles: [
       'wwwwwwwwwwwwwwww',
@@ -223,7 +225,7 @@ var MAPS = {
       '8,13': { type: 'mapTransfer', map: 'world', targetX: 14, targetY: 17, desc: 'フィールドへ' },
     },
     npcs: [
-      { x: 4, y: 3, name: '村長', color: '#aa8844', dir: 'down',
+      { x: 4, y: 3, name: '村長', color: '#aa8844', dir: 'down', wander: 2,
         dialogue: [
           '村長「よく来たな、勇者たちよ。',
           '北の果てに魔王ヴァルザードが復活した。',
@@ -238,7 +240,7 @@ var MAPS = {
         dialogue: ['防具屋「防具はいかがですか？」'] },
       { x: 14, y: 3, name: '宿屋', color: '#aaaa44', dir: 'down', inn: 30,
         dialogue: ['宿屋「一泊30ゴールドです。お泊りになりますか？」'] },
-      { x: 7, y: 7, name: '旅人', color: '#88aa88', dir: 'right',
+      { x: 7, y: 7, name: '旅人', color: '#88aa88', dir: 'right', wander: 2,
         dialogue: [
           '旅人「北の森を抜けると魔王の城があるらしい。',
           'でも森にはモンスターがうようよいるから',
@@ -251,6 +253,7 @@ var MAPS = {
 
   forest: {
     name: '暗黒の森',
+    nameEn: "THE DARK FOREST",
     width: 18, height: 18,
     tiles: [
       'FFFFFFFFFFFFFFFFFF',
@@ -294,6 +297,7 @@ var MAPS = {
 
   castle: {
     name: '魔王の城',
+    nameEn: "THE DEMON KING'S CASTLE",
     width: 16, height: 18,
     tiles: [
       'XXXXXXXXXXXXXXXX',

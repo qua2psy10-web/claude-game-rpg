@@ -202,8 +202,11 @@ var UI = {
     ctx.fillStyle = npc.color || '#aa8844';
     ctx.fillRect(cx - 6, cy - 14, 12, 4);
     ctx.fillStyle = '#222';
-    ctx.fillRect(cx - 3, cy - 8, 2, 2);
-    ctx.fillRect(cx + 2, cy - 8, 2, 2);
+    var ex = npc.dir === 'left' ? -2 : (npc.dir === 'right' ? 2 : 0);   // eyes follow the facing; none from behind
+    if (npc.dir !== 'up') {
+      ctx.fillRect(cx - 3 + ex, cy - 8, 2, 2);
+      ctx.fillRect(cx + 2 + ex, cy - 8, 2, 2);
+    }
     ctx.fillStyle = '#555';
     ctx.fillRect(cx - 5, cy + 10, 4, 5);
     ctx.fillRect(cx + 1, cy + 10, 4, 5);
