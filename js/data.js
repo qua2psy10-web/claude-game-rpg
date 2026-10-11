@@ -59,7 +59,7 @@ var CHARACTERS = {
       { id: 'cure', learnLevel: 3 },
       { id: 'protect', learnLevel: 6 },
       { id: 'armorBreak', learnLevel: 8 },
-      { id: 'holyLight', learnLevel: 10 },
+      { id: 'holyLight', learnLevel: 12 },
     ],
     color: '#44cc88',
   },
@@ -80,21 +80,21 @@ var SPELLS = {
   protect:     { name: 'プロテクト', mp: 6, type: 'buff', target: 'party', stat: 'def', mult: 1.25, turns: 3, desc: '味方全体の防御力UP' },
   holyLight:   { name: 'ホーリーライト', mp: 10, type: 'magic', target: 'allEnemy', power: 42, desc: '聖なる光で敵全体を攻撃' },
   enemyFire:   { name: '火炎', mp: 0, type: 'magic', target: 'ally', power: 20, desc: '' },
-  enemyDark:   { name: '暗黒の波動', mp: 0, type: 'magic', target: 'partyAll', power: 30, desc: '' },
+  enemyDark:   { name: '暗黒の波動', mp: 0, type: 'magic', target: 'partyAll', power: 40, desc: '' },
   enemyHeal:   { name: '回復', mp: 0, type: 'heal', target: 'self', power: 60, desc: '' },
 };
 
 // ===== ENEMY DEFINITIONS =====
 var ENEMIES = {
-  slime:        { name: 'スライム', hp: 10, atk: 5, def: 2, spd: 3, int: 1, exp: 4, gold: 3, color: '#44aaff', shape: 'slime', skills: [], poison: 0.2 },
-  goblin:       { name: 'ゴブリン', hp: 18, atk: 9, def: 5, spd: 7, int: 2, exp: 10, gold: 8, color: '#55aa44', shape: 'goblin', skills: [] },
-  wolf:         { name: 'ウルフ', hp: 22, atk: 13, def: 4, spd: 12, int: 2, exp: 14, gold: 6, color: '#888899', shape: 'wolf', skills: [] },
-  giantBat:     { name: 'ジャイアントバット', hp: 20, atk: 11, def: 6, spd: 14, int: 3, exp: 18, gold: 10, color: '#774455', shape: 'bat', skills: [], poison: 0.3 },
-  skeleton:     { name: 'スケルトン', hp: 35, atk: 16, def: 12, spd: 6, int: 3, exp: 30, gold: 18, color: '#ccccbb', shape: 'skeleton', skills: [] },
-  darkKnight:   { name: 'ダークナイト', hp: 55, atk: 24, def: 20, spd: 9, int: 5, exp: 50, gold: 35, color: '#334', shape: 'knight', skills: [] },
-  demonSoldier: { name: 'デーモンソルジャー', hp: 65, atk: 28, def: 22, spd: 11, int: 8, exp: 65, gold: 45, color: '#aa3333', shape: 'knight', skills: ['enemyFire'] },
-  darkMage:     { name: 'ダークメイジ', hp: 45, atk: 14, def: 12, spd: 13, int: 20, exp: 55, gold: 40, color: '#663388', shape: 'mage', skills: ['enemyFire'] },
-  demonKing:    { name: '魔王ヴァルザード', hp: 350, atk: 38, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'] },
+  slime:        { name: 'スライム', hp: 20, atk: 13, def: 2, spd: 3, int: 1, exp: 4, gold: 6, color: '#44aaff', shape: 'slime', skills: [], poison: 0.2 },
+  goblin:       { name: 'ゴブリン', hp: 52, atk: 28, def: 5, spd: 7, int: 2, exp: 10, gold: 14, color: '#55aa44', shape: 'goblin', skills: [] },
+  wolf:         { name: 'ウルフ', hp: 110, atk: 58, def: 4, spd: 12, int: 2, exp: 14, gold: 20, color: '#888899', shape: 'wolf', skills: [] },
+  giantBat:     { name: 'ジャイアントバット', hp: 90, atk: 50, def: 6, spd: 14, int: 3, exp: 18, gold: 22, color: '#774455', shape: 'bat', skills: [], poison: 0.3 },
+  skeleton:     { name: 'スケルトン', hp: 170, atk: 70, def: 12, spd: 6, int: 3, exp: 34, gold: 28, color: '#ccccbb', shape: 'skeleton', skills: [] },
+  darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [] },
+  demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'] },
+  darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'] },
+  demonKing:    { name: '魔王ヴァルザード', hp: 850, atk: 130, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'] },
 };
 
 // ===== ITEM DEFINITIONS =====
