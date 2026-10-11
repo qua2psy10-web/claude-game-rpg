@@ -47,6 +47,15 @@ This file provides guidance for Claude and human developers working on this proj
   - **Stun:** Shield Bash (30% chance) stuns the target enemy; a stunned enemy skips its next action (1 turn). Bosses resist (half the chance), and an already-stunned enemy cannot be re-stunned.
   - **Debuffs:** Weaken (ウィークン, Dario Lv4: one enemy ATK x0.7, 3 turns) and Armor Break (ブレイク, Sundar Lv8: all enemies DEF x0.7, 3 turns) reuse the buff system via `getEffectiveStat`/`tickBuffs`.
 
+### Map ambience
+
+- **Animated tiles:** water ripples and glints, lava glow and bubbles, grass/flowers leaning with a travelling wind, dappled light on trees, breathing violet floor in the castle, a glinting throne gem.
+- **Area atmosphere** (overlay under the HUD): *world* — drifting cloud shadows, birds, motes; *Millhaven* — warm sunlight, butterflies, birds; *Dark Forest* — dark green vignette, swaying light shafts, falling leaves, fireflies; *Demon King's Castle* — heavy violet vignette, red pulse, creeping fog, rising embers, occasional lightning with delayed distant thunder.
+- **NPC life:** NPCs flagged `wander: radius` in `data.js` (the elder and the traveller) turn and take a step every few seconds within that radius of their home tile, on floor/ground tiles only (never doors, counters or event tiles, never onto the party or another NPC). Shopkeepers and the innkeeper stay put. Talking to an NPC makes it face the party.
+- **Area banner:** entering a map shows its name (`name` + `nameEn` in `data.js`) once the screen fade ends.
+- **Ambient audio:** quiet looping beds under the BGM per area (breeze; forest wind + crickets; castle drone + howl), crossfaded on map change and off outside exploration, plus occasional distant birds / owl / thunder. `AmbienceSystem.update` schedules the one-shots; `SoundSystem.setAmbience` owns the loops.
+- **Code:** `js/ambience.js` (`AmbienceSystem`); `map.js` calls into it from `render`.
+
 ### Shops & Inn presentation
 
 - **Shop:** entering plays a door bell and fades in from black. A shopkeeper message window (greeting, price confirmation, "まいどあり！", "おかねが たりないようだ…") and a comparison window sit at the bottom: for equipment, each party member's stat before -> after (green up / red down arrow, "そうび できない" if the class cannot wear it) plus how many the party owns; for consumables, the description and owned count. Buying plays a coin SFX, flies coins from the gold counter to the row, floats "-NG", and counts the gold down. Unaffordable items cannot be selected (denied buzz + shake of the gold counter) and are drawn dim.
@@ -132,10 +141,11 @@ python3 -m http.server 8000
 /js/battle.js       # Turn-based battle system
 /js/opening.js      # Title scenery/logo and the new-game opening cinematic
 /js/town.js         # Shop info/buy effects and the inn's night scene
+/js/ambience.js     # Animated tiles, area atmosphere, wandering NPCs, area banner
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → main.js
+Script load order matters: data.js → ui.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → main.js
 
 ---
 
