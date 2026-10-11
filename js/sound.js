@@ -521,6 +521,38 @@ var SoundSystem = (function() {
       for (var j = 0; j < 5; j++) osc(1568 + j * 262, 'sine', 0.035, t + 0.9 + j * 0.12, 0.3);
     },
 
+    coin: function() {                   // 購入: コインの澄んだ二音と小さな金属音
+      resume();
+      var t = ctx.currentTime;
+      osc(1319, 'square', 0.08, t, 0.08);
+      osc(1760, 'square', 0.08, t + 0.07, 0.35);
+      osc(2637, 'sine', 0.05, t + 0.1, 0.4);
+      noise(0.05, t, 0.06, 7000);
+    },
+
+    denied: function() {                 // 買えない/足りない: 低いブザー
+      resume();
+      var t = ctx.currentTime;
+      osc(160, 'square', 0.12, t, 0.12, 120);
+      osc(120, 'square', 0.12, t + 0.12, 0.2, 90);
+    },
+
+    doorBell: function() {               // 店に入る: ドアベル
+      resume();
+      var t = ctx.currentTime;
+      osc(1568, 'sine', 0.1, t, 0.5);
+      osc(2093, 'sine', 0.07, t + 0.12, 0.7);
+      osc(3136, 'sine', 0.03, t + 0.12, 0.4);
+    },
+
+    birds: function() {                  // 宿屋の朝: 小鳥のさえずり
+      resume();
+      var t = ctx.currentTime;
+      [0, 0.18, 0.5, 0.68, 0.86].forEach(function(d, i) {
+        osc(2600 + (i % 2) * 500, 'sine', 0.05, t + d, 0.1, 3400 + (i % 3) * 300);
+      });
+    },
+
     gameoverToll: function() {           // ゲームオーバー画面: 弔いの鐘と魂のささやき
       resume();
       var t = ctx.currentTime;
