@@ -362,6 +362,14 @@ var SoundSystem = (function() {
       osc(659, 'sine', 0.1, t + 0.8, 0.7);
     },
 
+    save: function() {                   // セーブ: 澄んだ上昇アルペジオ + きらめき
+      resume();
+      var t = ctx.currentTime;
+      [523, 659, 784, 1047].forEach(function(f, i) { osc(f, 'triangle', 0.1, t + i * 0.09, 0.4); });
+      osc(1568, 'sine', 0.08, t + 0.4, 0.7);
+      for (var j = 0; j < 4; j++) osc(2093 + j * 260, 'sine', 0.04, t + 0.45 + j * 0.07, 0.15);
+    },
+
     chest: function() {
       resume();
       var t = ctx.currentTime;

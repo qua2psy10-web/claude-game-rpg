@@ -42,6 +42,13 @@ This file provides guidance for Claude and human developers working on this proj
   - **Stun:** Shield Bash (30% chance) stuns the target enemy; a stunned enemy skips its next action (1 turn). Bosses resist (half the chance), and an already-stunned enemy cannot be re-stunned.
   - **Debuffs:** Weaken (ウィークン, Dario Lv4: one enemy ATK x0.7, 3 turns) and Armor Break (ブレイク, Sundar Lv8: all enemies DEF x0.7, 3 turns) reuse the buff system via `getEffectiveStat`/`tickBuffs`.
 
+### Save / Load
+
+- **Storage:** `localStorage` key `eldrasia_save`, JSON with `version` (currently 2). Party, inventory, equipment, gold, map/position, flags, play time, timestamp.
+- **Auto-save:** closing the menu, resting at the inn, after battle wins, leaving the page. **Manual:** the menu's セーブ command (shows a "saved" overlay + SFX).
+- **Transient battle fields** (buffs, poison, gauge animation values, ...) are stripped on save; buffs/defending are reset on load.
+- **Safe load:** a save that fails structural validation (3 valid party members, known classes, known map) is treated as corrupt: 「つづきから」 stays disabled and the title says so. The data is not deleted.
+
 ### Progression & Economy
 
 - **Currency:** Gold (G)
