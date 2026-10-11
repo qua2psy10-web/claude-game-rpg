@@ -490,6 +490,37 @@ var SoundSystem = (function() {
       for (var k = 0; k < 5; k++) osc(200 + k * 40, 'triangle', 0.06, t + 0.5 + k * 0.1, 0.3, 700);
     },
 
+    gameStart: function() {              // タイトルで「はじめから/つづきから」: 輝く上昇音
+      resume();
+      var t = ctx.currentTime;
+      [523, 659, 784, 1047, 1319].forEach(function(f, i) { osc(f, 'triangle', 0.1, t + i * 0.06, 0.5); });
+      osc(262, 'sine', 0.14, t, 0.7);
+      noise(0.08, t, 0.5, 6000);
+    },
+
+    openingRumble: function() {          // オープニング: 地鳴り
+      resume();
+      var t = ctx.currentTime;
+      osc(48, 'sawtooth', 0.35, t, 1.4, 32);
+      osc(72, 'square', 0.12, t, 1.2, 40);
+      noise(0.22, t, 1.3, 260);
+    },
+
+    openingThunder: function() {         // オープニング: 雷鳴
+      resume();
+      var t = ctx.currentTime;
+      noise(0.55, t, 0.15, 6000);
+      noise(0.4, t + 0.1, 1.4, 700);
+      osc(60, 'sawtooth', 0.3, t + 0.15, 1.0, 30);
+    },
+
+    openingDawn: function() {            // オープニング: 夜明け、希望のきらめき
+      resume();
+      var t = ctx.currentTime;
+      [392, 494, 587, 784].forEach(function(f, i) { osc(f, 'sine', 0.09, t + i * 0.22, 1.6); });
+      for (var j = 0; j < 5; j++) osc(1568 + j * 262, 'sine', 0.035, t + 0.9 + j * 0.12, 0.3);
+    },
+
     gameoverToll: function() {           // ゲームオーバー画面: 弔いの鐘と魂のささやき
       resume();
       var t = ctx.currentTime;
