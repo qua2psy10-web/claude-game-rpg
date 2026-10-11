@@ -981,6 +981,17 @@ var BattleSystem = {
     if (cmd.actorType === 'party' && !game.party[cmd.actor].alive) return this.executeNextAction(game);
     if (cmd.actorType === 'enemy' && !b.enemies[cmd.actor].alive) return this.executeNextAction(game);
 
+    // A stunned enemy loses its next action
+    if (cmd.actorType === 'enemy' && b.enemies[cmd.actor].stunTurns > 0) {
+      var stEn = b.enemies[cmd.actor];
+      stEn.stunTurns--;
+      b.messages = [stEn.name + 'は しびれて 動けない！'];
+      b.messageTimer = 45;
+      stEn.stunAt = Date.now();
+      SoundSystem.stunHit();
+      return;
+    }
+
     // Handle run
     if (cmd.action === 'run') {
       b.escapeAttempts++;
@@ -1262,7 +1273,10 @@ var BattleSystem = {
           target.hp = Math.max(0, target.hp - dmg3);
           this.pop(game, target, dmg3, 'dmg', fd);
           b.messages.push(target.name + 'に ' + dmg3 + 'の ダメージ！');
-          if (spell.stun && Math.random() < spell.stun) {
+          // Bosses resist: half the chance. Already-stunned targets can't be re-stunned.
+          var stunChance = spell.stun * (target.boss ? 0.5 : 1);
+          if (spell.stun && target.hp > 0 && !target.stunTurns && Math.random() < stunChance) {
+            target.stunTurns = 1;
             b.messages.push(target.name + 'は しびれて 動けない！');
             // Visual only: shock arcs, dizzy stars and a "スタン！" label once the hit lands
             target.stunAt = Date.now() + (fd || this.PARTY_ATTACK_DELAY);
