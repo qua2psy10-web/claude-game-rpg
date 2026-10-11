@@ -38,6 +38,9 @@ This file provides guidance for Claude and human developers working on this proj
 - **Turn order:** Based on SPD stat
 - **Damage formula:** ATK/2 - DEF/4 + random variance
 - **Status effects:** Poison, Stun
+  - **Poison (party only, battle-long):** some enemies (Slime 20%, Giant Bat 30%) may poison an unguarded target they hit. A poisoned member loses 1/16 max HP at the end of each round (never below 1 HP). Cleared at the start of the next battle. Cured by the Antidote item (毒消し草) or Sundar's Cure spell (キュア, Lv3).
+  - **Stun:** Shield Bash's stun is presentation only (message + effect); it does not skip the enemy's turn yet.
+  - **Debuffs:** Weaken (ウィークン, Dario Lv4: one enemy ATK x0.7, 3 turns) and Armor Break (ブレイク, Sundar Lv8: all enemies DEF x0.7, 3 turns) reuse the buff system via `getEffectiveStat`/`tickBuffs`.
 
 ### Progression & Economy
 
