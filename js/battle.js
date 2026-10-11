@@ -1616,9 +1616,24 @@ var BattleSystem = {
     ctx.restore();
   },
 
-  renderEscape: function(ctx, w, h, t) {
+  renderEscape: function(ctx, w, h, t, game) {
     var i;
     ctx.save();
+
+    // Perspective speed lines radiating from the horizon's vanishing point
+    var rr = Math.min(1, t / 300);
+    var vx = w / 2, vy = h * 0.42;
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 * rr) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (i = 0; i < 26; i++) {
+      var ra = this.fxRnd(i + 1500) * Math.PI * 2;
+      var rph = ((t / 420) + this.fxRnd(i + 1600)) % 1;
+      var r0 = 40 + rph * rph * 420, r1 = r0 + 20 + rph * 90;
+      ctx.moveTo(vx + Math.cos(ra) * r0, vy + Math.sin(ra) * r0 * 0.8);
+      ctx.lineTo(vx + Math.cos(ra) * r1, vy + Math.sin(ra) * r1 * 0.8);
+    }
+    ctx.stroke();
 
     // Horizontal speed lines streaking past (ramp up, then keep going)
     var ramp = Math.min(1, t / 250);
@@ -1644,6 +1659,58 @@ var BattleSystem = {
       ctx.beginPath();
       ctx.arc(w * 0.62 - dp * 150 + this.fxRnd(i + 1100) * 30, h * 0.6 + this.fxRnd(i + 1200) * 18 - dp * 10, 8 + dp * 16, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // Each hero leaves as a coloured comet with afterimages, streaking off toward the right edge
+    var pcols = ['#6ab0ff', '#ff7ac0', '#6dffb0'];
+    if (game) {
+      for (i = 0; i < game.party.length; i++) {
+        var ct = t - 150 - i * 70;
+        if (ct < 0 || ct > 650) continue;
+        var cq = ct / 650;
+        var chx = w - 250 + i * 48, chy = h - 238 + 10 - cq * 30;
+        var cx2 = chx + cq * cq * (w - chx + 140);
+        for (var ca = 0; ca < 7; ca++) {
+          var cqa = Math.max(0, cq - ca * 0.035);
+          var ax = chx + cqa * cqa * (w - chx + 140), ay = h - 238 + 10 - cqa * 30;
+          ctx.globalAlpha = (1 - ca / 7) * 0.7 * (1 - Math.max(0, cq - 0.8) / 0.2);
+          ctx.fillStyle = pcols[i % 3];
+          ctx.beginPath();
+          ctx.ellipse(ax, ay, 14 - ca, 6 - ca * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1 - Math.max(0, cq - 0.8) / 0.2;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.ellipse(cx2, chy, 9, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Enemies left behind: "?" marks wobble over them as they lose the trail
+    if (game && game.battle) {
+      var qs = game.battle.enemies;
+      for (i = 0; i < qs.length; i++) {
+        var qe = qs[i];
+        if (!qe.alive || qe.sx === undefined) continue;
+        var qt = t - 350 - i * 80;
+        if (qt < 0) continue;
+        var qa = Math.min(1, qt / 120) * (1 - Math.max(0, (t - 800) / 200));
+        if (qa <= 0) continue;
+        ctx.globalAlpha = qa;
+        ctx.font = 'bold ' + Math.round(26 * (qe.sscale || 1)) + 'px monospace';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#102a5a';
+        ctx.fillStyle = '#ffe66a';
+        var qy2 = qe.sfoot - 92 * (qe.sscale || 1) - Math.min(8, qt / 30);
+        ctx.save();
+        ctx.translate(qe.sx, qy2);
+        ctx.rotate(Math.sin(qt / 90) * 0.18);
+        ctx.strokeText('？', 0, 0);
+        ctx.fillText('？', 0, 0);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
     }
 
     // Smoke burst where the party takes off, then a rolling trail of dust clouds behind them
@@ -1739,6 +1806,20 @@ var BattleSystem = {
       ctx.beginPath();
       ctx.arc(bx - dp * (70 + i * 6), by + 24 - dp * 6 + (i % 3) * 3, 8 + dp * 16, 0, Math.PI * 2);
       ctx.fill();
+    }
+    // Pincer: red chevrons slam in from both edges toward the party's escape route, then recoil
+    var pq = Math.min(1, t / 0.35);
+    var pr = t < 0.35 ? pq * pq : 1 - (t - 0.35) * 0.35;
+    ctx.fillStyle = 'rgba(255,60,60,' + (0.75 * (1 - Math.max(0, t - 0.6) / 0.4)) + ')';
+    for (i = 0; i < 5; i++) {
+      var cy2 = h * 0.2 + i * h * 0.12;
+      var lx = -30 + pr * (w * 0.32 + (i % 2) * 20), rx = w + 30 - pr * (w * 0.22 + (i % 2) * 20);
+      ctx.beginPath();
+      ctx.moveTo(lx - 24, cy2 - 14); ctx.lineTo(lx, cy2); ctx.lineTo(lx - 24, cy2 + 14); ctx.lineTo(lx - 16, cy2);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(rx + 24, cy2 - 14); ctx.lineTo(rx, cy2); ctx.lineTo(rx + 24, cy2 + 14); ctx.lineTo(rx + 16, cy2);
+      ctx.closePath(); ctx.fill();
     }
     // Spinning stars over the head
     for (i = 0; i < 4; i++) {
@@ -4020,7 +4101,7 @@ var BattleSystem = {
 
     // Getaway scene: speed lines, dust trail, then the screen irises shut
     if (b.escapeStart) {
-      this.renderEscape(ctx, canvasW, canvasH, now - b.escapeStart);
+      this.renderEscape(ctx, canvasW, canvasH, now - b.escapeStart, game);
     }
 
     // Encounter warning: the screen edges flash red twice as the fight begins (boss fights have their own)
