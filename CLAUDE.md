@@ -37,6 +37,7 @@ This file provides guidance for Claude and human developers working on this proj
 - **Commands:** Attack, Magic, Item, Defend, Run
 - **Turn order:** Based on SPD stat
 - **Damage formula:** ATK/2 - DEF/4 + random variance
+- **Physical skills:** Power Slash (x2.0 ATK, ignores 50% of the target's DEF) and Shield Bash (x1.2, ignores 25%) use the spell field `pierce`. Sam's MP growth is +2/level so he can keep using them.
 - **Status effects:** Poison, Stun
   - **Poison (party only, battle-long):** some enemies (Slime 20%, Giant Bat 30%) may poison an unguarded target they hit. A poisoned member loses 1/16 max HP at the end of each round (never below 1 HP). Cleared at the start of the next battle. Cured by the Antidote item (毒消し草) or Sundar's Cure spell (キュア, Lv3).
   - **Stun:** Shield Bash (30% chance) stuns the target enemy; a stunned enemy skips its next action (1 turn). Bosses resist (half the chance), and an already-stunned enemy cannot be re-stunned.
@@ -58,13 +59,15 @@ Enemy damage uses `ATK/2 - DEF/4`, so an enemy needs roughly 2x the party's DEF 
 | Grassland | 1-4 | 0-10% | ~0% | 1-2 |
 | Dark Forest | 5-8 | 10-20% | <5% | 2-3 |
 | Demon's Castle | 9-13 | 25-45% at Lv9, <15% by Lv12 | <30% at Lv9 | 4-6 |
-| Demon King | 13 | ~60% | ~35-45% | 10-18 |
+| Demon King | 12-13 | ~60% | ~30-50% | 10-18 |
+
+Shops (Millhaven) sell the full equipment set; long lists scroll. Late gear (Flame Sword 1800G, Holy Sword 6000G, Dragon Armor 5000G ...) is the gold sink for the castle (~55G/battle).
 
 Gold per battle is roughly 7 (grass) / 22 (forest) / 55 (castle), enough for one shop upgrade per ~10-25 battles early on.
 
 **Tool:** `node tools/balance-sim.js [runs] [seed]` runs full playthroughs through the real `BattleSystem` (stats per area and per level, boss win rate); add `matrix` as the 3rd argument for an area x level table. Re-run it after touching enemy stats, spells, growth, EXP or shop prices.
 
-Known gaps: Sam's physical attacks stay weak against high-DEF enemies (damage is magic-dominated); the shops do not sell flameSword/holySword/crystalStaff/sacredRod/plateArmor/dragonArmor/holyRobe/lifeRing, so late gold has few sinks; level pacing (about 100 battles to Lv16) is not tuned for play time.
+Known gaps: level pacing (about 100 battles to Lv16) is not tuned for play time; the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~46%, Sundar ~10% of attack damage overall).
 
 ### Progression & Economy
 

@@ -30,7 +30,7 @@ var CHARACTERS = {
   sam: {
     name: 'サム', nameEn: 'Sam', class: '戦士',
     baseStats: { hp: 45, mp: 5, atk: 12, def: 10, spd: 8, int: 3 },
-    growth: { hp: 8, mp: 1, atk: 3, def: 3, spd: 1, int: 1 },
+    growth: { hp: 8, mp: 2, atk: 3, def: 3, spd: 1, int: 1 },
     spells: [
       { id: 'powerSlash', learnLevel: 1 },
       { id: 'shieldBash', learnLevel: 5 },
@@ -67,8 +67,8 @@ var CHARACTERS = {
 
 // ===== SPELL DEFINITIONS =====
 var SPELLS = {
-  powerSlash:  { name: 'パワースラッシュ', mp: 3, type: 'physical', target: 'enemy', power: 1.5, desc: '強力な一撃' },
-  shieldBash:  { name: 'シールドバッシュ', mp: 5, type: 'physical', target: 'enemy', power: 1.2, stun: 0.3, desc: '盾で殴りスタンさせる' },
+  powerSlash:  { name: 'パワースラッシュ', mp: 3, type: 'physical', target: 'enemy', power: 2.0, pierce: 0.5, desc: '敵の守りを半分無視する強力な一撃' },
+  shieldBash:  { name: 'シールドバッシュ', mp: 5, type: 'physical', target: 'enemy', power: 1.2, pierce: 0.25, stun: 0.3, desc: '盾で殴りスタンさせる' },
   warCry:      { name: 'ウォークライ', mp: 8, type: 'buff', target: 'party', stat: 'atk', mult: 1.25, turns: 3, desc: '味方全体の攻撃力UP' },
   fire:        { name: 'ファイア', mp: 4, type: 'magic', target: 'enemy', power: 24, desc: '炎で敵一体を攻撃' },
   iceStorm:    { name: 'アイスストーム', mp: 8, type: 'magic', target: 'allEnemy', power: 18, desc: '吹雪で敵全体を攻撃' },
@@ -94,7 +94,7 @@ var ENEMIES = {
   darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [] },
   demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'] },
   darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'] },
-  demonKing:    { name: '魔王ヴァルザード', hp: 850, atk: 130, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'] },
+  demonKing:    { name: '魔王ヴァルザード', hp: 1000, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'] },
 };
 
 // ===== ITEM DEFINITIONS =====
@@ -359,6 +359,10 @@ var SHOPS = {
       { id: 'oakStaff', type: 'weapon' },
       { id: 'healingRod', type: 'weapon' },
       { id: 'mysticStaff', type: 'weapon' },
+      { id: 'sacredRod', type: 'weapon' },
+      { id: 'crystalStaff', type: 'weapon' },
+      { id: 'flameSword', type: 'weapon' },
+      { id: 'holySword', type: 'weapon' },
     ],
   },
   armorShop: {
@@ -369,9 +373,13 @@ var SHOPS = {
       { id: 'chainMail', type: 'armor' },
       { id: 'silkRobe', type: 'armor' },
       { id: 'mysticRobe', type: 'armor' },
+      { id: 'plateArmor', type: 'armor' },
+      { id: 'holyRobe', type: 'armor' },
+      { id: 'dragonArmor', type: 'armor' },
       { id: 'powerRing', type: 'accessory' },
       { id: 'magicRing', type: 'accessory' },
       { id: 'speedRing', type: 'accessory' },
+      { id: 'lifeRing', type: 'accessory' },
     ],
   },
 };
