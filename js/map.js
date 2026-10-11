@@ -14,6 +14,19 @@ var MapSystem = {
     var vpW = this.VIEWPORT_W;
     var vpH = this.VIEWPORT_H;
 
+    // Encounter transition: the whole scene shakes and zooms toward the party
+    var efx = game.encounterFx;
+    var et = efx ? Math.min(1, (Date.now() - efx.t0) / efx.dur) : -1;
+    if (efx) {
+      ctx.save();
+      var ez = 1 + 0.22 * et * et;
+      var ecx = vpW * ts / 2, ecy = vpH * ts / 2;
+      ctx.translate(ecx + (Math.random() - 0.5) * 6 * et, ecy + (Math.random() - 0.5) * 6 * et);
+      ctx.rotate(Math.sin(et * 9) * 0.015 * et);
+      ctx.scale(ez, ez);
+      ctx.translate(-ecx, -ecy);
+    }
+
     // Smooth movement: the player (and the followers behind) glide from the previous tile
     var now = Date.now();
     var GLIDE_MS = 110;
@@ -106,6 +119,62 @@ var MapSystem = {
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath(); ctx.ellipse(playerScreenX + ts / 2, playerScreenY + ts - 6, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
     UI.drawPlayer(ctx, playerScreenX, playerScreenY + bobAt(0), ts, game.facing);
+
+    if (efx) {
+      ctx.restore();
+      this.renderEncounterFx(ctx, playerScreenX, playerScreenY, ts, et, vpW * ts, vpH * ts);
+    }
+  },
+
+  // Encounter transition overlay: "!" popping over the leader, red flashes, a radial blur and the closing wipe
+  renderEncounterFx: function(ctx, px, py, ts, t, w, h) {
+    var i;
+    ctx.save();
+    // two red/white flashes
+    var fl = Math.max(0, Math.sin(t * Math.PI * 4)) * 0.38 * (1 - t * 0.4);
+    ctx.fillStyle = (Math.floor(t * 4) % 2 ? 'rgba(255,255,255,' : 'rgba(255,40,40,') + fl + ')';
+    ctx.fillRect(0, 0, w, h);
+    // radial speed lines rushing toward the camera
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.4 * t) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (i = 0; i < 24; i++) {
+      var a = i / 24 * Math.PI * 2 + 0.2;
+      var r0 = 60 + (1 - t) * 160, r1 = r0 + 40 + t * 180;
+      ctx.moveTo(w / 2 + Math.cos(a) * r0, h / 2 + Math.sin(a) * r0 * 0.75);
+      ctx.lineTo(w / 2 + Math.cos(a) * r1, h / 2 + Math.sin(a) * r1 * 0.75);
+    }
+    ctx.stroke();
+    // "!" over the leader
+    if (t < 0.55) {
+      var q = t / 0.55;
+      var pop = q < 0.25 ? q / 0.25 * 1.4 : 1.4 - Math.min(0.4, (q - 0.25) * 0.8);
+      ctx.save();
+      ctx.translate(px + ts / 2, py - 14 - Math.sin(Math.min(1, q * 2) * Math.PI) * 8);
+      ctx.scale(pop, pop);
+      ctx.font = 'bold 34px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#4a0000';
+      ctx.fillStyle = '#ff4040';
+      ctx.strokeText('!', 0, 0);
+      ctx.fillText('!', 0, 0);
+      ctx.restore();
+    }
+    // closing wipe: horizontal blinds slide shut over the last stretch
+    if (t > 0.62) {
+      var wq = Math.min(1, (t - 0.62) / 0.38);
+      var bh = h / 10;
+      ctx.fillStyle = '#000';
+      for (i = 0; i < 10; i++) {
+        var lw = Math.min(1, wq * 1.6 - i * 0.06) * (w / 2 + 2);
+        if (lw <= 0) continue;
+        if (i % 2) { ctx.fillRect(0, i * bh, lw, bh + 1); ctx.fillRect(w - lw, i * bh, lw, bh + 1); }
+        else { ctx.fillRect(0, i * bh, lw, bh + 1); ctx.fillRect(w - lw, i * bh, lw, bh + 1); }
+      }
+    }
+    ctx.restore();
   },
 
   // Dust / grass / sand puffs and fading footprints behind the party
@@ -295,7 +364,9 @@ var MapSystem = {
     for (var j = 0; j < encounters.length; j++) {
       cumulative += encounters[j].weight;
       if (roll <= cumulative) {
-        BattleSystem.startBattle(game, encounters[j].enemies);
+        // Encounter transition: "!" over the leader, a red flash, zoom-in and a closing wipe, then the battle starts
+        game.encounterFx = { t0: Date.now(), dur: 750, enemies: encounters[j].enemies };
+        if (typeof SoundSystem !== 'undefined' && SoundSystem.encounter) SoundSystem.encounter();
         return;
       }
     }

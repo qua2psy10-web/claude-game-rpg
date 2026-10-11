@@ -7,7 +7,11 @@ var BattleSystem = {
   // Start a new battle
   startBattle: function(game, enemyIds) {
     var enemies = [];
-    for (var pi = 0; pi < game.party.length; pi++) game.party[pi].poisoned = false;   // poison only lasts within a battle
+    for (var pi = 0; pi < game.party.length; pi++) {
+      game.party[pi].poisoned = false;   // poison only lasts within a battle
+      game.party[pi].hpShown = 0; game.party[pi].hpGhost = 0; game.party[pi].mpShown = 0;   // gauges fill up as the panel slides in
+      game.party[pi].hpLast = game.party[pi].hp;
+    }
     for (var i = 0; i < enemyIds.length; i++) {
       var template = ENEMIES[enemyIds[i]];
       enemies.push({
@@ -4174,7 +4178,46 @@ var BattleSystem = {
       ctx.fill('evenodd');
     }
 
-    // Party status panel (right side)
+    // Party battle-ready: rings flare above each hero and a banner sweeps across the screen
+    if (b.introStart && !b.bossIntro) {
+      var rt0 = now - b.introStart - 500;
+      if (rt0 > 0 && rt0 < 1300) {
+        if (!b.readySfx) { b.readySfx = true; SoundSystem.battleReady(); }
+        var pcol = ['106,176,255', '255,122,192', '109,255,176'];
+        for (var ri = 0; ri < game.party.length; ri++) {
+          var rq = Math.min(1, Math.max(0, (rt0 - ri * 90) / 600));
+          if (rq <= 0 || rq >= 1) continue;
+          var rcx = canvasW - 250 + ri * 48, rcy = canvasH - 238;
+          ctx.strokeStyle = 'rgba(' + pcol[ri % 3] + ',' + (1 - rq) + ')';
+          ctx.lineWidth = 4 * (1 - rq) + 1;
+          ctx.beginPath(); ctx.ellipse(rcx, rcy + 22, 8 + rq * 36, 3 + rq * 11, 0, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = 1 - rq;
+          ctx.fillStyle = 'rgb(' + pcol[ri % 3] + ')';
+          ctx.fillRect(rcx - 2, rcy + 20 - rq * 60, 4, 14);
+          ctx.globalAlpha = 1;
+        }
+        var bq = rt0 / 1300;
+        var bxp = bq < 0.2 ? canvasW + 200 - (bq / 0.2) * (canvasW / 2 + 200) : (bq < 0.75 ? canvasW / 2 - (bq - 0.2) * 40 : canvasW / 2 - 22 - ((bq - 0.75) / 0.25) * (canvasW + 200));
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, bq * 8) * (1 - Math.max(0, bq - 0.9) / 0.1);
+        ctx.fillStyle = 'rgba(10,20,60,0.55)';
+        ctx.fillRect(0, canvasH * 0.18, canvasW, 44);
+        ctx.font = 'italic bold 30px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = '#102a5a';
+        ctx.fillStyle = '#fff6c0';
+        ctx.strokeText('いざ、たたかいだ！', bxp, canvasH * 0.18 + 22);
+        ctx.fillText('いざ、たたかいだ！', bxp, canvasH * 0.18 + 22);
+        ctx.restore();
+      }
+    }
+
+    // Party status panel (right side): slides in from the edge as the battle begins
+    ctx.save();
+    var slideQ = b.introStart ? Math.min(1, (now - b.introStart) / 500) : 1;
+    ctx.translate((1 - slideQ) * (1 - slideQ) * 240, 0);
     UI.drawWindow(ctx, canvasW - 220, canvasH - 200, 215, 120);
     for (var k = 0; k < game.party.length; k++) {
       var py = canvasH - 190 + k * 36;
@@ -4282,6 +4325,7 @@ var BattleSystem = {
       }
     }
     b.panelT = now;
+    ctx.restore();
 
     // Command menu (during command phase)
     if (b.phase === 'command' && b.currentChar < game.party.length) {

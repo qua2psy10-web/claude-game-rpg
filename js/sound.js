@@ -94,6 +94,23 @@ var SoundSystem = (function() {
 
     // ── 戦闘開始 ──────────────────────────────────────────────
 
+    encounter: function() {              // エンカウント: 警告音の2連打と急降下
+      resume();
+      var t = ctx.currentTime;
+      osc(880, 'square', 0.2, t, 0.09);
+      osc(880, 'square', 0.2, t + 0.14, 0.09);
+      osc(1320, 'sawtooth', 0.18, t + 0.28, 0.4, 200);
+      noise(0.25, t + 0.28, 0.35, 2500);
+    },
+
+    battleReady: function() {            // 味方の戦闘態勢: 力強い和音
+      resume();
+      var t = ctx.currentTime;
+      [196, 247, 294, 392].forEach(function(f, i) { osc(f, 'sawtooth', 0.1, t + i * 0.03, 0.45); });
+      osc(98, 'triangle', 0.2, t, 0.35, 70);
+      osc(1175, 'sine', 0.07, t + 0.1, 0.3);
+    },
+
     battleStart: function() {
       resume();
       var t = ctx.currentTime;

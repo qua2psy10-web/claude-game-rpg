@@ -307,6 +307,7 @@ function partyBuffed() {
 
 function updateBgm() {
   var s = game.state;
+  if (game.encounterFx) return setBgm(null);   // the field music fades out as the encounter hits
   MusicSystem.setIntensity(battleIntensity());
   MusicSystem.setBoost(partyBuffed());
   if (s === 'title')                                          return setBgm('title');
@@ -463,6 +464,15 @@ function renderTitle(ctx) {
 
 // ===== MAP UPDATES =====
 function updateMap(dt) {
+  // Encounter transition: input is locked until the flash/zoom/wipe finishes, then the battle begins
+  if (game.encounterFx) {
+    var efx = game.encounterFx;
+    if (Date.now() - efx.t0 >= efx.dur) {
+      game.encounterFx = null;
+      BattleSystem.startBattle(game, efx.enemies);
+    }
+    return;
+  }
   var input = getInput();
 
   // Menu open
