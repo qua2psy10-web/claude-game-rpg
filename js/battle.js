@@ -72,7 +72,7 @@ var BattleSystem = {
   // Trigger a screen shake: mag in px, dur in ms
   shake: function(game, mag, dur) {
     var b = game.battle;
-    if (!b) return;
+    if (!b || !SettingsSystem.get('shake')) return;
     b.shakeMag = mag;
     b.shakeDur = dur;
     b.shakeUntil = Date.now() + dur;

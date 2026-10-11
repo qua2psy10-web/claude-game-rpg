@@ -48,6 +48,7 @@ function initGame() {
   SoundSystem.init();
   MusicSystem.init(SoundSystem.getCtx());
   loadScore();
+  SettingsSystem.load();
 
   document.addEventListener('keydown', function(e) {
     if (!keysDown[e.key]) keysPressed[e.key] = true;
@@ -452,6 +453,10 @@ function gameLoop(timestamp) {
 // ===== UPDATE =====
 function update(dt) {
   updateBgm();
+  if (game.settings) {
+    if (SettingsSystem.update(game.settings, getInput())) game.settings = null;
+    return;
+  }
   switch (game.state) {
     case 'title':
       updateTitle();
@@ -514,8 +519,8 @@ function updateTitle() {
   }
 
   var hasSave = !!getSaveInfo();
-  if (input === 'up') { game.titleIndex = (game.titleIndex - 1 + 2) % 2; SoundSystem.cursor(); }
-  if (input === 'down') { game.titleIndex = (game.titleIndex + 1) % 2; SoundSystem.cursor(); }
+  if (input === 'up') { game.titleIndex = (game.titleIndex - 1 + 3) % 3; SoundSystem.cursor(); }
+  if (input === 'down') { game.titleIndex = (game.titleIndex + 1) % 3; SoundSystem.cursor(); }
   if (input === 'confirm') {
     if (game.titleIndex === 0) {
       SoundSystem.gameStart();
@@ -523,6 +528,9 @@ function updateTitle() {
     } else if (game.titleIndex === 1 && hasSave) {
       SoundSystem.gameStart();
       game.titleGo = { t0: now, next: 'load' };
+    } else if (game.titleIndex === 2) {
+      SoundSystem.confirm();
+      game.settings = { index: 0 };
     } else if (game.titleIndex === 1 && readSave().status === 'corrupt') {
       SoundSystem.cancel();
     }
@@ -586,9 +594,9 @@ function renderTitle(ctx) {
   // Menu
   ctx.textAlign = 'left';
   var saveInfo = getSaveInfo();
-  var menuH = saveInfo ? 136 : 80;
+  var menuH = saveInfo ? 164 : 108;
   UI.drawWindow(ctx, 220, 280, 200, menuH);
-  var menuItems = ['はじめから', 'つづきから'];
+  var menuItems = ['はじめから', 'つづきから', 'せってい'];
   for (var j = 0; j < menuItems.length; j++) {
     var ty = 296 + j * 28;
     if (j === game.titleIndex) {
@@ -601,14 +609,14 @@ function renderTitle(ctx) {
   if (saveInfo) {
     var mapName = MAPS[saveInfo.currentMap] ? MAPS[saveInfo.currentMap].name : '？';
     var lvs = saveInfo.party.map(function(m) { return m.level; }).join('/');
-    UI.drawText(ctx, mapName + '  Lv.' + lvs, 238, 354, '#aaa', UI.FONT_SMALL);
+    UI.drawText(ctx, mapName + '  Lv.' + lvs, 238, 382, '#aaa', UI.FONT_SMALL);
     var pt = Math.floor(saveInfo.playTime || 0);
     var d = saveInfo.savedAt ? new Date(saveInfo.savedAt) : null;
     var line = (saveInfo.gold || 0) + 'G  ' + Math.floor(pt / 60) + ':' + (pt % 60 < 10 ? '0' : '') + (pt % 60);
-    UI.drawText(ctx, line, 238, 372, '#aaa', UI.FONT_SMALL);
-    if (d) UI.drawText(ctx, (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + ' セーブ', 238, 390, '#777', UI.FONT_SMALL);
+    UI.drawText(ctx, line, 238, 400, '#aaa', UI.FONT_SMALL);
+    if (d) UI.drawText(ctx, (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + ' セーブ', 238, 418, '#777', UI.FONT_SMALL);
   } else if (readSave().status === 'corrupt') {
-    UI.drawText(ctx, 'セーブデータを よみこめません', 226, 372, '#f88', UI.FONT_SMALL);
+    UI.drawText(ctx, 'セーブデータを よみこめません', 226, 382, '#f88', UI.FONT_SMALL);
   }
 
   // Score records (right of menu, shown once any battle has been won)
@@ -747,13 +755,14 @@ function updateMenu() {
 
   if (!ms.subState) {
     // Main menu
-    var menuItems = ['どうぐ', 'そうび', 'つよさ', 'セーブ', 'とじる'];
+    var menuItems = ['どうぐ', 'そうび', 'つよさ', 'セーブ', 'せってい', 'とじる'];
     if (input === 'up') { ms.index = (ms.index - 1 + menuItems.length) % menuItems.length; SoundSystem.cursor(); }
     if (input === 'down') { ms.index = (ms.index + 1) % menuItems.length; SoundSystem.cursor(); }
     if (input === 'cancel') { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
     if (input === 'confirm') {
-      if (ms.index === 4) { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
+      if (ms.index === 5) { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
       if (ms.index === 3) { saveGame(true); return; }
+      if (ms.index === 4) { SoundSystem.confirm(); game.settings = { index: 0 }; return; }
       if (ms.index === 0) ms.subState = 'items';
       if (ms.index === 1) { ms.subState = 'equipChar'; ms.charIndex = 0; }
       if (ms.index === 2) { ms.subState = 'stats'; ms.charIndex = 0; }
@@ -874,11 +883,11 @@ function renderMenu(ctx) {
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
   // Main menu
-  UI.drawMenu(ctx, 20, 20, 140, ['どうぐ', 'そうび', 'つよさ', 'セーブ', 'とじる'], ms.index);
+  UI.drawMenu(ctx, 20, 20, 140, ['どうぐ', 'そうび', 'つよさ', 'セーブ', 'せってい', 'とじる'], ms.index);
 
   // Gold
-  UI.drawWindow(ctx, 20, 188, 140, 32);
-  UI.drawText(ctx, game.gold + ' G', 34, 196, '#ffd700');
+  UI.drawWindow(ctx, 20, 214, 140, 32);
+  UI.drawText(ctx, game.gold + ' G', 34, 222, '#ffd700');
 
   // Party overview
   UI.drawWindow(ctx, 180, 20, 440, 160);
@@ -1412,6 +1421,11 @@ function renderEnding(ctx) {
 
 // ===== RENDER =====
 function render() {
+  renderScene();
+  if (game.settings) SettingsSystem.render(ctx, game.settings);
+}
+
+function renderScene() {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
   switch (game.state) {
