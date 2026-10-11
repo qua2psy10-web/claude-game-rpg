@@ -7,6 +7,7 @@ var BattleSystem = {
   // Start a new battle
   startBattle: function(game, enemyIds) {
     var enemies = [];
+    for (var pi = 0; pi < game.party.length; pi++) game.party[pi].poisoned = false;   // poison only lasts within a battle
     for (var i = 0; i < enemyIds.length; i++) {
       var template = ENEMIES[enemyIds[i]];
       enemies.push({
@@ -23,6 +24,7 @@ var BattleSystem = {
         color: template.color,
         shape: template.shape,
         boss: template.boss || false,
+        poison: template.poison || 0,
         skills: template.skills || [],
         alive: true,
         buffs: {},
@@ -75,17 +77,25 @@ var BattleSystem = {
     powerSlash: 'slash', shieldBash: 'bash', warCry: 'buffAtk', protect: 'buffDef',
     fire: 'fire', enemyFire: 'fire', iceStorm: 'ice', thunder: 'thunder',
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
-    weaken: 'debuffAtk', armorBreak: 'debuffDef',
+    weaken: 'debuffAtk', armorBreak: 'debuffDef', cure: 'cure',
   },
 
   // Party spells: ms of casting (rune circle + travelling orb) before the effect lands, and element colour
-  PARTY_CAST_DELAY: { fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340, debuffAtk: 440, debuffDef: 440 },
+  PARTY_CAST_DELAY: { fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340, debuffAtk: 440, debuffDef: 440, cure: 360 },
   PARTY_CAST_TINT: { fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
                      holy: '255,240,170', buffAtk: '255,120,60', buffDef: '90,170,255',
-                     debuffAtk: '200,60,120', debuffDef: '120,90,220' },
+                     debuffAtk: '200,60,120', debuffDef: '120,90,220', cure: '170,255,210' },
 
   // Party basic attacks: windup before the strike lands (numbers, shake and sound wait for it)
   PARTY_ATTACK_DELAY: 190,
+
+  // Cure: poison bubbles burst off the member and a cleansing wave sweeps up (lands after d ms)
+  cureFx: function(game, idx, d) {
+    var b = game.battle;
+    b.cureFx = { idx: idx, t0: Date.now() + (d || 0), dur: 1200 };
+    if (d) { setTimeout(function() { if (game.battle === b) SoundSystem.cureHit(); }, d); }
+    else SoundSystem.cureHit();
+  },
 
   // Failed escape: the party skids to a stop and bounces back off the blockade
   escapeFailFx: function(game, blocked) {
@@ -466,9 +476,10 @@ var BattleSystem = {
       if (pp.kind === 'heal') { top = '#eaffee'; bot = '#4dff7a'; glow = '#1fd45a'; }
       else if (pp.kind === 'mp') { top = '#eef6ff'; bot = '#5aa8ff'; glow = '#2b7cff'; }
       else if (pp.kind === 'alert') { top = '#ffd0d0'; bot = '#ff2a2a'; glow = '#ff0000'; }
+      else if (pp.kind === 'poison') { top = '#f0d0ff'; bot = '#a030e0'; glow = '#7a10c0'; }
       else if (pp.kind === 'exp') { top = '#fff6b0'; bot = '#ffc400'; glow = '#ff9d00'; }
       else if (pp.isParty) { top = '#ffd0d0'; bot = '#ff3030'; glow = '#ff0000'; }
-      var text = (pp.kind === 'dmg' || pp.kind === 'exp' || pp.kind === 'alert') ? pp.text : '+' + pp.text;
+      var text = (pp.kind === 'dmg' || pp.kind === 'exp' || pp.kind === 'alert' || pp.kind === 'poison') ? pp.text : '+' + pp.text;
       var sx = (pp.isParty && pp.kind === 'dmg' && t < 400) ? Math.sin(t / 25) * 5 : 0;   // party hits jitter
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -824,12 +835,16 @@ var BattleSystem = {
         b.pendingAction = 'item';
       } else {
         // Use on party — auto-target first needing member or self
+        var itemTarget = this.findHealTarget(game);
+        if (item.type === 'cure') {
+          for (var pz = 0; pz < game.party.length; pz++) { if (game.party[pz].alive && game.party[pz].poisoned) { itemTarget = pz; break; } }
+        }
         b.commands.push({
           actor: b.currentChar,
           actorType: 'party',
           action: 'item',
           itemId: invItem.id,
-          target: this.findHealTarget(game),
+          target: itemTarget,
           targetType: 'ally',
         });
         this.nextCharCommand(game);
@@ -1084,6 +1099,13 @@ var BattleSystem = {
       b.partyHit = { idx: hitIdx, t0: Date.now() + this.ENEMY_HIT_DELAY, melee: true, heavy: heavy,
                      style: atkStyle, tint: this.ATTACK_TINTS[atkStyle] };
       var guarded = !!defender.defending;
+      // Poisonous attackers may taint a living, un-guarded target
+      if (!guarded && defender.hp > 0 && attacker.poison && !defender.poisoned && Math.random() < attacker.poison) {
+        defender.poisoned = true;
+        defender.poisonAt = Date.now() + this.ENEMY_HIT_DELAY;
+        b.messages.push(defender.name + 'は 毒に おかされた！');
+        setTimeout(function() { if (game.battle === b) SoundSystem.poisonHit(); }, this.ENEMY_HIT_DELAY + 120);
+      }
       if (guarded) {
         // Braced target: no red flash; a barrier flares and the shock is much smaller
         b.partyHit = null;
@@ -1265,6 +1287,15 @@ var BattleSystem = {
         if (fd) healTarget.hpBarUntil = Date.now() + fd + 2000;
         b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
       }
+    } else if (spell.type === 'cure') {
+      var cTarget = game.party[cmd.target] || game.party[0];
+      if (cTarget && cTarget.alive && cTarget.poisoned) {
+        cTarget.poisoned = false;
+        this.cureFx(game, game.party.indexOf(cTarget), fd);
+        b.messages.push(cTarget.name + 'の 毒が きえた！');
+      } else {
+        b.messages.push('しかし なにも おこらなかった！');
+      }
     } else if (spell.type === 'debuff') {
       var dTargets = [];
       if (spell.target === 'allEnemy') {
@@ -1314,7 +1345,7 @@ var BattleSystem = {
     // Item effect: the item is tossed to its target, then the effect lands after d ms
     var d = cmd.itemId === 'bomb' ? 420 : 220;
     var fxTarget = -1, fxSide = 'party';
-    if (item.type === 'heal' || item.type === 'healMp') fxTarget = cmd.target >= 0 && game.party[cmd.target] ? cmd.target : 0;
+    if (item.type === 'heal' || item.type === 'healMp' || item.type === 'cure') fxTarget = cmd.target >= 0 && game.party[cmd.target] ? cmd.target : 0;
     else if (item.type === 'revive') {
       for (var rv = 0; rv < game.party.length; rv++) { if (!game.party[rv].alive) { fxTarget = rv; break; } }
     } else if (item.type === 'damage') {
@@ -1327,7 +1358,7 @@ var BattleSystem = {
       SoundSystem.itemToss();
       setTimeout(function() {
         if (game.battle !== b) return;
-        SoundSystem.itemHit(cmd.itemId);
+        if (cmd.itemId !== 'antidote') SoundSystem.itemHit(cmd.itemId);
         if (cmd.itemId === 'bomb') BattleSystem.shake(game, 12, 420);
         else if (cmd.itemId === 'phoenix') BattleSystem.shake(game, 5, 300);
       }, d);
@@ -1356,6 +1387,16 @@ var BattleSystem = {
           enemy.hp = 0;
           b.messages.push(enemy.name + 'を たおした！');
         }
+      }
+    } else if (item.type === 'cure') {
+      var ct = game.party[cmd.target] && game.party[cmd.target].poisoned ? game.party[cmd.target] : null;
+      if (!ct) { for (var cc = 0; cc < game.party.length; cc++) { if (game.party[cc].alive && game.party[cc].poisoned) { ct = game.party[cc]; break; } } }
+      if (ct) {
+        ct.poisoned = false;
+        this.cureFx(game, game.party.indexOf(ct), d);
+        b.messages.push(ct.name + 'の 毒が きえた！');
+      } else {
+        b.messages.push('しかし なにも おこらなかった！');
       }
     } else if (item.type === 'revive') {
       // Find first dead party member
@@ -1398,6 +1439,22 @@ var BattleSystem = {
         }
       }
       all[i].defending = false;
+    }
+    // Poison gnaws at the party each round (never lethal: it stops at 1 HP)
+    var poisonedAny = false;
+    for (var pj = 0; pj < game.party.length; pj++) {
+      var pm = game.party[pj];
+      if (!pm.alive || !pm.poisoned) continue;
+      var pdmg = Math.min(Math.max(1, Math.floor(pm.maxHp / 16)), Math.max(0, pm.hp - 1));
+      pm.hp -= pdmg;
+      if (pdmg > 0) this.pop(game, pm, pdmg, 'poison');
+      pm.hpBarUntil = Date.now() + 2000;
+      poisonedAny = true;
+    }
+    if (poisonedAny) {
+      game.battle.messages = ['毒の ダメージを うけた！'];
+      game.battle.messageTimer = 40;
+      SoundSystem.poisonTick();
     }
   },
 
@@ -2101,6 +2158,7 @@ var BattleSystem = {
     if (b) this.renderGuard(ctx, game, w, h, now);
     if (b) this.renderStun(ctx, game, now);
     if (b) this.renderDebuff(ctx, game, now);
+    if (b) this.renderPoisonCure(ctx, game, w, h, now);
     if (b && b.escapeFail) this.renderEscapeFail(ctx, game, w, h, now);
     var fx = b && b.effect;
     if (!fx) return;
@@ -2410,6 +2468,113 @@ var BattleSystem = {
     }
   },
 
+  // Party poison: purple bubbles seep up around a poisoned member; on cure they burst in a green-white cleansing wave
+  renderPoisonCure: function(ctx, game, w, h, now) {
+    var b = game.battle;
+    var self = this;
+    var i, k;
+    var spot = function(idx) { return { x: w - 250 + idx * 48, y: h - 238 }; };
+    ctx.save();
+    // Lingering poison
+    for (i = 0; i < game.party.length; i++) {
+      var m = game.party[i];
+      if (!m.alive || !m.poisoned) continue;
+      var sp = spot(i);
+      var onset = m.poisonAt ? now - m.poisonAt : 99999;
+      if (onset < 0) continue;
+      var pg = ctx.createRadialGradient(sp.x, sp.y + 8, 2, sp.x, sp.y + 8, 30);
+      pg.addColorStop(0, 'rgba(150,50,210,' + (0.35 + 0.1 * Math.sin(now / 240 + i)) + ')');
+      pg.addColorStop(1, 'rgba(80,0,120,0)');
+      ctx.fillStyle = pg;
+      ctx.fillRect(sp.x - 32, sp.y - 22, 64, 60);
+      for (k = 0; k < 6; k++) {
+        var ph = ((now / 1100) + self.fxRnd(k + i * 9)) % 1;
+        ctx.globalAlpha = Math.sin(Math.PI * ph) * 0.85;
+        ctx.fillStyle = k % 2 ? '#b050f0' : '#7a28c0';
+        ctx.beginPath();
+        ctx.arc(sp.x + (self.fxRnd(k + 30 + i) - 0.5) * 34 + Math.sin(now / 300 + k) * 3, sp.y + 24 - ph * 46, 2 + self.fxRnd(k + 60) * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // skull-less badge: droplet with a "毒"
+      ctx.fillStyle = '#5a1a8a';
+      ctx.strokeStyle = '#d08aff';
+      ctx.lineWidth = 2;
+      var bx = sp.x + 20, by = sp.y - 22 + Math.sin(now / 260 + i) * 2;
+      ctx.beginPath(); ctx.arc(bx, by, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f0d0ff';
+      ctx.fillText('毒', bx, by + 4);
+      // onset splash
+      if (onset < 500) {
+        var op = onset / 500;
+        ctx.globalAlpha = 1 - op;
+        ctx.strokeStyle = '#b050f0';
+        ctx.lineWidth = 4 * (1 - op) + 1;
+        ctx.beginPath();
+        ctx.ellipse(sp.x, sp.y + 22, 10 + op * 40, 4 + op * 12, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Cure burst
+    var c = b.cureFx;
+    if (c) {
+      var t = (now - c.t0) / c.dur;
+      if (t >= 1) b.cureFx = null;
+      else if (t >= 0) {
+        var cp = spot(c.idx);
+        // purple bubbles popping off, flying outward and fading
+        for (k = 0; k < 10; k++) {
+          var a = self.fxRnd(k + 5) * Math.PI * 2, d = (10 + t * 60) * (0.5 + self.fxRnd(k + 15));
+          ctx.globalAlpha = Math.max(0, 1 - t * 1.6);
+          ctx.fillStyle = k % 2 ? '#b050f0' : '#7a28c0';
+          ctx.beginPath();
+          ctx.arc(cp.x + Math.cos(a) * d, cp.y + 8 + Math.sin(a) * d * 0.7 - t * 20, 4 * (1 - t) + 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // cleansing wave: expanding green-white ring and rising light column
+        ctx.globalAlpha = (1 - t) * 0.9;
+        ctx.strokeStyle = '#d8ffe8';
+        ctx.shadowColor = '#6dffb0';
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 4 * (1 - t) + 1;
+        ctx.beginPath();
+        ctx.ellipse(cp.x, cp.y + 22, 10 + t * 64, 4 + t * 18, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        var lg = ctx.createLinearGradient(cp.x - 16, 0, cp.x + 16, 0);
+        lg.addColorStop(0, 'rgba(160,255,200,0)');
+        lg.addColorStop(0.5, 'rgba(230,255,240,' + (0.7 * Math.sin(Math.PI * Math.min(1, t * 1.3))) + ')');
+        lg.addColorStop(1, 'rgba(160,255,200,0)');
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = lg;
+        ctx.fillRect(cp.x - 16, cp.y - 60, 32, 90);
+        // sparkles
+        for (k = 0; k < 8; k++) {
+          var sx = cp.x + (self.fxRnd(k + 50) - 0.5) * 50, sy = cp.y + 20 - t * (30 + self.fxRnd(k + 70) * 50);
+          var tw = 2 + Math.abs(Math.sin(t * 14 + k)) * 4;
+          ctx.globalAlpha = Math.sin(Math.PI * t);
+          ctx.fillStyle = '#eafff2';
+          ctx.fillRect(sx - tw, sy - 0.75, tw * 2, 1.5);
+          ctx.fillRect(sx - 0.75, sy - tw, 1.5, tw * 2);
+        }
+        // label
+        ctx.globalAlpha = Math.min(1, t * 8) * (1 - Math.max(0, t - 0.65) / 0.35);
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#0a3a20';
+        ctx.fillStyle = '#c8ffdc';
+        ctx.strokeText('どくが きえた！', cp.x, cp.y - 52 - t * 14);
+        ctx.fillText('どくが きえた！', cp.x, cp.y - 52 - t * 14);
+      }
+    }
+    ctx.restore();
+  },
+
   // Guarding: a shield materialises around the member (burst), stays as a faint barrier badge for the
   // rest of the turn, and flares with sparks and a ring when an enemy attack is blocked
   renderGuard: function(ctx, game, w, h, now) {
@@ -2558,7 +2723,7 @@ var BattleSystem = {
       x = w - 250 + f.idx * 48; y = h - 238;   // party sprites live in the status window: effects play just above it
     }
     var ux = w - 250 + f.from * 48, uy = h - 238;
-    var COL = { herb: '120,255,150', magicWater: '110,180,255', phoenix: '255,150,60', bomb: '255,170,60' }[f.id] || '255,255,255';
+    var COL = { antidote: '170,255,210', herb: '120,255,150', magicWater: '110,180,255', phoenix: '255,150,60', bomb: '255,170,60' }[f.id] || '255,255,255';
     var i;
     ctx.save();
     ctx.lineCap = 'round';
@@ -3899,10 +4064,12 @@ var BattleSystem = {
         }
       }
       var nameColor = p.alive ? '#fff' : '#888';
+      if (p.alive && p.poisoned) nameColor = '#d08aff';
       if (b.flashParty === k) nameColor = '#f44';
       UI.drawText(ctx, p.name, px, py, nameColor, UI.FONT_SMALL);
       UI.drawText(ctx, 'HP ' + p.hp + '/' + p.maxHp, px + 72, py, p.hp <= p.maxHp * 0.25 ? '#f44' : '#fff', UI.FONT_SMALL);
       UI.drawText(ctx, 'MP ' + p.mp + '/' + p.maxMp, px + 72, py + 16, '#aaf', UI.FONT_SMALL);
+      if (p.alive && p.poisoned) UI.drawText(ctx, '毒', px, py + 16, '#d08aff', UI.FONT_SMALL);
     }
 
     // Command menu (during command phase)

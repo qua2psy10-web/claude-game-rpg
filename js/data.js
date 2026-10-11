@@ -56,6 +56,7 @@ var CHARACTERS = {
     growth: { hp: 6, mp: 4, atk: 2, def: 2, spd: 1, int: 3 },
     spells: [
       { id: 'heal', learnLevel: 1 },
+      { id: 'cure', learnLevel: 3 },
       { id: 'protect', learnLevel: 6 },
       { id: 'armorBreak', learnLevel: 8 },
       { id: 'holyLight', learnLevel: 10 },
@@ -75,6 +76,7 @@ var SPELLS = {
   heal:        { name: 'ヒール', mp: 4, type: 'heal', target: 'ally', power: 50, desc: '味方一人のHPを回復' },
   weaken:      { name: 'ウィークン', mp: 6, type: 'debuff', target: 'enemy', stat: 'atk', mult: 0.7, turns: 3, desc: '敵一体の攻撃力DOWN' },
   armorBreak:  { name: 'ブレイク', mp: 8, type: 'debuff', target: 'allEnemy', stat: 'def', mult: 0.7, turns: 3, desc: '敵全体の防御力DOWN' },
+  cure:        { name: 'キュア', mp: 3, type: 'cure', target: 'ally', desc: '味方一人の毒を治す' },
   protect:     { name: 'プロテクト', mp: 6, type: 'buff', target: 'party', stat: 'def', mult: 1.25, turns: 3, desc: '味方全体の防御力UP' },
   holyLight:   { name: 'ホーリーライト', mp: 10, type: 'magic', target: 'allEnemy', power: 42, desc: '聖なる光で敵全体を攻撃' },
   enemyFire:   { name: '火炎', mp: 0, type: 'magic', target: 'ally', power: 20, desc: '' },
@@ -84,10 +86,10 @@ var SPELLS = {
 
 // ===== ENEMY DEFINITIONS =====
 var ENEMIES = {
-  slime:        { name: 'スライム', hp: 10, atk: 5, def: 2, spd: 3, int: 1, exp: 4, gold: 3, color: '#44aaff', shape: 'slime', skills: [] },
+  slime:        { name: 'スライム', hp: 10, atk: 5, def: 2, spd: 3, int: 1, exp: 4, gold: 3, color: '#44aaff', shape: 'slime', skills: [], poison: 0.2 },
   goblin:       { name: 'ゴブリン', hp: 18, atk: 9, def: 5, spd: 7, int: 2, exp: 10, gold: 8, color: '#55aa44', shape: 'goblin', skills: [] },
   wolf:         { name: 'ウルフ', hp: 22, atk: 13, def: 4, spd: 12, int: 2, exp: 14, gold: 6, color: '#888899', shape: 'wolf', skills: [] },
-  giantBat:     { name: 'ジャイアントバット', hp: 20, atk: 11, def: 6, spd: 14, int: 3, exp: 18, gold: 10, color: '#774455', shape: 'bat', skills: [] },
+  giantBat:     { name: 'ジャイアントバット', hp: 20, atk: 11, def: 6, spd: 14, int: 3, exp: 18, gold: 10, color: '#774455', shape: 'bat', skills: [], poison: 0.3 },
   skeleton:     { name: 'スケルトン', hp: 35, atk: 16, def: 12, spd: 6, int: 3, exp: 30, gold: 18, color: '#ccccbb', shape: 'skeleton', skills: [] },
   darkKnight:   { name: 'ダークナイト', hp: 55, atk: 24, def: 20, spd: 9, int: 5, exp: 50, gold: 35, color: '#334', shape: 'knight', skills: [] },
   demonSoldier: { name: 'デーモンソルジャー', hp: 65, atk: 28, def: 22, spd: 11, int: 8, exp: 65, gold: 45, color: '#aa3333', shape: 'knight', skills: ['enemyFire'] },
@@ -99,7 +101,7 @@ var ENEMIES = {
 var ITEMS = {
   herb:       { name: '薬草', type: 'heal', target: 'ally', power: 35, price: 10, desc: 'HP35回復' },
   magicWater: { name: '魔法の水', type: 'healMp', target: 'ally', power: 20, price: 25, desc: 'MP20回復' },
-  antidote:   { name: '毒消し草', type: 'cure', status: 'poison', price: 8, desc: '毒を治す' },
+  antidote:   { name: '毒消し草', type: 'cure', target: 'ally', status: 'poison', price: 8, desc: '毒を治す' },
   phoenix:    { name: 'フェニックスの羽', type: 'revive', power: 0.5, price: 120, desc: '戦闘不能から復活' },
   bomb:       { name: '爆弾石', type: 'damage', target: 'enemy', power: 35, price: 60, desc: '敵一体に35ダメージ' },
 };
