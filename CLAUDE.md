@@ -146,6 +146,9 @@ Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~4
 - **Currency:** Gold (G)
 - **Shops:** Weapons, Armor, Items in Millhaven
 - **Inn:** Full HP/MP restore for gold
+- **Items:** 薬草 (HP35) / 上薬草 (HP100, 45G) / 魔法の水 (MP20) / 魔法の聖水 (MP60, 90G) / 毒消し草 / フェニックスの羽 / 爆弾石 (35 dmg) / 爆裂石 (90 dmg, 150G). An item may set `fx` to borrow another item's battle visuals and sound (上薬草 -> herb, 魔法の聖水 -> magicWater, 爆裂石 -> bomb), so new items of the existing types (`heal`, `healMp`, `cure`, `revive`, `damage`) are data-only.
+- **Accessories:** the 防具屋 sells 力 / 魔力 / 素早さ / 命 plus 守り (DEF+8, 600G) / 賢者 (INT+12, 1400G) / 勇者 (ATK+9 DEF+5, 1500G) rings. Chests may give accessories (`itemType: 'accessory'`).
+- **Chests:** besides the forest's two: the north dark area of the continent (魔法の聖水x3, 守りの指輪) and the castle (上薬草x3, フェニックスの羽x2, 勇者の指輪, 爆裂石x2). Opened by stepping on them; the flag is saved.
 
 ---
 
