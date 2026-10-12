@@ -107,9 +107,18 @@ This file provides guidance for Claude and human developers working on this proj
 - **Who says what:** the village chief and the traveller react to the forest / castle trips, the Demon King's fall (the chief and traveller hint at the new south-west gate) and the secret boss; the shopkeepers greet a clear-game party; the old woman hints at chests; the child (wanders) reacts to the forest and the clears. The chief, the traveller, the old woman, the child and Haruka's soldier also give requests (see Requests): while a request is on offer or active they speak its lines instead of their `talk` lines. The innkeeper has a single line.
 - **Code:** data in the `millhaven` NPC list; `map.js` (`npcLines`, called from `interact`).
 
+### Map music
+
+- **Tracks** (`js/music.js`, all generated from oscillators): `title`, `town` (Millhaven and its shops), `waystation` (Haruka), `field` (world, forest, castle), `abyss`, `boss`, `battle`, and the one-shot `victory` / `defeat`. `getMapBgm` in `main.js` maps a map id to its track.
+- **ハルカ宿場** (`waystation`): 84 BPM, G major, an easy travelling tune on the square lead with a plain bass, no drums, so it sits between the village's tune and the field's.
+- **深淵の迷宮** (`abyss`): 70 BPM, D minor with a flat fifth (A♭), a slow low lead on a sawtooth (`lead: 'sawtooth'`, `leadVol`) doubled a fourth below, a bass pedal on D, and a kick on every beat as a heartbeat (`drums: 'kick'`).
+- **Track fields:** `bpm`, `melody`, `bass` (lists of `[freq, beats]`, equal total beats so the loop is seamless), optional `harmony` (ratio of a second voice), `drums` (`kick` / `rock` / `boss`), `arp` (danger layer), `lead` / `leadVol` (melody waveform and volume, default square / 0.14), `once`.
+- **Not verified by ear:** the tunes were written and checked as data (loop lengths, the scheduler running, the right track chosen per map) but nobody has listened to them; tempo, volume balance and taste are open to feedback.
+- **Test:** the smoke test's `[music]` section checks that every looping track has equal melody / bass beats (`MusicSystem.trackInfo`), the map-to-track choice, and that the new tracks start.
+
 ### Haruka Waystation (ハルカ宿場)
 
-- **Where:** `MAPS.haruka` (14x10), entered from the marker at world (18,12), just east of the road to the forest; the exit returns to (18,13). It shares the village's town BGM, ambient bed and sunlit atmosphere (aliases in `getMapBgm`, `updateBgm` and `AmbienceSystem`).
+- **Where:** `MAPS.haruka` (14x10), entered from the marker at world (18,12), just east of the road to the forest; the exit returns to (18,13). It shares the village's ambient bed and sunlit atmosphere (aliases in `AmbienceSystem`) but has its own BGM (see Map music).
 - **Contents:** an inn (30G), the travelling merchant's shop `roadShop` (上薬草, 毒消し草 and three mid-game pieces that fill the gap before the castle gear: 銀の剣 ATK+28 1000G, 銀の杖 ATK+4 INT+20 1100G, ウロコの鎧 DEF+23 800G), two chests (上薬草x2, 素早さの指輪), and three villagers (a travelling entertainer who wanders, a soldier, the merchant) with `talk` lines that follow the party's progress. The traveller in Millhaven hints at the waystation.
 - **Balance:** the new gear is only a shop option; the balance sim does not buy it (it is cheaper per stat than the castle gear, so it is a gentle help, not a power spike).
 - **Code:** data only (`MAPS.haruka`, `SHOPS.roadShop`, `WEAPONS` / `ARMORS`), plus the three alias lines above.

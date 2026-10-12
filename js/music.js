@@ -2,7 +2,7 @@
 // music.js — Procedural chiptune BGM engine (Web Audio API)
 // All music generated from oscillators — no audio files needed.
 //
-// Tracks: 'title' / 'town' / 'field' / 'battle'
+// Tracks: 'title' / 'town' / 'waystation' / 'field' / 'abyss' / 'boss' / 'battle' / 'victory' / 'defeat'
 // Usage:  MusicSystem.init(audioCtx);
 //         MusicSystem.changeTo('battle');
 //         MusicSystem.stop();
@@ -158,6 +158,60 @@ var MusicSystem = (function() {
       ],
     },
 
+    // ── ハルカ宿場 (84 BPM, G major, relaxed travelling tune) ── //
+    waystation: {
+      bpm: 84,
+      melody: [
+        [N.G4,1],[N.B4,1],[N.D5,1],[N.B4,1],      // bar 1
+        [N.C5,2],[N.B4,1],[N.A4,1],               // bar 2
+        [N.G4,1],[N.A4,1],[N.B4,1],[N.D5,1],      // bar 3
+        [N.E5,3],[N.R,1],                         // bar 4
+        [N.D5,1],[N.C5,1],[N.B4,1],[N.A4,1],      // bar 5
+        [N.B4,2],[N.G4,2],                        // bar 6
+        [N.A4,1],[N.B4,1],[N.C5,1],[N.A4,1],      // bar 7
+        [N.G4,4],                                 // bar 8
+      ],
+      bass: [
+        [N.G3,2],[N.D3,2],
+        [N.C3,2],[N.G3,2],
+        [N.G3,2],[N.B3,2],
+        [N.C3,2],[N.E3,2],
+        [N.D3,2],[N.A3,2],
+        [N.G3,2],[N.D3,2],
+        [N.D3,2],[N.A3,2],
+        [N.G3,4],
+      ],
+    },
+
+    // ── 深淵の迷宮 (70 BPM, D minor with a tritone, slow and dread; a heartbeat kick) ── //
+    abyss: {
+      bpm: 70,
+      drums: 'kick',
+      lead: 'sawtooth',
+      leadVol: 0.09,
+      harmony: 0.75,
+      melody: [
+        [N.D4,2],[N.Eb4,1],[N.D4,1],              // bar 1
+        [N.A4,3],[N.R,1],                         // bar 2
+        [N.Bb4,2],[N.A4,1],[N.G4,1],              // bar 3
+        [N.F4,2],[N.Eb4,2],                       // bar 4
+        [N.D4,2],[N.F4,1],[N.G4,1],               // bar 5
+        [N.Ab4,2],[N.G4,2],                       // bar 6 (the flat fifth)
+        [N.Bb4,1],[N.A4,1],[N.G4,1],[N.F4,1],     // bar 7
+        [N.D4,3],[N.R,1],                         // bar 8
+      ],
+      bass: [
+        [N.D3,4],
+        [N.D3,2],[N.A3,2],
+        [N.Bb3,4],
+        [N.F3,4],
+        [N.D3,4],
+        [N.G3,4],
+        [N.Bb3,2],[N.A3,2],
+        [N.D3,4],
+      ],
+    },
+
     // ── ボス戦 (152 BPM, D minor, ominous & heavy) ───────── //
     boss: {
       bpm: 152,
@@ -310,7 +364,7 @@ var MusicSystem = (function() {
       var mn = track.melody[mIdx % track.melody.length];
       var mdur = beatDur * mn[1];
       if (mn[0]) {
-        playNote(mn[0], 'square', 0.14, mTime, mdur);
+        playNote(mn[0], track.lead || 'square', track.leadVol || 0.14, mTime, mdur);
         if (track.harmony) playNote(mn[0] * track.harmony, 'square', 0.07, mTime, mdur);
         if (boost && !track.once) playNote(mn[0] * 2, 'square', 0.04, mTime, mdur * 0.9);   // party buffed: bright octave shimmer
       }
@@ -453,5 +507,15 @@ var MusicSystem = (function() {
     getBoost: function() { return boost; },
 
     current: function() { return currentTrack; },
+
+    // For tests: every track's melody / bass length in beats (a looping track needs them equal to loop seamlessly)
+    trackInfo: function() {
+      var out = {};
+      Object.keys(tracks).forEach(function(k) {
+        var sum = function(arr) { return arr.reduce(function(t, n) { return t + n[1]; }, 0); };
+        out[k] = { once: !!tracks[k].once, melody: sum(tracks[k].melody), bass: sum(tracks[k].bass) };
+      });
+      return out;
+    },
   };
 })();

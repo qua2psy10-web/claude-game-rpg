@@ -411,8 +411,10 @@ function getMoveDir() {
 var _currentBgm = null;
 
 function getMapBgm(mapId) {
-  // 村・ショップ系 → タウン曲、それ以外 → フィールド曲
-  var townMaps = ['millhaven', 'haruka', 'itemShop', 'weaponShop', 'armorShop'];
+  // 村・ショップ系 → タウン曲、ハルカ宿場と深淵は専用曲、それ以外 → フィールド曲
+  if (mapId === 'haruka') return 'waystation';
+  if (mapId === 'abyss') return 'abyss';
+  var townMaps = ['millhaven', 'itemShop', 'weaponShop', 'armorShop'];
   return (townMaps.indexOf(mapId) >= 0) ? 'town' : 'field';
 }
 
