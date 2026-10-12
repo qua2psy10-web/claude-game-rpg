@@ -133,13 +133,15 @@ Enemy damage uses `ATK/2 - DEF/4`, so an enemy needs roughly 2x the party's DEF 
 | Grassland | 1-4 | 0-10% | ~0% | 1-2 |
 | Dark Forest | 5-8 | 10-20% | <5% | 2-3 |
 | Demon's Castle | 9-13 | 25-45% at Lv9, <15% by Lv12 | <30% at Lv9 | 4-6 |
-| Demon King | 12-13 | ~65% | ~35-55% (policy defends vs. charges) | 15-22 |
+| Demon King | 12-13 | ~65% | ~35-55% without chests/items (policy defends vs. charges); ~10-25% with the full kit | 15-22 |
 
 Shops (Millhaven) sell the full equipment set; long lists scroll. Late gear (Flame Sword 1800G, Holy Sword 6000G, Dragon Armor 5000G ...) is the gold sink for the castle (~55G/battle).
 
 Gold per battle is roughly 7 (grass) / 22 (forest) / 55 (castle), enough for one shop upgrade per ~10-25 battles early on.
 
-**Tool:** `node tools/balance-sim.js [runs] [seed]` runs full playthroughs through the real `BattleSystem` (stats per area and per level, boss win rate); add `matrix` as the 3rd argument for an area x level table. Re-run it after touching enemy stats, spells, growth, EXP or shop prices.
+**Tool:** `node tools/balance-sim.js [runs] [seed]` runs full playthroughs through the real `BattleSystem` (stats per area and per level, boss win rate); add `matrix` as the 3rd argument for an area x level table. Env switches: `FULL=1`, `BOSSLV=n`, `UNTIL=n` (see below). Re-run it after touching enemy stats, spells, growth, EXP or shop prices.
+
+**Full-kit mode:** `FULL=1` makes the sim also open the chests of each area (forest: 魔法の聖水x3, 守りの指輪, 薬草x3, 鉄の剣; castle: 上薬草x3, フェニックスの羽x2, 勇者の指輪, 爆裂石x2), buy and equip rings, prefer 上薬草, revive with a feather and throw 爆裂石 at bosses; `BOSSLV=12` (or 13) stops grinding at that level before the boss, which matches the ~1 hour pacing (without it the sim over-levels to 16). Results at the boss, 60 runs: **without** the kit Lv12 / Lv13 win 21% / 53%; **with** it 78% / 90%. The Demon King's HP is 1300 (was 1200) so that a player who skips chests and items still needs about Lv13, and one who uses them wins comfortably at Lv12-13. Gold at Lv12 is only ~1100G in total, so the late castle gear (1800G+) is realistically a post-game purchase. Post-game with the kit: the 深淵 enemies wipe ~16% at Lv14 / ~6% at Lv16 and the secret boss ~42% at Lv20 (before the abyss chests).
 
 **Roles:** Sweep is a physical all-enemy skill (ATK x1.2, ignores 25% DEF, 5 MP; the `allEnemy` branch now uses the physical formula for physical spells) so Sam can clear groups; Light is a cheap single-target magic attack (power 22, 4 MP) so Sundar helps with damage between heals. With these the sim's attack-damage share moved from Sam 42 / Dario 47 / Sundar 12% to about 34 / 40 / 26%. Fights got easier, so the Demon King's HP was raised 950 -> 1200 to keep the boss odds (~73% wipe at Lv12, ~35% at Lv13 for the sim policy, similar to before).
 

@@ -30,7 +30,9 @@ function newGameState() {
 function shopIds(shopId, type) { return SHOPS[shopId].items.filter(function(i) { return i.type === type; }).map(function(i) { return i.id; }); }
 var SHOP_W = shopIds('weaponShop', 'weapon');
 var SHOP_A = shopIds('armorShop', 'armor');
-function slotScore(def, cls) { return cls === 'sam' ? (def.atk || 0) + (def.def || 0) : (def.int || 0) + (def.def || 0) + (def.atk || 0) * 0.3; }
+var SHOP_R = shopIds('armorShop', 'accessory');
+var FULL = !!process.env.FULL;   // FULL=1: also use chests, rings and the newer items (closer to a real playthrough)
+function slotScore(def, cls) { return (cls === 'sam' ? (def.atk || 0) + (def.def || 0) : (def.int || 0) + (def.def || 0) + (def.atk || 0) * 0.3) + (def.hp || 0) * 0.2 + (def.spd || 0) * 0.3; }
 function shop(g, reserveHerbs) {
   var herbs = (g.inventory.filter(function(i) { return i.id === 'herb'; })[0] || { count: 0 }).count;
   if (herbs < reserveHerbs && g.gold >= 10) {
@@ -40,11 +42,11 @@ function shop(g, reserveHerbs) {
     if (e) e.count += n; else g.inventory.push({ id: 'herb', count: n });
   }
   g.party.forEach(function(c) {
-    [['weapon', WEAPONS, SHOP_W], ['armor', ARMORS, SHOP_A]].forEach(function(s) {
+    [['weapon', WEAPONS, SHOP_W], ['armor', ARMORS, SHOP_A]].concat(FULL ? [['accessory', ACCESSORIES, SHOP_R]] : []).forEach(function(s) {
       var tbl = s[1], cur = c[s[0]] ? slotScore(tbl[c[s[0]]], c.classId) : -1, best = null, bs = cur;
       s[2].forEach(function(id) {
         var d = tbl[id];
-        if (d.equip.indexOf(c.classId) < 0 || d.price > g.gold) return;
+        if ((d.equip && d.equip.indexOf(c.classId) < 0) || d.price > g.gold) return;
         var sc = slotScore(d, c.classId);
         if (sc > bs) { bs = sc; best = id; }
       });
@@ -52,16 +54,30 @@ function shop(g, reserveHerbs) {
     });
   });
 }
+// chest contents handed out when entering a stage (FULL mode): [item or equipment, kind, count/for]
+var CHESTS = {
+  '森':     [['elixir', 'item', 3], ['guardRing', 'ring', 'sundar'], ['herb', 'item', 3], ['ironSword', 'weapon', 'sam']],
+  '魔王城': [['highHerb', 'item', 3], ['phoenix', 'item', 2], ['heroRing', 'ring', 'sam'], ['bigBomb', 'item', 2]],
+};
+function giveItem(g, id, n) { var e = g.inventory.filter(function(i) { return i.id === id; })[0]; if (e) e.count += n; else g.inventory.push({ id: id, count: n }); }
+function openChests(g, stage) {
+  (CHESTS[stage] || []).forEach(function(ch) {
+    if (ch[1] === 'item') giveItem(g, ch[0], ch[2]);
+    else if (ch[1] === 'ring') { var c = g.party.filter(function(m) { return m.classId === ch[2]; })[0]; equip(c, 'accessory', ACCESSORIES, ch[0]); }
+    else { var c2 = g.party.filter(function(m) { return m.classId === ch[2]; })[0]; if (!c2.weapon || slotScore(WEAPONS[ch[0]], 'sam') > slotScore(WEAPONS[c2.weapon], 'sam')) equip(c2, 'weapon', WEAPONS, ch[0]); }
+  });
+}
 function equip(c, slot, tbl, id) {
   var o = c[slot] ? tbl[c[slot]] : null;
-  if (o) { c.atk -= o.atk || 0; c.def -= o.def || 0; c.int -= o.int || 0; }
-  var n = tbl[id]; c.atk += n.atk || 0; c.def += n.def || 0; c.int += n.int || 0; c[slot] = id;
+  if (o) { c.atk -= o.atk || 0; c.def -= o.def || 0; c.int -= o.int || 0; c.spd -= o.spd || 0; c.maxHp -= o.hp || 0; }
+  var n = tbl[id]; c.atk += n.atk || 0; c.def += n.def || 0; c.int += n.int || 0; c.spd += n.spd || 0; c.maxHp += n.hp || 0; c[slot] = id;
 }
 
 // ---- party policy
 function aliveEnemies(b) { var r = []; b.enemies.forEach(function(e, i) { if (e.alive) r.push(i); }); return r; }
 function weakest(b) { var best = -1; b.enemies.forEach(function(e, i) { if (e.alive && (best < 0 || e.hp < b.enemies[best].hp)) best = i; }); return best; }
 function strongest(b) { var best = -1; b.enemies.forEach(function(e, i) { if (e.alive && (best < 0 || e.hp > b.enemies[best].hp)) best = i; }); return best; }
+function tgt0(b) { var best = -1; b.enemies.forEach(function(e, i) { if (e.alive && (best < 0 || e.hp > b.enemies[best].hp)) best = i; }); return best; }
 function planRound(g) {
   var b = g.battle, cmds = [], ne = aliveEnemies(b).length;
   var storing = b.enemies.some(function(e) { return e.alive && e.charging; });
@@ -70,7 +86,11 @@ function planRound(g) {
     var P = function(o) { o.actor = i; o.actorType = 'party'; cmds.push(o); };
     if (storing && c.classId !== 'sundar') return P({ action: 'defend' });   // brace for the boss's stored attack
     var hpr = c.hp / c.maxHp;
-    var herb = g.inventory.filter(function(x) { return x.id === 'herb' && x.count > 0; })[0];
+    var inv = function(id) { return g.inventory.filter(function(x) { return x.id === id && x.count > 0; })[0]; };
+    var herb = FULL && inv('highHerb') ? { id: 'highHerb' } : inv('herb');
+    var dead = -1; g.party.forEach(function(m, j) { if (!m.alive) dead = j; });
+    if (FULL && dead >= 0 && inv('phoenix') && c.classId === 'sam') return P({ action: 'item', itemId: 'phoenix', target: dead, targetType: 'ally' });
+    if (FULL && c.classId === 'sam' && inv('bigBomb') && b.enemies.some(function(e) { return e.alive && e.boss; })) return P({ action: 'item', itemId: 'bigBomb', target: tgt0(b), targetType: 'enemy' });
     var avail = BattleSystem.getAvailableSpells(c).map(function(s) { return s.id; }).filter(function(id) { return SPELLS[id].mp <= c.mp; });
     var has = function(id) { return avail.indexOf(id) >= 0; };
     var low = -1, lr = 1; g.party.forEach(function(m, j) { if (m.alive && m.hp / m.maxHp < lr) { lr = m.hp / m.maxHp; low = j; } });
@@ -83,7 +103,7 @@ function planRound(g) {
       if (has('light') && c.mp >= 8) return P({ action: 'spell', spellId: 'light', target: tgt, targetType: 'enemy' });
       return P({ action: 'attack', target: tgt, targetType: 'enemy' });
     }
-    if (low >= 0 && lr < 0.35 && herb && i !== 2) return P({ action: 'item', itemId: 'herb', target: low, targetType: 'ally' });
+    if (low >= 0 && lr < 0.35 && herb && i !== 2) return P({ action: 'item', itemId: herb.id || 'herb', target: low, targetType: 'ally' });
     if (c.classId === 'dario') {
       if (ne >= 2 && has('iceStorm')) return P({ action: 'spell', spellId: 'iceStorm', target: -1, targetType: 'allEnemy' });
       if (has('thunder')) return P({ action: 'spell', spellId: 'thunder', target: tgt, targetType: 'enemy' });
@@ -140,7 +160,7 @@ function minLv(g) { return Math.min.apply(null, g.party.map(function(c) { return
 var ROUTE = [
   { name: '草原',   table: MAPS.world.encounters.grass,   until: 5 },
   { name: '森',     table: MAPS.forest.encounters.forest, until: 9 },
-  { name: '魔王城', table: MAPS.castle.encounters.dark,   until: +process.env.UNTIL || 16 },   // UNTIL=22 gives snapshots at higher levels for the post-game columns
+  { name: '魔王城', table: MAPS.castle.encounters.dark,   until: +process.env.UNTIL || +process.env.BOSSLV || 16 },   // UNTIL=22 gives snapshots at higher levels for the post-game columns
 ];
 
 function playthrough(s) {
@@ -149,6 +169,7 @@ function playthrough(s) {
   for (var si = 0; si < ROUTE.length; si++) {
     var st = ROUTE[si], rec = { name: st.name, battles: 0, wipes: 0, rests: 0, gold0: g.gold, goldGain: 0, rounds: 0, lvStart: minLv(g), cap: false };
     var goldBefore = g.gold, spent = 0;
+    if (FULL) openChests(g, st.name);
     while (minLv(g) < st.until && rec.battles < 600) {
       if (needRest(g)) { inn(g); g.gold = Math.max(0, g.gold - 30); rec.rests++; }
       var hp0 = g.party.reduce(function(a, c) { return a + c.hp; }, 0), mx0 = g.party.reduce(function(a, c) { return a + c.maxHp; }, 0), lv0 = minLv(g);

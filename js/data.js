@@ -99,7 +99,7 @@ var ENEMIES = {
   darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [], desc: ['魔王に 忠誠を ちかった 騎士。', '重い よろいで 身を かためている。'], area: '魔王の城' },
   demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'], desc: ['魔界から よびだされた 兵士。', '炎の 魔法も つかいこなす。'], area: '魔王の城' },
   darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'], desc: ['闇の 魔術を きわめた 魔道士。', '魔力は 高いが 体は もろい。'], area: '魔王の城' },
-  demonKing:    { name: '魔王ヴァルザード', hp: 1200, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, finale: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
+  demonKing:    { name: '魔王ヴァルザード', hp: 1300, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, finale: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
   // ----- post-game (深淵の迷宮) -----
   abyssWraith:  { name: '深淵の亡霊', hp: 480, atk: 130, def: 24, spd: 15, int: 20, exp: 140, gold: 110, color: '#66e0d0', shape: 'skeleton', skills: [], desc: ['深淵に とらわれた 戦士の 魂。', '冷たい 刃が 音もなく せまる。'], area: '深淵の迷宮' },
   chaosKnight:  { name: '混沌の騎士', hp: 620, atk: 155, def: 36, spd: 10, int: 6, exp: 180, gold: 140, color: '#a04020', shape: 'knight', skills: [], desc: ['魔王すら 従えなかった 狂える 騎士。', '鎧は 魔王軍より はるかに 厚い。'], area: '深淵の迷宮' },
