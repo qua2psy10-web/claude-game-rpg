@@ -42,6 +42,7 @@ var QuestSystem = (function() {
     if (r.gold) game.gold += r.gold;
     if (r.item) MapSystem.giveItem(game, r.item, r.count);
     HintSystem.notice(game, ['★ いらい かんりょう: ' + q.name, rewardText(r) + ' を てにいれた！']);
+    RecordsSystem.check(game);
     if (game.gold > gameScore.highGold) gameScore.highGold = game.gold;
   }
 
@@ -54,8 +55,17 @@ var QuestSystem = (function() {
       if (st && st.state === 'active') { complete(game, id); return q.lines.done; }
     }
     if (!npc.quest) return null;
-    id = npc.quest; q = QUESTS[id]; st = get(game, id);
-    if (st && st.state === 'done') return null;
+    // An NPC may hold several requests (npc.quest is an id or a list): the first one that is not finished and whose `needs` flag is set
+    var list = [].concat(npc.quest);
+    id = null;
+    for (var i = 0; i < list.length; i++) {
+      var cq = QUESTS[list[i]], cs = get(game, list[i]);
+      if (cs && cs.state === 'done') continue;
+      if (!cs && cq.needs && !game.flags[cq.needs]) continue;
+      id = list[i]; break;
+    }
+    if (!id) return null;
+    q = QUESTS[id]; st = get(game, id);
     if (!st) {
       game.quests[id] = { state: 'active', n: 0 };
       HintSystem.notice(game, ['いらいを うけた: ' + q.name, q.desc]);
@@ -90,25 +100,34 @@ var QuestSystem = (function() {
     return out;
   }
 
+  var PER_PAGE = 4;
+  function pages() { return Math.ceil(ids().length / PER_PAGE); }
+
+  // Left/Right turns the page; confirm / cancel closes
   function update(st, game, input) {
-    if (input === 'cancel' || input === 'confirm') { SoundSystem.cancel(); return true; }
+    var p = st.qPage || 0;
+    if (input === 'left' && p > 0) { st.qPage = p - 1; SoundSystem.cursor(); return false; }
+    if (input === 'right' && p < pages() - 1) { st.qPage = p + 1; SoundSystem.cursor(); return false; }
+    if (input === 'cancel' || input === 'confirm') { st.qPage = 0; SoundSystem.cancel(); return true; }
     return false;
   }
 
-  function render(ctx, game) {
+  function render(ctx, game, st) {
     ctx.save();
     ctx.textAlign = 'left';
     UI.drawWindow(ctx, 20, 20, 600, 440);
     var all = ids(), done = all.filter(function(id) { var s = get(game, id); return s && s.state === 'done'; }).length;
+    var page = (st && st.qPage) || 0;
     UI.drawText(ctx, 'いらい  ' + done + '/' + all.length, 38, 34, '#ffd700');
-    for (var i = 0; i < all.length; i++) {
-      var id = all[i], q = QUESTS[id], st = get(game, id), y = 76 + i * 86;
-      if (!st) {
+    if (pages() > 1) UI.drawText(ctx, (page > 0 ? '◀ ' : '   ') + (page + 1) + '/' + pages() + (page < pages() - 1 ? ' ▶' : ''), 520, 34, '#9bd', UI.FONT_SMALL);
+    for (var i = page * PER_PAGE; i < Math.min(all.length, (page + 1) * PER_PAGE); i++) {
+      var id = all[i], q = QUESTS[id], qs = get(game, id), y = 76 + (i - page * PER_PAGE) * 86;
+      if (!qs) {
         UI.drawText(ctx, '？？？？？？', 38, y, '#667', UI.FONT_SMALL);
         UI.drawText(ctx, 'むらびとに はなしかけると うけられる', 56, y + 20, '#556', UI.FONT_SMALL);
         continue;
       }
-      var fin = st.state === 'done';
+      var fin = qs.state === 'done';
       UI.drawText(ctx, (fin ? '★ ' : '◆ ') + q.name, 38, y, fin ? '#ffd700' : '#fff', UI.FONT_SMALL);
       UI.drawText(ctx, q.desc, 56, y + 20, fin ? '#8c8' : '#bbb', UI.FONT_SMALL);
       UI.drawText(ctx, 'ほうしゅう: ' + rewardText(q.reward) + (fin ? '' : '    (' + progress(game, id) + ')'), 56, y + 40, fin ? '#686' : '#9bd', UI.FONT_SMALL);

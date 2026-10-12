@@ -95,7 +95,7 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
       if (q.kind === 'fetch' && !ITEMS[q.item]) bad.push(id + ' unknown item');
       if (q.reward.item && !ITEMS[q.reward.item]) bad.push(id + ' reward item');
       ['offer', 'active', 'done'].forEach(function(k) { if (!q.lines[k] || !q.lines[k].length) bad.push(id + ' missing ' + k + ' lines'); });
-      Object.keys(MAPS).forEach(function(mid) { (MAPS[mid].npcs || []).forEach(function(n) { if (n.quest === id) giver++; if (n.questTarget === id) target++; }); });
+      Object.keys(MAPS).forEach(function(mid) { (MAPS[mid].npcs || []).forEach(function(n) { if ([].concat(n.quest || []).indexOf(id) >= 0) giver++; if (n.questTarget === id) target++; }); });
       if (giver !== 1) bad.push(id + ' needs exactly one giver'); if (q.kind === 'deliver' && target !== 1) bad.push(id + ' needs one target');
     });
     Object.keys(ITEMS).forEach(function(id) { var it = ITEMS[id]; if (it.fx && !ITEMS[it.fx]) bad.push(id + ' fx borrows unknown ' + it.fx); });
@@ -177,7 +177,7 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
   console.log('\n[spells and items in battle]');
   var sp = await ev(function() {
-    game.party.forEach(function(c) { c.level = 12; c.hp = c.maxHp; c.mp = c.maxMp = 60; c.alive = true; });
+    game.party.forEach(function(c) { c.level = 12; c.hp = c.maxHp = 999; c.mp = c.maxMp = 60; c.alive = true; });
     game.inventory = [{ id: 'highHerb', count: 1 }, { id: 'elixir', count: 1 }, { id: 'bigBomb', count: 1 }];
     game.state = 'battle'; BattleSystem.startBattle(game, ['goblin', 'goblin']); var b = game.battle;
     b.bossIntro = false; b.phase = 'command'; b.messages = []; b.messageTimer = 0;
@@ -260,9 +260,26 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(qs.before && qs.deliver, 'a delivery is finished by the target NPC in another town');
   ok(qs.fetchWait && qs.fetch, 'a fetch request takes the items and pays');
   ok(qs.saved && qs.oldSave && qs.reset, 'requests are saved, absent in old saves, reset by a new game');
+  var q2 = await ev(function() {
+    newGame(); game.state = 'map'; var o = {};
+    function npc(map, name) { return MAPS[map].npcs.filter(function(n) { return n.name === name; })[0]; }
+    var ch = npc('millhaven', '村長'), tr = npc('millhaven', '旅人');
+    o.gated = QuestSystem.talk(game, npc('millhaven', '子ども')) === null && QuestSystem.talk(game, tr) === QUESTS.wolfHunt.lines.offer;   // batHunt needs the forest; the traveller gives the first request only
+    game.flags.visited_castle = true; game.flags.demonKingDefeated = true;
+    QuestSystem.talk(game, ch); o.first = game.quests.skeletonHunt && !game.quests.castleHunt;
+    QuestSystem.onDefeated(game, ['skeleton', 'skeleton', 'skeleton', 'skeleton']); QuestSystem.talk(game, ch);
+    o.second = QuestSystem.talk(game, ch) === QUESTS.castleHunt.lines.offer && game.quests.castleHunt.state === 'active';   // the chief moves on to the next request
+    Object.keys(QUESTS).forEach(function(id) { game.quests[id] = { state: 'done', n: 0 }; });
+    RecordsSystem.check(game); o.helper = game.achieved.helper === true && game.equipInventory.some(function(e) { return e.id === 'kindRing'; });
+    return o;
+  });
+  ok(q2.gated && q2.first && q2.second, 'requests unlock with the story and an NPC hands out the next one after the first', JSON.stringify(q2));
+  ok(q2.helper, 'finishing every request grants the みんなの指輪');
   await ev(function() { game.state = 'menu'; game.menuState = { index: MENU_ITEMS.indexOf('いらい'), subState: null }; });
   await press('z', 100);
   ok(await ev(function() { return game.menuState.subState === 'quests'; }), 'the menu opens the requests screen');
+  await press('ArrowRight', 100);
+  ok(await ev(function() { return game.menuState.qPage === 1; }), 'the requests screen turns pages');
   await press('x', 100);
 
   console.log('\n[achievements and the post-game flow]');
