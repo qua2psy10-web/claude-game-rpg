@@ -72,6 +72,14 @@ This file provides guidance for Claude and human developers working on this proj
 - **Announcement:** enemies met for the first time are listed in the win messages ("…を ずかんに とうろくした！").
 - **Code:** `js/bestiary.js` (`BestiarySystem`); `battle.js` records on `startBattle`, `main.js` records defeats in `updateScoreAfterBattle` and owns the menu state. New enemies need `desc` and `area`.
 
+### Touch controls
+
+- **Detection:** `TouchControls.init` (js/touch.js) turns them on when the device reports touch (`ontouchstart`, `maxTouchPoints`, coarse pointer); `?touch=1` / `?touch=0` in the URL forces them on / off. Desktop play is unchanged.
+- **Controls:** a round D-pad (arrows; the dominant axis wins, a dead zone in the middle, slide the thumb to change direction), **A** = Z (confirm) and **B** = X (cancel / open the menu). Tapping the game screen itself also confirms, which is handy for dialogue and battle messages. Buttons buzz briefly where `navigator.vibrate` exists.
+- **Wiring:** touches call `inputPress` / `inputRelease` in `main.js`, the same path as keydown/keyup, so every screen (map, menus, shops, battle, settings, ずかん) works with no changes.
+- **Layout:** the canvas scales to fit (CSS only; its 640x480 internal size is unchanged). Portrait: controls sit under the screen. Landscape: the screen fills the height and translucent controls float at the lower left/right. Page scroll, pinch zoom and the long-press menu are disabled in touch mode.
+- **Code:** `js/touch.js` (`TouchControls`), markup in `index.html` (`#touchControls`), styles at the end of `css/style.css`.
+
 ### Shops & Inn presentation
 
 - **Shop:** entering plays a door bell and fades in from black. A shopkeeper message window (greeting, price confirmation, "まいどあり！", "おかねが たりないようだ…") and a comparison window sit at the bottom: for equipment, each party member's stat before -> after (green up / red down arrow, "そうび できない" if the class cannot wear it) plus how many the party owns; for consumables, the description and owned count. Buying plays a coin SFX, flies coins from the gold counter to the row, floats "-NG", and counts the gold down. Unaffordable items cannot be selected (denied buzz + shake of the gold counter) and are drawn dim.
@@ -143,6 +151,7 @@ python3 -m http.server 8000
 - Arrow keys: Move / Navigate menus
 - Z or Enter: Confirm
 - X or Escape: Cancel / Open menu
+- Touch devices: on-screen D-pad plus A (confirm) / B (cancel, menu) buttons appear automatically
 
 ---
 
@@ -160,10 +169,11 @@ python3 -m http.server 8000
 /js/ambience.js     # Animated tiles, area atmosphere, wandering NPCs, area banner
 /js/settings.js     # Player options (volumes, shake) and their panel
 /js/bestiary.js     # Monster encyclopedia records and screen
+/js/touch.js        # On-screen D-pad and A/B buttons for touch devices
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → touch.js → main.js
 
 ---
 

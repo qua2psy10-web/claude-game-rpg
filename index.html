@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>エルドラシア戦記 — The Chronicles of Eldrasia</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -12,6 +12,10 @@
     <div id="gameControls">
       <button id="endGameBtn" onclick="endGameAndSave()">セーブして終了</button>
     </div>
+  </div>
+  <div id="touchControls">
+    <div id="dpad" data-dir=""><span class="ar up">▲</span><span class="ar dn">▼</span><span class="ar lf">◀</span><span class="ar rt">▶</span></div>
+    <div id="abtns"><button id="btnB" type="button">B<small>もどる</small></button><button id="btnA" type="button">A<small>けってい</small></button></div>
   </div>
   <script src="js/data.js"></script>
   <script src="js/ui.js"></script>
@@ -24,6 +28,7 @@
   <script src="js/town.js"></script>
   <script src="js/ambience.js"></script>
   <script src="js/bestiary.js"></script>
+  <script src="js/touch.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
