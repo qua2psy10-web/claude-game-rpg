@@ -443,7 +443,7 @@ function updateBgm() {
   var s = game.state;
   // Area ambience (wind, crickets, castle drone) under the BGM while exploring
   var onMap = s === 'map' || s === 'menu' || s === 'dialogue' || s === 'shop' || s === 'mapTransition' || (s === 'inn' && !(game.innState && game.innState.phase === 'sleep'));
-  SoundSystem.setAmbience(onMap ? game.currentMap : null);
+  SoundSystem.setAmbience(onMap ? (game.currentMap === 'abyss' ? 'castle' : game.currentMap) : null);
   if (game.encounterFx) return setBgm(null);   // the field music fades out as the encounter hits
   MusicSystem.setIntensity(battleIntensity());
   MusicSystem.setBoost(partyBuffed());
@@ -1446,7 +1446,8 @@ function renderEnding(ctx) {
   ctx.fillText('ありがとう ございました！', CANVAS_W / 2, 424);
   ctx.fillStyle = '#666';
   ctx.font = '12px monospace';
-  ctx.fillText('Enterキーで タイトルに もどる', CANVAS_W / 2, 456);
+  ctx.fillText('クリアデータを セーブした。つづきから 冒険を 続けられる', CANVAS_W / 2, 440);
+  ctx.fillText('Enterキーで タイトルに もどる', CANVAS_W / 2, 460);
   ctx.textAlign = 'left';
 }
 

@@ -168,6 +168,10 @@ var AmbienceSystem = {
         fg.addColorStop(0, 'rgba(230,255,140,' + fa + ')'); fg.addColorStop(1, 'rgba(230,255,140,0)');
         ctx.fillStyle = fg; ctx.fillRect(fx - 9, fy - 9, 18, 18);
       }
+    } else if (id === 'abyss') {
+      vig(0, 12, 22, 0.12, 0.66);
+      ctx.fillStyle = 'rgba(0,60,90,' + (0.06 + 0.04 * Math.sin(now / 900)) + ')'; ctx.fillRect(0, 0, w, h);
+      this.motes(ctx, now, w, h, 'rgba(120,230,240,', 26);
     } else if (id === 'castle') {
       vig(14, 0, 24, 0.12, 0.62);
       ctx.fillStyle = 'rgba(120,0,40,' + (0.05 + 0.04 * Math.sin(now / 700)) + ')'; ctx.fillRect(0, 0, w, h);
