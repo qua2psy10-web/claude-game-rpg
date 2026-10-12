@@ -33,6 +33,9 @@ var HintSystem = (function() {
   }
 
   // Queue a hint the first time its situation comes up
+  // A one-off toast with its own lines (achievements): no id, no memory of having been seen
+  function notice(game, lines) { queue.push({ lines: lines }); }
+
   function show(game, id) {
     if (!game || !TEXT[id]) return;
     if (!game.hints) game.hints = {};
@@ -49,7 +52,8 @@ var HintSystem = (function() {
     var okState = st === 'map' || st === 'battle' || st === 'dialogue';
     if (!cur) {
       if (!okState || !queue.length) return;
-      cur = { id: queue.shift(), t: 0, last: now };
+      var nx = queue.shift();
+      cur = { id: nx.lines ? null : nx, lines: nx.lines || null, t: 0, last: now };
     }
     var dt = Math.min(100, now - cur.last);   // time only runs while the toast is visible (menus, shops ... pause it)
     cur.last = now;
@@ -57,7 +61,7 @@ var HintSystem = (function() {
     cur.t += dt;
     var t = cur.t;
     if (t > TOAST_MS) { cur = null; return; }
-    var lines = TEXT[cur.id]();
+    var lines = cur.lines || TEXT[cur.id]();
     var a = Math.min(1, t / 250, (TOAST_MS - t) / 400);
     var w = 400, h = 22 + lines.length * 20;
     ctx.save();
@@ -134,5 +138,5 @@ var HintSystem = (function() {
     ctx.restore();
   }
 
-  return { sanitize: sanitize, show: show, reset: reset, renderToast: renderToast, helpUpdate: helpUpdate, helpRender: helpRender, IDS: IDS };
+  return { sanitize: sanitize, show: show, notice: notice, reset: reset, renderToast: renderToast, helpUpdate: helpUpdate, helpRender: helpRender, IDS: IDS };
 })();

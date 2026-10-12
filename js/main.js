@@ -47,6 +47,7 @@ function initGame() {
     facing: 'down',
     steps: 0,
     flags: {},
+    achieved: {},
     battle: null,
     dialogue: null,
     dialogueIndex: 0,
@@ -93,6 +94,7 @@ function newGame() {
   game.flags = {};
   game.bestiary = {};
   game.hints = {};
+  game.achieved = {};
   HintSystem.reset();
   game.battle = null;
   game.currentNPC = null;
@@ -208,6 +210,7 @@ function saveGame(manual) {
       flags: game.flags,
       bestiary: game.bestiary,
       hints: game.hints,
+      achieved: game.achieved,
       playTime: gameScore.playTime,
       savedAt: Date.now(),
     };
@@ -273,6 +276,7 @@ function loadGame() {
     game.flags = data.flags || {};
     game.hints = HintSystem.sanitize(data.hints);   // saves from before the hints count every hint as seen
     HintSystem.reset();
+    game.achieved = RecordsSystem.sanitize(data.achieved);
     game.bestiary = BestiarySystem.sanitize(data.bestiary);   // saves from before the ずかん have none
     if (typeof data.playTime === 'number') gameScore.playTime = Math.max(gameScore.playTime, data.playTime);
     game.battle = null;
@@ -286,6 +290,7 @@ function loadGame() {
     game.loadFx = { t0: Date.now() };
     game.titleT0 = null; game.titleGo = null;
     game.state = 'map';
+    RecordsSystem.check(game);   // an older save earns whatever it already qualifies for
     return true;
   } catch(e) {
     return false;
@@ -784,7 +789,7 @@ function renderDialogue(ctx) {
 }
 
 // ===== PARTY MENU =====
-var MENU_ITEMS = ['どうぐ', 'そうび', 'つよさ', 'ずかん', 'ヘルプ', 'セーブ', 'せってい', 'とじる'];
+var MENU_ITEMS = ['どうぐ', 'そうび', 'つよさ', 'ずかん', 'きろく', 'ヘルプ', 'セーブ', 'せってい', 'とじる'];
 
 function updateMenu() {
   var input = getInput();
@@ -801,6 +806,7 @@ function updateMenu() {
       if (sel === 'とじる') { SoundSystem.cancel(); saveGame(); game.state = 'map'; game.menuState = null; return; }
       if (sel === 'セーブ') { saveGame(true); return; }
       if (sel === 'ずかん') { SoundSystem.confirm(); ms.subState = 'bestiary'; ms.bIndex = 0; return; }
+      if (sel === 'きろく') { SoundSystem.confirm(); ms.subState = 'records'; return; }
       if (sel === 'ヘルプ') { SoundSystem.confirm(); ms.subState = 'help'; ms.page = 0; return; }
       if (sel === 'せってい') { SoundSystem.confirm(); game.settings = { index: 0 }; return; }
       if (sel === 'どうぐ') ms.subState = 'items';
@@ -809,6 +815,9 @@ function updateMenu() {
     }
   } else if (ms.subState === 'bestiary') {
     if (BestiarySystem.update(ms, game, input)) ms.subState = null;
+    return;
+  } else if (ms.subState === 'records') {
+    if (RecordsSystem.update(ms, game, input)) ms.subState = null;
     return;
   } else if (ms.subState === 'help') {
     if (HintSystem.helpUpdate(ms, input)) ms.subState = null;
@@ -929,13 +938,14 @@ function renderMenu(ctx) {
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
   if (ms.subState === 'bestiary') { BestiarySystem.render(ctx, ms, game); return; }
   if (ms.subState === 'help') { HintSystem.helpRender(ctx, ms); return; }
+  if (ms.subState === 'records') { RecordsSystem.render(ctx, game); return; }
 
   // Main menu
   UI.drawMenu(ctx, 20, 20, 140, MENU_ITEMS, ms.index);
 
   // Gold
-  UI.drawWindow(ctx, 20, 262, 140, 32);
-  UI.drawText(ctx, game.gold + ' G', 34, 270, '#ffd700');
+  UI.drawWindow(ctx, 20, 290, 140, 32);
+  UI.drawText(ctx, game.gold + ' G', 34, 298, '#ffd700');
 
   // Party overview
   UI.drawWindow(ctx, 180, 20, 440, 160);

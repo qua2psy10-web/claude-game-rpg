@@ -6,7 +6,7 @@ var stub = new Proxy(function() {}, { get: function(t, k) { return k === 'getCon
 global.window = global;
 global.document = { getElementById: function() { return stub; }, createElement: function() { return stub; } };
 global.setTimeout = function() {};
-['data', 'ui', 'settings', 'sound', 'music', 'map', 'battle', 'bestiary', 'hints'].forEach(function(f) {
+['data', 'ui', 'settings', 'sound', 'music', 'map', 'battle', 'bestiary', 'hints', 'records'].forEach(function(f) {
   vm.runInThisContext(fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8'), { filename: f });
 });
 Object.keys(SoundSystem).forEach(function(k) { if (typeof SoundSystem[k] === 'function') SoundSystem[k] = function() {}; });

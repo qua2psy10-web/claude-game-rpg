@@ -159,11 +159,23 @@ var ACCESSORIES = {
   powerRing: { name: '力の指輪', atk: 5, price: 400 },
   magicRing: { name: '魔力の指輪', int: 6, price: 400 },
   speedRing: { name: '素早さの指輪', spd: 5, price: 400 },
+  masterRing: { name: '達人の指輪', atk: 8, def: 8, int: 12, spd: 4, hp: 30, price: 9999 },
   lifeRing:  { name: '命の指輪', hp: 25, price: 600 },
   guardRing: { name: '守りの指輪', def: 8, price: 600 },
   sageRing:  { name: '賢者の指輪', int: 12, price: 1400 },
   heroRing:  { name: '勇者の指輪', atk: 9, def: 5, price: 1500 },
 };
+
+// ===== ACHIEVEMENTS =====
+// Granted automatically (RecordsSystem.check) the first time the condition holds; kinds: seen / seenAll / master / chests / kills
+var ACHIEVEMENTS = [
+  { id: 'seen5',   name: 'ずかん 5しゅるい',   desc: '5しゅるいの てきに であう',        kind: 'seen', n: 5,  reward: { item: 'highHerb', count: 3 } },
+  { id: 'seen9',   name: 'ずかん 9しゅるい',   desc: '9しゅるいの てきに であう',        kind: 'seen', n: 9,  reward: { item: 'phoenix', count: 2 } },
+  { id: 'seenAll', name: 'ずかん コンプリート', desc: 'すべての てきに であう',           kind: 'seenAll',     reward: { item: 'elixir', count: 5 } },
+  { id: 'kills100', name: 'ひゃくたい たおし',  desc: 'てきを 100たい たおす',            kind: 'kills', n: 100, reward: { item: 'bigBomb', count: 3 } },
+  { id: 'chests',  name: 'トレジャーハンター', desc: 'すべての たからばこを あける',     kind: 'chests',      reward: { item: 'phoenix', count: 3 } },
+  { id: 'master',  name: 'モンスターマスター', desc: 'ボスいがいを 3たいずつ たおす', kind: 'master',   reward: { accessory: 'masterRing' } },
+];
 
 // ===== MAP DATA =====
 // Each map: { width, height, tiles (string array), playerStart, events, npcs, encounters }
