@@ -59,6 +59,7 @@ function initGame() {
     innState: null,
     bestiary: {},
     hints: {},
+    quests: {},
     cycle: 1,
     slot: 1,
     slotPick: null,
@@ -98,6 +99,7 @@ function newGame(slot) {
   game.flags = {};
   game.bestiary = {};
   game.hints = {};
+  game.quests = {};
   game.achieved = {};
   game.cycle = 1;
   HintSystem.reset();
@@ -183,7 +185,9 @@ function updateScoreAfterBattle(b) {
       if (b.enemies[i].boss) bossCount++;
     }
   }
-  BestiarySystem.recordDefeated(game, b.enemies.filter(function(e) { return !e.alive; }).map(function(e) { return e.id; }));
+  var downed = b.enemies.filter(function(e) { return !e.alive; }).map(function(e) { return e.id; });
+  BestiarySystem.recordDefeated(game, downed);
+  QuestSystem.onDefeated(game, downed);
   gameScore.enemiesDefeated += enemyCount;
   gameScore.bossesDefeated  += bossCount;
   gameScore.battlesWon++;
@@ -216,6 +220,7 @@ function saveGame(manual) {
       bestiary: game.bestiary,
       hints: game.hints,
       achieved: game.achieved,
+      quests: game.quests,
       cycle: game.cycle,
       playTime: gameScore.playTime,
       savedAt: Date.now(),
@@ -285,6 +290,7 @@ function loadGame(slot) {
     game.hints = HintSystem.sanitize(data.hints);   // saves from before the hints count every hint as seen
     HintSystem.reset();
     game.achieved = RecordsSystem.sanitize(data.achieved);
+    game.quests = QuestSystem.sanitize(data.quests);
     game.cycle = Math.max(1, Math.min(99, Math.floor(data.cycle) || 1));
     game.bestiary = BestiarySystem.sanitize(data.bestiary);   // saves from before the ずかん have none
     if (typeof data.playTime === 'number') gameScore.playTime = Math.max(gameScore.playTime, data.playTime);
@@ -840,7 +846,7 @@ function renderDialogue(ctx) {
 }
 
 // ===== PARTY MENU =====
-var MENU_ITEMS = ['どうぐ', 'そうび', 'つよさ', 'ずかん', 'きろく', 'ヘルプ', 'セーブ', 'せってい', 'とじる'];
+var MENU_ITEMS = ['どうぐ', 'そうび', 'つよさ', 'ずかん', 'きろく', 'いらい', 'ヘルプ', 'セーブ', 'せってい', 'とじる'];
 
 function updateMenu() {
   var input = getInput();
@@ -858,6 +864,7 @@ function updateMenu() {
       if (sel === 'セーブ') { saveGame(true); return; }
       if (sel === 'ずかん') { SoundSystem.confirm(); ms.subState = 'bestiary'; ms.bIndex = 0; return; }
       if (sel === 'きろく') { SoundSystem.confirm(); ms.subState = 'records'; return; }
+      if (sel === 'いらい') { SoundSystem.confirm(); ms.subState = 'quests'; return; }
       if (sel === 'ヘルプ') { SoundSystem.confirm(); ms.subState = 'help'; ms.page = 0; return; }
       if (sel === 'せってい') { SoundSystem.confirm(); game.settings = { index: 0 }; return; }
       if (sel === 'どうぐ') ms.subState = 'items';
@@ -869,6 +876,9 @@ function updateMenu() {
     return;
   } else if (ms.subState === 'records') {
     if (RecordsSystem.update(ms, game, input)) ms.subState = null;
+    return;
+  } else if (ms.subState === 'quests') {
+    if (QuestSystem.update(ms, game, input)) ms.subState = null;
     return;
   } else if (ms.subState === 'help') {
     if (HintSystem.helpUpdate(ms, input)) ms.subState = null;
@@ -990,6 +1000,7 @@ function renderMenu(ctx) {
   if (ms.subState === 'bestiary') { BestiarySystem.render(ctx, ms, game); return; }
   if (ms.subState === 'help') { HintSystem.helpRender(ctx, ms); return; }
   if (ms.subState === 'records') { RecordsSystem.render(ctx, game); return; }
+  if (ms.subState === 'quests') { QuestSystem.render(ctx, game); return; }
 
   // Main menu
   UI.drawMenu(ctx, 20, 20, 140, MENU_ITEMS, ms.index);

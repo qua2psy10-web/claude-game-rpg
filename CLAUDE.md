@@ -123,6 +123,15 @@ This file provides guidance for Claude and human developers working on this proj
 - **Balance** (`NG=2 NGLV=20 node tools/balance-sim.js 12 1 ng`: the party arrives at that level with the best gear 6000G buys, 10 fights per area): at Lv20 cycle 2 is trivial in the grassland and forest (the carried levels), ~15% HP lost in the castle, the Demon King ~83% wipe and the abyss ~40% wipe; at Lv24 the Demon King is ~8% wipe, so the party levels up (EXP x1.5) before the climax. Cycle 3 at Lv20: castle 28% wipe, Demon King and abyss out of reach until higher levels.
 - **Code:** `main.js` (`titleItems`, `newGamePlus`, `updateTitle`), `data.js` (`cycleScale`), `battle.js` (`startBattle`), `tools/balance-sim.js` (`ng` mode), smoke test section `[New Game+]`.
 
+### Requests (いらい)
+
+- **What:** small errands that villagers give. Talking to the giver accepts the request automatically (a toast announces it), and the request is finished by talking to the right NPC once its goal is met. Rewards (gold / items) go straight into the bag with a ★ toast.
+- **Three kinds** (`QUESTS` in `data.js`): `kill` (defeat `n` of `enemy` *after* accepting; only battles won while the request is active count), `fetch` (bring `n` of an item to the giver, who takes them), `deliver` (the giver hands over a package; the `target` NPC in another town completes it).
+- **Giving:** an NPC may carry `quest: '<id>'` (giver and, for kill/fetch, turn-in) and `questTarget: '<id>'` (deliver destination). `QuestSystem.talk(game, npc)` returns the lines to speak (offer / still-active with progress / finished / after) and applies the state change, or null so the NPC's normal `talk` / `dialogue` is used. Delivery targets use their normal lines until the package is carried.
+- **State:** `game.quests = { id: { state: 'active' | 'done', n } }` in the save (`quests`, no version bump; old saves load as none). New Game+ starts with none, so every request can be done again each cycle (the rewards are small gold / consumables).
+- **Menu:** 「いらい」 (after きろく) lists active and finished requests with progress and the reward.
+- **Code:** `js/quests.js` (`QuestSystem`), loaded after `records.js`; `MapSystem.interact` calls `talk`, `updateScoreAfterBattle` calls `onDefeated`.
+
 ### Records & achievements (きろく)
 
 - **きろく screen:** the in-game menu's きろく (after ずかん) shows per-save stats on the left (play time, steps, enemies defeated, ずかん species, chests opened of all 14, highest gold, whether the Demon King and Zelgios are down) and the achievement checklist on the right (★ done, ☆ with progress such as 6/9, and each reward).
@@ -191,7 +200,7 @@ Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~4
 - **Run:** `node tools/smoke-test.js` (about 20 s; exit code 0 = all passed). It serves the repo itself and drives the real game in headless Chromium through Playwright (found in `node_modules`, or in `npm root -g`; set `PW_CHROMIUM` to point at a browser if `/opt/pw-browsers/chromium` is absent). Run it before every PR.
 - **Data checks:** every map is rectangular with events and NPCs on walkable tiles and known targets; enemies have `desc` / `area` (and bosses an `EYE_TABLE` entry); every character spell exists *and has an `EFFECT_KINDS` entry*; shops, chests and achievement rewards reference real items.
 - **Flows with real keys:** title -> new game -> opening -> dialogue -> walking, every menu screen, shop purchase, both inns (the full night scene), winning a battle, the ずかん record.
-- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
+- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the requests (accept, count, deliver, fetch, save), the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
 - **Adding to it:** a new screen, map or mechanic should get a line in the matching section; keep it fast and deterministic (it forces random rolls where it must).
 - **History:** its first run found four world-map rows that were one tile short (fixed with it).
 
@@ -253,12 +262,13 @@ python3 -m http.server 8000
 /js/bestiary.js     # Monster encyclopedia records and screen
 /js/hints.js        # First-time hint toasts and the menu's help screen
 /js/records.js      # Achievements (rewards) and the records screen
+/js/quests.js       # Villager requests (いらい): accept, progress, rewards, menu screen
 /js/slots.js        # The three save slots and the title's slot picker
 /js/touch.js        # On-screen D-pad and A/B buttons for touch devices
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → slots.js → touch.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → slots.js → touch.js → main.js
 
 ---
 
