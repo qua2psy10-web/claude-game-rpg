@@ -282,6 +282,23 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(await ev(function() { return game.menuState.qPage === 1; }), 'the requests screen turns pages');
   await press('x', 100);
 
+  console.log('\n[music]');
+  var mu = await ev(function() {
+    var info = MusicSystem.trackInfo(), bad = [];
+    Object.keys(info).forEach(function(k) { if (!info[k].once && info[k].melody !== info[k].bass) bad.push(k + ' ' + info[k].melody + '/' + info[k].bass); });
+    var o = { bad: bad, abyss: !!info.abyss, way: !!info.waystation, map: [getMapBgm('abyss'), getMapBgm('haruka'), getMapBgm('millhaven'), getMapBgm('castle')].join() };
+    return o;
+  });
+  ok(mu.bad.length === 0 && mu.abyss && mu.way, 'every looping track has melody and bass of equal length (loops seamlessly)', JSON.stringify(mu.bad));
+  ok(mu.map === 'abyss,waystation,town,field', 'the abyss and Haruka have their own BGM, the others keep theirs', mu.map);
+  var played = await ev(async function() {
+    var ac = new (window.AudioContext || window.webkitAudioContext)(); MusicSystem.init(ac);
+    var o = {}, sleepMs = function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); };
+    for (var t of ['abyss', 'waystation']) { MusicSystem.changeTo(t); await sleepMs(500); o[t] = MusicSystem.current(); }
+    MusicSystem.stop(); return o;
+  });
+  ok(played.abyss === 'abyss' && played.waystation === 'waystation', 'the new tracks start playing (and the scheduler runs without errors)', JSON.stringify(played));
+
   console.log('\n[blacksmith]');
   var sm = await ev(function() {
     newGame(); game.state = 'map'; var o = {}, sam = game.party[0];
