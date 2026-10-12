@@ -104,7 +104,7 @@ This file provides guidance for Claude and human developers working on this proj
 ### Villager talk
 
 - **Progress-aware lines:** an NPC in `data.js` may carry `talk: [{ flag, lines }, ...]`, listed most advanced first; `MapSystem.npcLines` returns the first entry whose flag is set, else the default `dialogue`. Flags used: `visited_<map>` (set whenever the party goes through a map transfer, so it is saved with the flags; saves from before this simply get them on the next trip), `demonKingDefeated`, `abyssBossDefeated`, chest flags.
-- **Who says what:** the village chief and the traveller react to the forest / castle trips, the Demon King's fall (the chief and traveller hint at the new south-west gate) and the secret boss; the shopkeepers greet a clear-game party; the old woman hints at chests; the child (wanders) reacts to the forest and the clears. The innkeeper has a single line.
+- **Who says what:** the village chief and the traveller react to the forest / castle trips, the Demon King's fall (the chief and traveller hint at the new south-west gate) and the secret boss; the shopkeepers greet a clear-game party; the old woman hints at chests; the child (wanders) reacts to the forest and the clears. The chief, the traveller, the old woman, the child and Haruka's soldier also give requests (see Requests): while a request is on offer or active they speak its lines instead of their `talk` lines. The innkeeper has a single line.
 - **Code:** data in the `millhaven` NPC list; `map.js` (`npcLines`, called from `interact`).
 
 ### Haruka Waystation (ハルカ宿場)
@@ -132,12 +132,13 @@ This file provides guidance for Claude and human developers working on this proj
 - **Giving:** an NPC may carry `quest: '<id>'` (giver and, for kill/fetch, turn-in) and `questTarget: '<id>'` (deliver destination). `QuestSystem.talk(game, npc)` returns the lines to speak (offer / still-active with progress / finished / after) and applies the state change, or null so the NPC's normal `talk` / `dialogue` is used. Delivery targets use their normal lines until the package is carried.
 - **State:** `game.quests = { id: { state: 'active' | 'done', n } }` in the save (`quests`, no version bump; old saves load as none). New Game+ starts with none, so every request can be done again each cycle (the rewards are small gold / consumables).
 - **Menu:** 「いらい」 (after きろく) lists active and finished requests with progress and the reward, 4 per page (Left/Right turns the page).
+- **Balance:** `tools/balance-sim.js` does not do requests. The four requests available before the castle pay about 920G in total (the sim's whole Lv12 run earns only ~1100G), so they roughly double the gold for gear before the Demon King: about one extra mid-game piece (e.g. 銀の剣 / ウロコの鎧 from the waystation), a gentle help rather than a power spike. The castle-gated ones (600G + 400G) and the post-game one (1000G) arrive when gold is already plentiful. The Demon King's odds in the sim (`FULL=1 BOSSLV=12`, 40 runs: 75% win) are unchanged since it does not buy that extra gear.
 - **Code:** `js/quests.js` (`QuestSystem`), loaded after `records.js`; `MapSystem.interact` calls `talk`, `updateScoreAfterBattle` calls `onDefeated`.
 
 ### Records & achievements (きろく)
 
-- **きろく screen:** the in-game menu's きろく (after ずかん) shows per-save stats on the left (play time, steps, enemies defeated, ずかん species, chests opened of all 14, highest gold, whether the Demon King and Zelgios are down) and the achievement checklist on the right (★ done, ☆ with progress such as 6/9, and each reward).
-- **Achievements** (`ACHIEVEMENTS` in `data.js`, granted automatically the first time the condition holds): 5 / 9 species met (上薬草x3 / フェニックスの羽x2), all species met (魔法の聖水x5), 100 enemies defeated (爆裂石x3), every chest opened (フェニックスの羽x3), every non-boss enemy defeated 3 times (達人の指輪: ATK+8 DEF+8 INT+12 SPD+4 HP+30, not sold). Rewards go straight into the bag and a ★ toast announces them (`HintSystem.notice`). All conditions use per-save data (bestiary, chest flags), not the global `gameScore`.
+- **きろく screen:** the in-game menu's きろく (after ずかん) shows per-save stats on the left (play time, steps, enemies defeated, ずかん species, chests opened of all 14, highest gold, whether the Demon King and Zelgios are down) and the achievement checklist on the right (7 entries; ★ done, ☆ with progress such as 6/9, and each reward).
+- **Achievements** (`ACHIEVEMENTS` in `data.js`, granted automatically the first time the condition holds): 5 / 9 species met (上薬草x3 / フェニックスの羽x2), all species met (魔法の聖水x5), 100 enemies defeated (爆裂石x3), every chest opened (フェニックスの羽x3), every non-boss enemy defeated 3 times (達人の指輪: ATK+8 DEF+8 INT+12 SPD+4 HP+30, not sold), all eight requests done (みんなの指輪: ATK+4 DEF+6 INT+6 SPD+4 HP+40, not sold). Rewards go straight into the bag and a ★ toast announces them (`HintSystem.notice`). All conditions use per-save data (bestiary, chest flags), not the global `gameScore`.
 - **Storage:** `game.achieved = { id: true }` in the save (no version bump). A save without it earns whatever it already qualifies for when it is loaded (`RecordsSystem.check` in `loadGame`).
 - **When it runs:** after a battle (`BattleSystem.afterWin`), after opening a chest, and on load.
 - **Code:** `js/records.js` (`RecordsSystem`), loaded after `hints.js`; adding an achievement is a `data.js` entry (a new `kind` also needs a case in `met` / `progress`).
@@ -209,11 +210,12 @@ Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~4
 ### Progression & Economy
 
 - **Currency:** Gold (G)
-- **Shops:** Weapons, Armor, Items in Millhaven
+- **Shops:** Weapons, Armor, Items in Millhaven; the roadShop in Haruka Waystation
+- **Requests:** eight villager errands pay gold and consumables (see Requests); ~920G of it comes before the castle
 - **Inn:** Full HP/MP restore for gold
 - **Items:** 薬草 (HP35) / 上薬草 (HP100, 45G) / 魔法の水 (MP20) / 魔法の聖水 (MP60, 90G) / 毒消し草 / フェニックスの羽 / 爆弾石 (35 dmg) / 爆裂石 (90 dmg, 150G). An item may set `fx` to borrow another item's battle visuals and sound (上薬草 -> herb, 魔法の聖水 -> magicWater, 爆裂石 -> bomb), so new items of the existing types (`heal`, `healMp`, `cure`, `revive`, `damage`) are data-only.
 - **Accessories:** the 防具屋 sells 力 / 魔力 / 素早さ / 命 plus 守り (DEF+8, 600G) / 賢者 (INT+12, 1400G) / 勇者 (ATK+9 DEF+5, 1500G) rings. Chests may give accessories (`itemType: 'accessory'`).
-- **Chests:** besides the forest's two: the north dark area of the continent (魔法の聖水x3, 守りの指輪) and the castle (上薬草x3, フェニックスの羽x2, 勇者の指輪, 爆裂石x2). Opened by stepping on them; the flag is saved.
+- **Chests:** besides the forest's two: the north dark area of the continent (魔法の聖水x3, 守りの指輪) the castle (上薬草x3, フェニックスの羽x2, 勇者の指輪, 爆裂石x2), Haruka Waystation (上薬草x2, 素早さの指輪) and the abyss (4 chests of post-game gear and feathers); 14 in all. Opened by stepping on them; the flag is saved.
 
 ---
 
