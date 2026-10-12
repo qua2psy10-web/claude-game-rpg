@@ -386,7 +386,7 @@ var _currentBgm = null;
 
 function getMapBgm(mapId) {
   // 村・ショップ系 → タウン曲、それ以外 → フィールド曲
-  var townMaps = ['millhaven', 'itemShop', 'weaponShop', 'armorShop'];
+  var townMaps = ['millhaven', 'haruka', 'itemShop', 'weaponShop', 'armorShop'];
   return (townMaps.indexOf(mapId) >= 0) ? 'town' : 'field';
 }
 
@@ -443,7 +443,7 @@ function updateBgm() {
   var s = game.state;
   // Area ambience (wind, crickets, castle drone) under the BGM while exploring
   var onMap = s === 'map' || s === 'menu' || s === 'dialogue' || s === 'shop' || s === 'mapTransition' || (s === 'inn' && !(game.innState && game.innState.phase === 'sleep'));
-  SoundSystem.setAmbience(onMap ? (game.currentMap === 'abyss' ? 'castle' : game.currentMap) : null);
+  SoundSystem.setAmbience(onMap ? (game.currentMap === 'abyss' ? 'castle' : game.currentMap === 'haruka' ? 'millhaven' : game.currentMap) : null);
   if (game.encounterFx) return setBgm(null);   // the field music fades out as the encounter hits
   MusicSystem.setIntensity(battleIntensity());
   MusicSystem.setBoost(partyBuffed());
