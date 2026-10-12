@@ -434,7 +434,7 @@ function partyBuffed() {
   if (game.state !== 'battle' || !game.battle) return false;
   for (var i = 0; i < game.party.length; i++) {
     var bf = game.party[i].buffs;
-    if (game.party[i].alive && bf && (bf.atk || bf.def)) return true;
+    if (game.party[i].alive && bf && (bf.atk || bf.def || bf.int)) return true;
   }
   return false;
 }

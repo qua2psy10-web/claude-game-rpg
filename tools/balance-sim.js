@@ -105,6 +105,8 @@ function planRound(g) {
     }
     if (low >= 0 && lr < 0.35 && herb && i !== 2) return P({ action: 'item', itemId: herb.id || 'herb', target: low, targetType: 'ally' });
     if (c.classId === 'dario') {
+      if (FULL && b.enemies.some(function(e) { return e.alive && e.boss; }) && has('magicBoost') && !(c.buffs && c.buffs.int)) return P({ action: 'spell', spellId: 'magicBoost', target: -1, targetType: 'party' });
+      if (FULL && ne >= 2 && has('sleep') && !b.enemies.some(function(e) { return e.alive && e.sleepTurns > 0; }) && c.mp >= 14) return P({ action: 'spell', spellId: 'sleep', target: -1, targetType: 'allEnemy' });
       if (ne >= 2 && has('iceStorm')) return P({ action: 'spell', spellId: 'iceStorm', target: -1, targetType: 'allEnemy' });
       if (has('thunder')) return P({ action: 'spell', spellId: 'thunder', target: tgt, targetType: 'enemy' });
       if (has('fire')) return P({ action: 'spell', spellId: 'fire', target: tgt, targetType: 'enemy' });

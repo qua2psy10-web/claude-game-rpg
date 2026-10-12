@@ -87,12 +87,12 @@ var BattleSystem = {
     powerSlash: 'slash', sweep: 'sweep', light: 'light', shieldBash: 'bash', warCry: 'buffAtk', protect: 'buffDef',
     fire: 'fire', enemyFire: 'fire', iceStorm: 'ice', thunder: 'thunder',
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark', enemyDoom: 'dark',
-    weaken: 'debuffAtk', armorBreak: 'debuffDef', cure: 'cure',
+    weaken: 'debuffAtk', armorBreak: 'debuffDef', cure: 'cure', sleep: 'sleep', magicBoost: 'buffInt',
   },
 
   // Party spells: ms of casting (rune circle + travelling orb) before the effect lands, and element colour
-  PARTY_CAST_DELAY: { light: 380, fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340, debuffAtk: 440, debuffDef: 440, cure: 360 },
-  PARTY_CAST_TINT: { light: '255,250,200', fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
+  PARTY_CAST_DELAY: { sleep: 420, buffInt: 340, light: 380, fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340, debuffAtk: 440, debuffDef: 440, cure: 360 },
+  PARTY_CAST_TINT: { sleep: '150,130,255', buffInt: '120,230,255', light: '255,250,200', fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
                      holy: '255,240,170', buffAtk: '255,120,60', buffDef: '90,170,255',
                      debuffAtk: '200,60,120', debuffDef: '120,90,220', cure: '170,255,210' },
 
@@ -131,6 +131,7 @@ var BattleSystem = {
     this.shake(game, 6, 300);
   },
 
+  STAT_WORDS: { atk: 'こうげき力', def: 'しゅび力', int: 'まりょく' },
   ENEMY_CAST_DELAY: 650,  // ms an enemy charges a spell before it lands
   ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyDoom: '60,200,230', enemyHeal: '80,230,130' },
   // How each species attacks (drives the motion and the impact effect)
@@ -1010,6 +1011,16 @@ var BattleSystem = {
     if (cmd.actorType === 'party' && !game.party[cmd.actor].alive) return this.executeNextAction(game);
     if (cmd.actorType === 'enemy' && !b.enemies[cmd.actor].alive) return this.executeNextAction(game);
 
+    // A sleeping enemy loses its next actions
+    if (cmd.actorType === 'enemy' && b.enemies[cmd.actor].sleepTurns > 0) {
+      var slEn = b.enemies[cmd.actor];
+      slEn.sleepTurns--;
+      b.messages = [slEn.name + 'は ぐうぐう ねむっている…'];
+      if (slEn.sleepTurns <= 0) b.messages.push(slEn.name + 'は 目を さました！');
+      b.messageTimer = 40;
+      return;
+    }
+
     // A stunned enemy loses its next action
     if (cmd.actorType === 'enemy' && b.enemies[cmd.actor].stunTurns > 0) {
       var stEn = b.enemies[cmd.actor];
@@ -1378,7 +1389,7 @@ var BattleSystem = {
         if (!dt0 || !dt0.alive) { for (var dk = 0; dk < b.enemies.length; dk++) { if (b.enemies[dk].alive) { dt0 = b.enemies[dk]; break; } } }
         if (dt0 && dt0.alive) dTargets.push(dt0);
       }
-      var statWord = spell.stat === 'atk' ? 'こうげき力' : 'しゅび力';
+      var statWord = this.STAT_WORDS[spell.stat] || 'ちから';
       for (var dm = 0; dm < dTargets.length; dm++) {
         if (!dTargets[dm].buffs) dTargets[dm].buffs = {};
         dTargets[dm].buffs[spell.stat] = { mult: spell.mult, turns: spell.turns };
@@ -1386,8 +1397,24 @@ var BattleSystem = {
         dTargets[dm].debuffStat = spell.stat;
         b.messages.push(dTargets[dm].name + 'の ' + statWord + 'が さがった！');
       }
+    } else if (spell.type === 'sleep') {
+      // Each living enemy may fall asleep and loses its next `turns` actions; bosses and enemies already out of action resist
+      var slept = 0;
+      for (var sq = 0; sq < b.enemies.length; sq++) {
+        var se = b.enemies[sq];
+        if (!se.alive) continue;
+        if (se.boss || se.sleepTurns > 0 || se.stunTurns > 0 || Math.random() >= spell.chance) {
+          b.messages.push(se.name + 'には きかなかった！');
+          continue;
+        }
+        se.sleepTurns = spell.turns;
+        se.sleepAt = Date.now() + (fd || 0) + sq * 90;
+        slept++;
+        b.messages.push(se.name + 'は ねむってしまった！');
+        if (se.charging) se.charging = false;
+      }
     } else if (spell.type === 'buff') {
-      b.messages.push('味方全体の ' + (spell.stat === 'atk' ? 'こうげき力' : 'しゅび力') + 'が あがった！');
+      b.messages.push('味方全体の ' + (this.STAT_WORDS[spell.stat] || 'ちから') + 'が あがった！');
       for (var m = 0; m < game.party.length; m++) {
         if (game.party[m].alive) {
           if (!game.party[m].buffs) game.party[m].buffs = {};
@@ -1489,7 +1516,7 @@ var BattleSystem = {
 
   calcSpellDamage: function(caster, target, spell) {
     var intStat = caster.int || caster.atk;
-    var base = spell.power + Math.floor(intStat * 0.5);
+    var base = (spell.power + Math.floor(intStat * 0.5)) * (caster.buffs && caster.buffs.int ? caster.buffs.int.mult : 1);   // Magic Boost: x1.3 magic damage
     var def = this.getEffectiveStat(target, 'def');
     return Math.max(1, Math.floor(base - def / 6 + (Math.random() * 8 - 4)));
   },
@@ -2376,6 +2403,7 @@ var BattleSystem = {
     if (b && b.itemFx) this.renderItemFx(ctx, game, w, h, now);
     if (b) this.renderGuard(ctx, game, w, h, now);
     if (b) this.renderStun(ctx, game, now);
+    if (b) this.renderSleep(ctx, game, now);
     if (b) this.renderBossFx(ctx, game, w, h, now);
     if (b) this.renderDebuff(ctx, game, now);
     if (b) this.renderPoisonCure(ctx, game, w, h, now);
@@ -2472,7 +2500,7 @@ var BattleSystem = {
     // Gathering orb above the hand
     var orbR = 3 + charge * 9 + Math.sin(now / 40) * 1.2;
     var hx = cx, hy = cy - 6;
-    if (fire === 0 || pc.kind === 'holy' || pc.kind === 'thunder' || pc.kind === 'buffAtk' || pc.kind === 'buffDef') {
+    if (fire === 0 || pc.kind === 'holy' || pc.kind === 'thunder' || pc.kind === 'buffAtk' || pc.kind === 'buffDef' || pc.kind === 'buffInt' || pc.kind === 'sleep') {
       var og = ctx.createRadialGradient(hx, hy, 0, hx, hy, orbR * 2.4);
       og.addColorStop(0, 'rgba(255,255,255,0.95)');
       og.addColorStop(0.35, 'rgba(' + rgb + ',0.8)');
@@ -2617,6 +2645,32 @@ var BattleSystem = {
       ctx.fillText('…そして 世界に 朝が おとずれた', w / 2, h / 2);
     }
     ctx.restore();
+  },
+
+  // Sleep: slow floating Z's over every sleeping enemy for as long as it sleeps, with a soft blue haze
+  renderSleep: function(ctx, game, now) {
+    var b = game.battle;
+    for (var i = 0; i < b.enemies.length; i++) {
+      var en = b.enemies[i];
+      if (!en.alive || !(en.sleepTurns > 0) || en.sx === undefined) continue;
+      var sc = en.sscale || 1, x = en.sx, y = en.sy, headY = en.sfoot - 92 * sc;
+      var on = en.sleepAt ? now - en.sleepAt : 9999;
+      if (on < 0) continue;
+      ctx.save();
+      var hg = ctx.createRadialGradient(x, y, 4, x, y, 52 * sc);
+      hg.addColorStop(0, 'rgba(120,110,255,' + (0.22 * Math.min(1, on / 300)) + ')'); hg.addColorStop(1, 'rgba(120,110,255,0)');
+      ctx.fillStyle = hg; ctx.fillRect(x - 56 * sc, y - 56 * sc, 112 * sc, 112 * sc);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (var k = 0; k < 3; k++) {
+        var q = ((now / 1700) + k / 3) % 1;
+        ctx.globalAlpha = Math.sin(Math.PI * q) * 0.95;
+        ctx.font = 'bold ' + Math.round((10 + q * 10) * Math.max(0.8, sc)) + 'px monospace';
+        ctx.lineWidth = 3; ctx.strokeStyle = '#1a1050'; ctx.fillStyle = '#cfd0ff';
+        var zx = x + 14 * sc + q * 22 + k * 3, zy = headY - q * 30;
+        ctx.strokeText('Z', zx, zy); ctx.fillText('Z', zx, zy);
+      }
+      ctx.restore();
+    }
   },
 
   // Stun: yellow shock ring, crackling arcs over the body, dizzy stars circling the head, "スタン！" label
@@ -3422,8 +3476,24 @@ var BattleSystem = {
         ctx.fillRect(px - 1, py - 5, 3, 11);
         ctx.fillRect(px - 5, py - 1, 11, 3);
       }
-    } else if (kind === 'buffAtk' || kind === 'buffDef') {
-      var col = kind === 'buffAtk' ? '255,120,60' : '90,170,255';
+    } else if (kind === 'sleep') {
+      // a violet ring spreads and drowsy Z's rise
+      ctx.globalAlpha = (1 - p) * 0.8;
+      ctx.strokeStyle = 'rgb(160,140,255)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 20, 14 + p * 52, 5 + p * 17, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#d8d4ff';
+      ctx.font = 'bold 18px monospace';
+      ctx.textAlign = 'center';
+      for (i = 0; i < 3; i++) {
+        var zq = Math.max(0, Math.min(1, p * 1.3 - i * 0.2));
+        ctx.globalAlpha = Math.sin(Math.PI * zq);
+        ctx.fillText('Z', x - 18 + i * 18, y - 10 - zq * 44);
+      }
+    } else if (kind === 'buffAtk' || kind === 'buffDef' || kind === 'buffInt') {
+      var col = kind === 'buffAtk' ? '255,120,60' : (kind === 'buffInt' ? '120,230,255' : '90,170,255');
       for (i = 0; i < 3; i++) {
         var q = Math.max(0, Math.min(1, p * 1.4 - i * 0.18));
         ctx.globalAlpha = Math.sin(Math.PI * q) * 0.8;
@@ -4598,12 +4668,12 @@ var BattleSystem = {
 
       // Active buffs: small badges with the turns left
       if (p.alive && p.buffs) {
-        var bxo = px + 140;
-        var kinds = [['atk', '攻', '#ff8a3c'], ['def', '防', '#5aa8ff']];
+        var bxo = px + 122;
+        var kinds = [['atk', '攻', '#ff8a3c'], ['def', '防', '#5aa8ff'], ['int', '魔', '#7ae6ff']];
         for (var bk = 0; bk < kinds.length; bk++) {
           var bf = p.buffs[kinds[bk][0]];
           if (!bf) continue;
-          var bbx = bxo + bk * 28;
+          var bbx = bxo + bk * 26;
           ctx.fillStyle = 'rgba(0,0,0,0.5)';
           ctx.fillRect(bbx, py + 17, 26, 12);
           ctx.strokeStyle = kinds[bk][2];
