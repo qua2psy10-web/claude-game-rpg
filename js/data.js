@@ -86,15 +86,15 @@ var SPELLS = {
 
 // ===== ENEMY DEFINITIONS =====
 var ENEMIES = {
-  slime:        { name: 'スライム', hp: 20, atk: 13, def: 2, spd: 3, int: 1, exp: 4, gold: 6, color: '#44aaff', shape: 'slime', skills: [], poison: 0.2 },
-  goblin:       { name: 'ゴブリン', hp: 52, atk: 28, def: 5, spd: 7, int: 2, exp: 10, gold: 14, color: '#55aa44', shape: 'goblin', skills: [] },
-  wolf:         { name: 'ウルフ', hp: 110, atk: 58, def: 4, spd: 12, int: 2, exp: 14, gold: 20, color: '#888899', shape: 'wolf', skills: [] },
-  giantBat:     { name: 'ジャイアントバット', hp: 90, atk: 50, def: 6, spd: 14, int: 3, exp: 18, gold: 22, color: '#774455', shape: 'bat', skills: [], poison: 0.3 },
-  skeleton:     { name: 'スケルトン', hp: 170, atk: 70, def: 12, spd: 6, int: 3, exp: 34, gold: 28, color: '#ccccbb', shape: 'skeleton', skills: [] },
-  darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [] },
-  demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'] },
-  darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'] },
-  demonKing:    { name: '魔王ヴァルザード', hp: 950, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'] },
+  slime:        { name: 'スライム', hp: 20, atk: 13, def: 2, spd: 3, int: 1, exp: 4, gold: 6, color: '#44aaff', shape: 'slime', skills: [], poison: 0.2, desc: ['草原に すむ ぷよぷよした 魔物。', 'ときどき 毒を もっている。'], area: '草原' },
+  goblin:       { name: 'ゴブリン', hp: 52, atk: 28, def: 5, spd: 7, int: 2, exp: 10, gold: 14, color: '#55aa44', shape: 'goblin', skills: [], desc: ['こんぼうを ふりまわす 小鬼。', 'ずる賢く 群れで おそってくる。'], area: '草原・暗黒の森' },
+  wolf:         { name: 'ウルフ', hp: 110, atk: 58, def: 4, spd: 12, int: 2, exp: 14, gold: 20, color: '#888899', shape: 'wolf', skills: [], desc: ['森を かける 灰色の 狼。', 'すばやく 鋭い きばで かみつく。'], area: '暗黒の森' },
+  giantBat:     { name: 'ジャイアントバット', hp: 90, atk: 50, def: 6, spd: 14, int: 3, exp: 18, gold: 22, color: '#774455', shape: 'bat', skills: [], poison: 0.3, desc: ['ねぐらを 荒らされると 怒る。', 'きばに 毒が ひそむことも。'], area: '暗黒の森' },
+  skeleton:     { name: 'スケルトン', hp: 170, atk: 70, def: 12, spd: 6, int: 3, exp: 34, gold: 28, color: '#ccccbb', shape: 'skeleton', skills: [], desc: ['さまよう 戦士の なれのはて。', 'かたい ほねは なかなか くだけない。'], area: '暗黒の森の おく' },
+  darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [], desc: ['魔王に 忠誠を ちかった 騎士。', '重い よろいで 身を かためている。'], area: '魔王の城' },
+  demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'], desc: ['魔界から よびだされた 兵士。', '炎の 魔法も つかいこなす。'], area: '魔王の城' },
+  darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'], desc: ['闇の 魔術を きわめた 魔道士。', '魔力は 高いが 体は もろい。'], area: '魔王の城' },
+  demonKing:    { name: '魔王ヴァルザード', hp: 950, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
 };
 
 // ===== ITEM DEFINITIONS =====

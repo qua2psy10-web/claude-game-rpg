@@ -64,6 +64,14 @@ This file provides guidance for Claude and human developers working on this proj
 - **Wiring:** `SettingsSystem.apply()` pushes values into `MusicSystem.setVolume`, `SoundSystem.setSeVolume` and `SoundSystem.setAmbVolume` (the ambient loop retargets live; the one-shot birds/thunder use the ambience factor).
 - **Code:** `js/settings.js` (`SettingsSystem`), loaded before `sound.js`.
 
+### Bestiary (ずかん)
+
+- **Where:** the in-game menu's ずかん: a list of all enemies (09 entries, the Demon King last) and a detail panel with a portrait. Unmet enemies show as ？？？？.
+- **Records:** `game.bestiary = { enemyId: { seen, defeated } }`. `seen` goes up once per battle that includes the enemy; `defeated` per enemy killed (counted on a win, not when fleeing or losing). Stored in the save file as `bestiary` without a version bump; saves that lack it load as an empty bestiary (`BestiarySystem.sanitize`).
+- **Unlocks:** seen -> portrait, description, habitat (`desc`/`area` in `data.js`); 1 defeat -> HP / EXP / gold; 3 defeats -> ATK / DEF / SPD, poison chance and skills.
+- **Announcement:** enemies met for the first time are listed in the win messages ("…を ずかんに とうろくした！").
+- **Code:** `js/bestiary.js` (`BestiarySystem`); `battle.js` records on `startBattle`, `main.js` records defeats in `updateScoreAfterBattle` and owns the menu state. New enemies need `desc` and `area`.
+
 ### Shops & Inn presentation
 
 - **Shop:** entering plays a door bell and fades in from black. A shopkeeper message window (greeting, price confirmation, "まいどあり！", "おかねが たりないようだ…") and a comparison window sit at the bottom: for equipment, each party member's stat before -> after (green up / red down arrow, "そうび できない" if the class cannot wear it) plus how many the party owns; for consumables, the description and owned count. Buying plays a coin SFX, flies coins from the gold counter to the row, floats "-NG", and counts the gold down. Unaffordable items cannot be selected (denied buzz + shake of the gold counter) and are drawn dim.
@@ -151,10 +159,11 @@ python3 -m http.server 8000
 /js/town.js         # Shop info/buy effects and the inn's night scene
 /js/ambience.js     # Animated tiles, area atmosphere, wandering NPCs, area banner
 /js/settings.js     # Player options (volumes, shake) and their panel
+/js/bestiary.js     # Monster encyclopedia records and screen
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → main.js
 
 ---
 
