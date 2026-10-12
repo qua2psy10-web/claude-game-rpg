@@ -99,6 +99,12 @@ This file provides guidance for Claude and human developers working on this proj
 - **Balance:** the 深淵 enemies are meant for Lv 14+ (sim policy with shop gear only: wipe ~18% at Lv14, ~5% at Lv18; HP lost per battle 24% -> 12%); the secret boss is ~75% wipe at Lv20 and ~40% at Lv21 *without* the abyss chests (their gear makes it noticeably easier). `UNTIL=24 node tools/balance-sim.js 12 1 matrix` shows the 深淵 / ゼル columns up to Lv24.
 - **Code:** data in `js/data.js` (`MAPS.abyss`, enemies, `SPELLS.enemyDoom`, gear); `map.js` `handleEvent` honours `requires`; `battle.js` `afterBossWin` is shared by both win paths; `main.js` stores the cleared state.
 
+### Villager talk
+
+- **Progress-aware lines:** an NPC in `data.js` may carry `talk: [{ flag, lines }, ...]`, listed most advanced first; `MapSystem.npcLines` returns the first entry whose flag is set, else the default `dialogue`. Flags used: `visited_<map>` (set whenever the party goes through a map transfer, so it is saved with the flags; saves from before this simply get them on the next trip), `demonKingDefeated`, `abyssBossDefeated`, chest flags.
+- **Who says what:** the village chief and the traveller react to the forest / castle trips, the Demon King's fall (the chief and traveller hint at the new south-west gate) and the secret boss; the shopkeepers greet a clear-game party; the old woman hints at chests; the child (wanders) reacts to the forest and the clears. The innkeeper has a single line.
+- **Code:** data in the `millhaven` NPC list; `map.js` (`npcLines`, called from `interact`).
+
 ### Shops & Inn presentation
 
 - **Shop:** entering plays a door bell and fades in from black. A shopkeeper message window (greeting, price confirmation, "まいどあり！", "おかねが たりないようだ…") and a comparison window sit at the bottom: for equipment, each party member's stat before -> after (green up / red down arrow, "そうび できない" if the class cannot wear it) plus how many the party owns; for consumables, the description and owned count. Buying plays a coin SFX, flies coins from the gold counter to the row, floats "-NG", and counts the gold down. Unaffordable items cannot be selected (denied buzz + shake of the gold counter) and are drawn dim.
