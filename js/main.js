@@ -11,6 +11,16 @@ var lastTime = 0;
 var moveTimer = 0;
 var MOVE_DELAY = 8;
 
+// Key state shared by the keyboard and the on-screen touch controls (js/touch.js)
+function inputPress(key) {
+  if (!keysDown[key]) keysPressed[key] = true;
+  keysDown[key] = true;
+  SoundSystem.resume(); // ブラウザのAutoplay制限対応
+}
+function inputRelease(key) {
+  keysDown[key] = false;
+}
+
 // ===== INITIALIZATION =====
 function initGame() {
   canvas = document.getElementById('gameCanvas');
@@ -52,14 +62,13 @@ function initGame() {
   SettingsSystem.load();
 
   document.addEventListener('keydown', function(e) {
-    if (!keysDown[e.key]) keysPressed[e.key] = true;
-    keysDown[e.key] = true;
-    SoundSystem.resume(); // ブラウザのAutoplay制限対応
+    inputPress(e.key);
     e.preventDefault();
   });
   document.addEventListener('keyup', function(e) {
-    keysDown[e.key] = false;
+    inputRelease(e.key);
   });
+  TouchControls.init();
 
   lastTime = performance.now();
   requestAnimationFrame(gameLoop);

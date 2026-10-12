@@ -53,3 +53,68 @@ canvas {
 #endGameBtn:active {
   background: #0a0a18;
 }
+
+/* ===== Touch controls (only when js/touch.js detects a touch device) ===== */
+#touchControls { display: none; }
+
+body.touch {
+  flex-direction: column;
+  justify-content: flex-start;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+body.touch #gameContainer canvas {
+  width: min(calc(100vw - 8px), calc((100vh - 56px) * 4 / 3));
+  height: auto;
+}
+body.touch #touchControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 18px calc(10px + env(safe-area-inset-bottom));
+}
+body.touch #dpad {
+  position: relative;
+  width: 150px; height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(40,50,110,.55) 0 28%, rgba(20,24,60,.55) 29% 100%);
+  border: 2px solid rgba(120,140,220,.6);
+  touch-action: none;
+}
+body.touch #dpad .ar { position: absolute; color: rgba(200,215,255,.85); font-size: 22px; line-height: 1; pointer-events: none; }
+body.touch #dpad .up { top: 8px; left: 50%; transform: translateX(-50%); }
+body.touch #dpad .dn { bottom: 8px; left: 50%; transform: translateX(-50%); }
+body.touch #dpad .lf { left: 10px; top: 50%; transform: translateY(-50%); }
+body.touch #dpad .rt { right: 10px; top: 50%; transform: translateY(-50%); }
+body.touch #dpad[data-dir="ArrowUp"] .up, body.touch #dpad[data-dir="ArrowDown"] .dn,
+body.touch #dpad[data-dir="ArrowLeft"] .lf, body.touch #dpad[data-dir="ArrowRight"] .rt { color: #ffd700; }
+body.touch #abtns { display: flex; gap: 16px; align-items: flex-end; }
+body.touch #abtns button {
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  background: rgba(40,50,110,.6);
+  border: 2px solid rgba(120,140,220,.7);
+  color: #fff; font-family: monospace; font-size: 24px; font-weight: bold;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  touch-action: none;
+}
+body.touch #abtns button small { font-size: 10px; font-weight: normal; color: #bcd; }
+body.touch #abtns #btnB { margin-bottom: 26px; }
+body.touch #abtns button.down { background: rgba(255,215,0,.45); border-color: #ffd700; }
+
+/* Landscape phones: the screen fills the height, the controls float over its sides */
+@media (orientation: landscape) {
+  body.touch { justify-content: center; }
+  body.touch #touchControls {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 0 calc(14px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    pointer-events: none;
+    width: auto;
+  }
+  body.touch #dpad, body.touch #abtns { pointer-events: auto; opacity: .75; }
+  body.touch #dpad { width: 130px; height: 130px; }
+}
