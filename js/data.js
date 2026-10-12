@@ -46,7 +46,9 @@ var CHARACTERS = {
     spells: [
       { id: 'fire', learnLevel: 1 },
       { id: 'weaken', learnLevel: 4 },
+      { id: 'sleep', learnLevel: 5 },
       { id: 'iceStorm', learnLevel: 7 },
+      { id: 'magicBoost', learnLevel: 10 },
       { id: 'thunder', learnLevel: 12 },
     ],
     color: '#cc4488',
@@ -74,6 +76,8 @@ var SPELLS = {
   shieldBash:  { name: 'シールドバッシュ', mp: 5, type: 'physical', target: 'enemy', power: 1.2, pierce: 0.25, stun: 0.3, desc: '盾で殴りスタンさせる' },
   warCry:      { name: 'ウォークライ', mp: 8, type: 'buff', target: 'party', stat: 'atk', mult: 1.25, turns: 3, desc: '味方全体の攻撃力UP' },
   fire:        { name: 'ファイア', mp: 4, type: 'magic', target: 'enemy', power: 24, desc: '炎で敵一体を攻撃' },
+  sleep:       { name: 'スリープ', mp: 8, type: 'sleep', target: 'allEnemy', chance: 0.5, turns: 2, desc: '敵全体を眠らせる(ボスには効かない)' },
+  magicBoost:  { name: 'マジックブースト', mp: 8, type: 'buff', target: 'party', stat: 'int', mult: 1.5, turns: 3, desc: '味方全体の魔法の威力UP' },
   iceStorm:    { name: 'アイスストーム', mp: 8, type: 'magic', target: 'allEnemy', power: 18, desc: '吹雪で敵全体を攻撃' },
   thunder:     { name: 'サンダー', mp: 12, type: 'magic', target: 'enemy', power: 48, desc: '雷で敵一体を大ダメージ' },
   light:       { name: 'ライト', mp: 4, type: 'magic', target: 'enemy', power: 22, desc: '聖なる光で敵一体を攻撃' },

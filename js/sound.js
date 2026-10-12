@@ -374,7 +374,7 @@ var SoundSystem = (function() {
     chargeUp: function(kind) {           // 味方の詠唱: 属性ごとに上昇する音
       resume();
       var t = ctx.currentTime;
-      var base = { cure: 523, debuffAtk: 247, debuffDef: 185, fire: 220, ice: 440, thunder: 330, heal: 392, holy: 523, light: 659, buffAtk: 196, buffDef: 294 }[kind] || 300;
+      var base = { cure: 523, debuffAtk: 247, debuffDef: 185, fire: 220, ice: 440, thunder: 330, heal: 392, holy: 523, light: 659, buffAtk: 196, buffDef: 294, sleep: 262, buffInt: 392 }[kind] || 300;
       osc(base, 'triangle', 0.14, t, 0.42, base * 2);
       osc(base * 1.5, 'sine', 0.08, t + 0.08, 0.36, base * 3);
       if (kind === 'fire' || kind === 'thunder') noise(0.12, t, 0.4, 900);
@@ -405,6 +405,8 @@ var SoundSystem = (function() {
         osc(220, 'square', 0.12, t + 0.05, 0.4, 70);
         noise(0.25, t, 0.3, 900);
       }
+      else if (kind === 'sleep') { [659, 523, 440, 349].forEach(function(f, i) { osc(f, 'sine', 0.12, t + i * 0.11, 0.4); }); noise(0.3, t, 0.12, 700); }
+      else if (kind === 'buffInt') { [523, 659, 784, 1047, 1319].forEach(function(f, i) { osc(f, 'triangle', 0.1, t + i * 0.05, 0.3); }); }
       else if (kind === 'buffAtk') { osc(262, 'sawtooth', 0.2, t, 0.3, 392); osc(523, 'square', 0.12, t + 0.1, 0.3); noise(0.2, t, 0.2, 1200); }
       else if (kind === 'buffDef') { osc(392, 'sine', 0.16, t, 0.5); osc(588, 'sine', 0.12, t + 0.08, 0.45); osc(784, 'triangle', 0.1, t + 0.16, 0.4); }
     },
