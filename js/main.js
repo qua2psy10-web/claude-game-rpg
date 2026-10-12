@@ -468,7 +468,7 @@ function partyBuffed() {
 function updateBgm() {
   var s = game.state;
   // Area ambience (wind, crickets, castle drone) under the BGM while exploring
-  var onMap = s === 'map' || s === 'menu' || s === 'dialogue' || s === 'shop' || s === 'mapTransition' || (s === 'inn' && !(game.innState && game.innState.phase === 'sleep'));
+  var onMap = s === 'map' || s === 'menu' || s === 'dialogue' || s === 'shop' || s === 'smith' || s === 'mapTransition' || (s === 'inn' && !(game.innState && game.innState.phase === 'sleep'));
   SoundSystem.setAmbience(onMap ? (game.currentMap === 'abyss' ? 'castle' : game.currentMap === 'haruka' ? 'millhaven' : game.currentMap) : null);
   if (game.encounterFx) return setBgm(null);   // the field music fades out as the encounter hits
   MusicSystem.setIntensity(battleIntensity());
@@ -480,7 +480,7 @@ function updateBgm() {
   if (s === 'ending')                                         return setBgm(null);
   if (s === 'inn' && game.innState && game.innState.phase === 'sleep') return setBgm(null);   // the night is quiet except for its own sounds
   if (s === 'map' || s === 'menu'     || s === 'dialogue' ||
-      s === 'shop' || s === 'inn'     || s === 'mapTransition') {
+      s === 'shop' || s === 'smith' || s === 'inn'     || s === 'mapTransition') {
     return setBgm(getMapBgm(game.currentMap));
   }
 }
@@ -530,6 +530,9 @@ function update(dt) {
       break;
     case 'shop':
       updateShop();
+      break;
+    case 'smith':
+      SmithSystem.update(game, getInput());
       break;
     case 'inn':
       updateInn();
@@ -812,6 +815,11 @@ function updateDialogue() {
           game.currentNPC = null;
           return;
         }
+        if (game.currentNPC.smith) {
+          SmithSystem.open(game);
+          game.currentNPC = null;
+          return;
+        }
         if (game.currentNPC.inn) {
           game.innState = { cost: game.currentNPC.inn, index: 0, phase: 'ask', msg: null };
           game.state = 'inn';
@@ -972,7 +980,8 @@ function equipItem(game, charIdx, slotType, equipEntry) {
       if (oldDef.int) char.int -= oldDef.int;
       if (oldDef.spd) char.spd -= oldDef.spd;
       if (oldDef.hp) { char.maxHp -= oldDef.hp; char.hp = Math.min(char.hp, char.maxHp); }
-      game.equipInventory.push({ id: char[slotType], type: slotType });
+      var oldPlus = slotType === 'accessory' ? 0 : SmithSystem.strip(char, slotType);   // the enhancement level travels with the item
+      game.equipInventory.push({ id: char[slotType], type: slotType, plus: oldPlus });
     }
   }
 
@@ -984,6 +993,7 @@ function equipItem(game, charIdx, slotType, equipEntry) {
   if (newDef.spd) char.spd += newDef.spd;
   if (newDef.hp) { char.maxHp += newDef.hp; }
   char[slotType] = equipEntry.id;
+  if (slotType !== 'accessory') SmithSystem.grant(char, slotType, equipEntry.plus || 0);
 
   // Remove from inventory
   var idx = game.equipInventory.indexOf(equipEntry);
@@ -1048,8 +1058,8 @@ function renderMenu(ctx) {
       UI.drawText(ctx, String(values[k]), 350, 240 + k * 24);
     }
     // Equipment
-    var weaponName = ch.weapon ? WEAPONS[ch.weapon].name : 'なし';
-    var armorName = ch.armor ? ARMORS[ch.armor].name : 'なし';
+    var weaponName = SmithSystem.label(ch, 'weapon');
+    var armorName = SmithSystem.label(ch, 'armor');
     var accName = ch.accessory ? ACCESSORIES[ch.accessory].name : 'なし';
     UI.drawText(ctx, 'ぶき: ' + weaponName, 450, 240, '#aaa', UI.FONT_SMALL);
     UI.drawText(ctx, 'よろい: ' + armorName, 450, 264, '#aaa', UI.FONT_SMALL);
@@ -1076,7 +1086,7 @@ function renderMenu(ctx) {
       var sy = 240 + n * 28;
       if (n === ms.equipIndex) UI.drawText(ctx, UI.CURSOR, 196, sy);
       var tables = [WEAPONS, ARMORS, ACCESSORIES];
-      var equipped = ch2[slotIds[n]] ? tables[n][ch2[slotIds[n]]].name : 'なし';
+      var equipped = n < 2 ? SmithSystem.label(ch2, slotIds[n]) : (ch2[slotIds[n]] ? tables[n][ch2[slotIds[n]]].name : 'なし');
       UI.drawText(ctx, slotNames[n] + ': ' + equipped, 220, sy);
     }
   }
@@ -1092,7 +1102,7 @@ function renderMenu(ctx) {
         var table = slotType === 'weapon' ? WEAPONS : slotType === 'armor' ? ARMORS : ACCESSORIES;
         var qy = 375 + q * 24;
         if (q === ms.subIndex) UI.drawText(ctx, UI.CURSOR, 196, qy);
-        UI.drawText(ctx, table[available[q].id].name, 220, qy);
+        UI.drawText(ctx, slotType === 'accessory' ? table[available[q].id].name : SmithSystem.bagLabel(available[q]), 220, qy);
       }
     }
   }
@@ -1584,6 +1594,9 @@ function renderScene() {
     case 'shop':
       renderShop(ctx);
       break;
+    case 'smith':
+      SmithSystem.render(ctx, game);
+      break;
     case 'inn':
       MapSystem.render(ctx, game);
       MapSystem.renderHUD(ctx, game);
@@ -1607,7 +1620,7 @@ function endGameAndSave() {
   saveScore();
 
   // Save game position when in a safe state (not mid-battle)
-  var safeStates = ['map', 'menu', 'dialogue', 'inn', 'shop', 'mapTransition'];
+  var safeStates = ['map', 'menu', 'dialogue', 'inn', 'shop', 'smith', 'mapTransition'];
   if (game && safeStates.indexOf(game.state) >= 0) saveGame();
 
   // Return to title screen

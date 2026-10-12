@@ -123,6 +123,16 @@ This file provides guidance for Claude and human developers working on this proj
 - **Balance** (`NG=2 NGLV=20 node tools/balance-sim.js 12 1 ng`: the party arrives at that level with the best gear 6000G buys, 10 fights per area): at Lv20 cycle 2 is trivial in the grassland and forest (the carried levels), ~15% HP lost in the castle, the Demon King ~83% wipe and the abyss ~40% wipe; at Lv24 the Demon King is ~8% wipe, so the party levels up (EXP x1.5) before the climax. Cycle 3 at Lv20: castle 28% wipe, Demon King and abyss out of reach until higher levels.
 - **Code:** `main.js` (`titleItems`, `newGamePlus`, `updateTitle`), `data.js` (`cycleScale`), `battle.js` (`startBattle`), `tools/balance-sim.js` (`ng` mode), smoke test section `[New Game+]`.
 
+### Blacksmith (鍛冶屋)
+
+- **Where:** the 鍛冶屋 NPC in Millhaven (east side of the street). Talking to them opens the forge screen (`state = 'smith'`) after a line of dialogue, like a shop.
+- **What:** each party member's equipped weapon and armor (6 rows) can be enhanced from +0 to **+5** for gold only; accessories cannot. Every +1 adds 10% of the item's own stats (each non-zero stat of the item gains `round(stat x 0.1 x plus)`, at least +1), so +5 is +50%. The forge shows the member's stat before -> after, the cost, and refuses (denied buzz) when gold is short.
+- **Cost:** going from +p to +p+1 costs `price x (0.25 + 0.15p)` rounded to 10G (+1 25% of the item's price, +2 40%, +3 55%, +4 70%, +5 85%; +5 in total is 2.75x the price). The abyss gear is priced 9999 for this purpose, so it is a late gold sink.
+- **State:** the level is stored per item. An equipped item keeps it in `char.weaponPlus` / `char.armorPlus`; unequipping puts `{ id, type, plus }` back into the equipment bag and equipping restores it, so swapping never loses it. Both fields are saved with the party / bag (no version bump; missing = +0), and New Game+ carries them with the gear. Stats are applied to the character directly (like gear stats), so battle code is untouched.
+- **Display:** the equipment and stats screens show 「鉄の剣 +2」.
+- **Balance:** `FULL=1 BOSSLV=12 ENH=n node tools/balance-sim.js 60 1` gives every weapon and armor a free +n at the Demon King (an upper bound; the real cost is gold the party also needs for the next piece of gear): win rate 76% at +0, 82% at +2, 83% at +3, 86% at +5. So the forge is a gentle help before the finale, and mostly a gold sink for the post-game (the abyss gear at +5 costs ~27,000G in total).
+- **Code:** `js/smith.js` (`SmithSystem`: `bonus`, `cost`, `set`, `strip`, `label`, `update`, `render`), loaded after `quests.js`; `main.js` (`equipItem`, dialogue end, state switch), NPC in `data.js`.
+
 ### Requests (いらい)
 
 - **What:** small errands that villagers give. Talking to the giver accepts the request automatically (a toast announces it), and the request is finished by talking to the right NPC once its goal is met. Rewards (gold / items) go straight into the bag with a ★ toast.
@@ -267,12 +277,13 @@ python3 -m http.server 8000
 /js/hints.js        # First-time hint toasts and the menu's help screen
 /js/records.js      # Achievements (rewards) and the records screen
 /js/quests.js       # Villager requests (いらい): accept, progress, rewards, menu screen
+/js/smith.js        # Blacksmith: weapon / armor enhancement (+0 to +5) and its forge screen
 /js/slots.js        # The three save slots and the title's slot picker
 /js/touch.js        # On-screen D-pad and A/B buttons for touch devices
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → slots.js → touch.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → smith.js → slots.js → touch.js → main.js
 
 ---
 

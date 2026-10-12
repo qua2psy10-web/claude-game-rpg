@@ -381,6 +381,9 @@ var MAPS = {
         talk: [{ flag: 'demonKingDefeated', lines: ['防具屋「指輪も 新しい 品が 入りましたよ。', '勇者さまに ぴったりです！」'] }] },
       { x: 14, y: 3, name: '宿屋', color: '#aaaa44', dir: 'down', inn: 30,
         dialogue: ['宿屋「一泊30ゴールドです。お泊りになりますか？」'] },
+      { x: 14, y: 7, name: '鍛冶屋', color: '#cc6633', dir: 'left', smith: true,
+        dialogue: ['鍛冶屋「おう、勇者さま！', '武器や防具を 鍛え直して やろう。', '金さえ あれば +5 まで 強くなるぞ！」'],
+        talk: [{ flag: 'demonKingDefeated', lines: ['鍛冶屋「魔王を 倒した 腕だ。', 'どこまで 鍛えられるか 試して みるか！」'] }] },
       { x: 7, y: 7, name: '旅人', color: '#88aa88', dir: 'right', wander: 2, quest: ['wolfHunt', 'abyssHunt'],
         dialogue: [
           '旅人「北の森を抜けると魔王の城があるらしい。',

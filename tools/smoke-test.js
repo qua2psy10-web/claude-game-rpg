@@ -282,6 +282,35 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(await ev(function() { return game.menuState.qPage === 1; }), 'the requests screen turns pages');
   await press('x', 100);
 
+  console.log('\n[blacksmith]');
+  var sm = await ev(function() {
+    newGame(); game.state = 'map'; var o = {}, sam = game.party[0];
+    equipItem(game, 0, 'weapon', { id: 'ironSword', type: 'weapon' });
+    var atk0 = sam.atk; o.base = atk0;
+    game.gold = 10000;
+    SmithSystem.open(game); o.opened = game.state === 'smith';
+    SmithSystem.update(game, 'confirm');                                   // row 0 = Sam's weapon
+    o.plus1 = sam.weaponPlus === 1 && sam.atk === atk0 + SmithSystem.bonus(WEAPONS.ironSword, 1).atk && game.gold === 10000 - SmithSystem.cost(WEAPONS.ironSword, 0);
+    for (var i = 0; i < 6; i++) SmithSystem.update(game, 'confirm');
+    o.max = sam.weaponPlus === 5 && sam.atk === atk0 + SmithSystem.bonus(WEAPONS.ironSword, 5).atk;
+    var g0 = game.gold; SmithSystem.update(game, 'confirm'); o.noMore = game.gold === g0 && sam.weaponPlus === 5;
+    // the level travels with the item
+    equipItem(game, 0, 'weapon', { id: 'woodenSword', type: 'weapon' });
+    var back = game.equipInventory.filter(function(e) { return e.id === 'ironSword'; })[0];
+    o.stripped = back && back.plus === 5 && sam.weaponPlus === 0 && sam.atk === atk0 - WEAPONS.ironSword.atk + WEAPONS.woodenSword.atk;
+    equipItem(game, 0, 'weapon', back); o.restored = sam.weaponPlus === 5 && sam.atk === atk0 + SmithSystem.bonus(WEAPONS.ironSword, 5).atk;
+    // poor party: refused
+    game.gold = 0; SmithSystem.update(game, 'down'); SmithSystem.update(game, 'confirm'); o.poor = game.party[0].armorPlus === undefined || game.party[0].armorPlus === 0;
+    SmithSystem.update(game, 'cancel'); o.closed = game.state === 'map';
+    game.gold = 10000; saveGame(); var d = JSON.parse(localStorage.getItem('eldrasia_save')); o.saved = d.party[0].weaponPlus === 5;
+    o.cost = SmithSystem.cost({ price: 1000 }, 0) === 250 && SmithSystem.cost({ price: 1000 }, 4) === 850;
+    return o;
+  });
+  ok(sm.opened && sm.plus1 && sm.max && sm.noMore, 'the forge enhances gear for gold up to +5', JSON.stringify(sm));
+  ok(sm.stripped && sm.restored, 'the enhancement level travels with the item when swapping gear');
+  ok(sm.poor && sm.closed && sm.saved && sm.cost, 'it refuses without gold, closes, saves the level and prices by the item');
+  ok(await ev(function() { var n = MAPS.millhaven.npcs.filter(function(x) { return x.smith; }); return n.length === 1 && TILES[MAPS.millhaven.tiles[n[0].y][n[0].x]].passable; }), 'the blacksmith stands in Millhaven');
+
   console.log('\n[achievements and the post-game flow]');
   var pg = await ev(function() {
     newGame(); game.state = 'map'; var o = {};
