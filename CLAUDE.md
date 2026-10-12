@@ -114,6 +114,14 @@ This file provides guidance for Claude and human developers working on this proj
 - **Balance:** the new gear is only a shop option; the balance sim does not buy it (it is cheaper per stat than the castle gear, so it is a gentle help, not a power spike).
 - **Code:** data only (`MAPS.haruka`, `SHOPS.roadShop`, `WEAPONS` / `ARMORS`), plus the three alias lines above.
 
+### Hints & help
+
+- **Help screen:** the in-game menu's ヘルプ (between ずかん and セーブ) shows three pages (そうさ / たたかい / ヒント), switched with Left/Right, closed with cancel. Key names follow the player's bindings (`SettingsSystem.keyName`) and switch to ボタン wording in touch mode.
+- **First-time hints:** small toasts (top-left under the area name, ~6.5 s, non-blocking) shown once per situation: `move` (first map frame of a new game), `dash` (40 steps), `rest` (a member at <= 50% HP), `battle`, `poison`, `bestiary` (first new entry), `enter_forest` / `enter_castle` / `enter_abyss`. The toast's clock only runs while the map, a dialogue or a battle is on screen (menus and shops pause it), and a queue shows them one at a time.
+- **Storage:** `game.hints = { id: true }` in the save file (no version bump). A save without it (from before this feature) is treated as a veteran: every hint counts as seen (`HintSystem.sanitize`). A new game starts empty.
+- **Menu:** `MENU_ITEMS` in `main.js` is the single list; selection works by label, so items can be inserted without renumbering.
+- **Code:** `js/hints.js` (`HintSystem`), loaded after `bestiary.js`; triggers call `HintSystem.show(game, id)` from `updateMap`, `BattleSystem.startBattle` / win / poison, and `MapSystem.handleEvent`. New hints need an entry in `TEXT` and `IDS`.
+
 ### Shops & Inn presentation
 
 - **Shop:** entering plays a door bell and fades in from black. A shopkeeper message window (greeting, price confirmation, "まいどあり！", "おかねが たりないようだ…") and a comparison window sit at the bottom: for equipment, each party member's stat before -> after (green up / red down arrow, "そうび できない" if the class cannot wear it) plus how many the party owns; for consumables, the description and owned count. Buying plays a coin SFX, flies coins from the gold counter to the row, floats "-NG", and counts the gold down. Unaffordable items cannot be selected (denied buzz + shake of the gold counter) and are drawn dim.
@@ -216,11 +224,12 @@ python3 -m http.server 8000
 /js/ambience.js     # Animated tiles, area atmosphere, wandering NPCs, area banner
 /js/settings.js     # Player options (volumes, shake) and their panel
 /js/bestiary.js     # Monster encyclopedia records and screen
+/js/hints.js        # First-time hint toasts and the menu's help screen
 /js/touch.js        # On-screen D-pad and A/B buttons for touch devices
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → touch.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → touch.js → main.js
 
 ---
 
