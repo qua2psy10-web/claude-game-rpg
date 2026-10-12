@@ -1627,6 +1627,7 @@ var BattleSystem = {
   // ending (after parking the party outside the castle and saving, so つづきから resumes the post-game),
   // other bosses (ending: false) show their closing lines and play goes on.
   afterWin: function(game) {
+    RecordsSystem.check(game);
     var pb = game.pendingBoss;
     game.state = 'map';
     game.battle = null;

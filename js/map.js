@@ -330,6 +330,7 @@ var MapSystem = {
           game.dialogue = [ev.msg];
           game.dialogueIndex = 0;
           game.state = 'dialogue';
+          RecordsSystem.check(game);
         }
         break;
       case 'boss':

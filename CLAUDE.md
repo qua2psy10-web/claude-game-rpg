@@ -114,6 +114,14 @@ This file provides guidance for Claude and human developers working on this proj
 - **Balance:** the new gear is only a shop option; the balance sim does not buy it (it is cheaper per stat than the castle gear, so it is a gentle help, not a power spike).
 - **Code:** data only (`MAPS.haruka`, `SHOPS.roadShop`, `WEAPONS` / `ARMORS`), plus the three alias lines above.
 
+### Records & achievements (きろく)
+
+- **きろく screen:** the in-game menu's きろく (after ずかん) shows per-save stats on the left (play time, steps, enemies defeated, ずかん species, chests opened of all 14, highest gold, whether the Demon King and Zelgios are down) and the achievement checklist on the right (★ done, ☆ with progress such as 6/9, and each reward).
+- **Achievements** (`ACHIEVEMENTS` in `data.js`, granted automatically the first time the condition holds): 5 / 9 species met (上薬草x3 / フェニックスの羽x2), all species met (魔法の聖水x5), 100 enemies defeated (爆裂石x3), every chest opened (フェニックスの羽x3), every non-boss enemy defeated 3 times (達人の指輪: ATK+8 DEF+8 INT+12 SPD+4 HP+30, not sold). Rewards go straight into the bag and a ★ toast announces them (`HintSystem.notice`). All conditions use per-save data (bestiary, chest flags), not the global `gameScore`.
+- **Storage:** `game.achieved = { id: true }` in the save (no version bump). A save without it earns whatever it already qualifies for when it is loaded (`RecordsSystem.check` in `loadGame`).
+- **When it runs:** after a battle (`BattleSystem.afterWin`), after opening a chest, and on load.
+- **Code:** `js/records.js` (`RecordsSystem`), loaded after `hints.js`; adding an achievement is a `data.js` entry (a new `kind` also needs a case in `met` / `progress`).
+
 ### Hints & help
 
 - **Help screen:** the in-game menu's ヘルプ (between ずかん and セーブ) shows three pages (そうさ / たたかい / ヒント), switched with Left/Right, closed with cancel. Key names follow the player's bindings (`SettingsSystem.keyName`) and switch to ボタン wording in touch mode.
@@ -225,11 +233,12 @@ python3 -m http.server 8000
 /js/settings.js     # Player options (volumes, shake) and their panel
 /js/bestiary.js     # Monster encyclopedia records and screen
 /js/hints.js        # First-time hint toasts and the menu's help screen
+/js/records.js      # Achievements (rewards) and the records screen
 /js/touch.js        # On-screen D-pad and A/B buttons for touch devices
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → touch.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → touch.js → main.js
 
 ---
 
