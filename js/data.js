@@ -104,7 +104,7 @@ var ENEMIES = {
   abyssWraith:  { name: '深淵の亡霊', hp: 480, atk: 130, def: 24, spd: 15, int: 20, exp: 140, gold: 110, color: '#66e0d0', shape: 'skeleton', skills: [], desc: ['深淵に とらわれた 戦士の 魂。', '冷たい 刃が 音もなく せまる。'], area: '深淵の迷宮' },
   chaosKnight:  { name: '混沌の騎士', hp: 620, atk: 155, def: 36, spd: 10, int: 6, exp: 180, gold: 140, color: '#a04020', shape: 'knight', skills: [], desc: ['魔王すら 従えなかった 狂える 騎士。', '鎧は 魔王軍より はるかに 厚い。'], area: '深淵の迷宮' },
   voidMage:     { name: '虚空の魔導師', hp: 420, atk: 80, def: 20, spd: 16, int: 85, exp: 160, gold: 130, color: '#2a7ab0', shape: 'mage', skills: ['enemyFire'], desc: ['虚空から 力を 引き出す 魔導師。', '炎の 魔法が 恐ろしく 強い。'], area: '深淵の迷宮' },
-  zelgios:      { name: '終焉の魔神ゼルギオス', hp: 2400, atk: 170, def: 34, spd: 18, int: 30, exp: 2500, gold: 3000, color: '#2a8aa8', shape: 'demonKing', boss: true, skills: ['enemyDoom', 'enemyHeal'], bigSkill: 'enemyDoom', desc: ['魔王が 生まれる はるか前から', '深淵に ねむる 終焉の 魔神。'], area: '深淵の迷宮の おく' },
+  zelgios:      { name: '終焉の魔神ゼルギオス', hp: 2400, atk: 170, def: 34, spd: 18, int: 30, exp: 2500, gold: 3000, color: '#2a8aa8', shape: 'abyssLord', boss: true, skills: ['enemyDoom', 'enemyHeal'], bigSkill: 'enemyDoom', desc: ['魔王が 生まれる はるか前から', '深淵に ねむる 終焉の 魔神。'], area: '深淵の迷宮の おく' },
 };
 
 // ===== ITEM DEFINITIONS =====

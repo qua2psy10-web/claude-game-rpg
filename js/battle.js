@@ -84,15 +84,15 @@ var BattleSystem = {
 
   // Spell id -> visual effect kind
   EFFECT_KINDS: {
-    powerSlash: 'slash', shieldBash: 'bash', warCry: 'buffAtk', protect: 'buffDef',
+    powerSlash: 'slash', sweep: 'sweep', light: 'light', shieldBash: 'bash', warCry: 'buffAtk', protect: 'buffDef',
     fire: 'fire', enemyFire: 'fire', iceStorm: 'ice', thunder: 'thunder',
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark', enemyDoom: 'dark',
     weaken: 'debuffAtk', armorBreak: 'debuffDef', cure: 'cure',
   },
 
   // Party spells: ms of casting (rune circle + travelling orb) before the effect lands, and element colour
-  PARTY_CAST_DELAY: { fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340, debuffAtk: 440, debuffDef: 440, cure: 360 },
-  PARTY_CAST_TINT: { fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
+  PARTY_CAST_DELAY: { light: 380, fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340, debuffAtk: 440, debuffDef: 440, cure: 360 },
+  PARTY_CAST_TINT: { light: '255,250,200', fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
                      holy: '255,240,170', buffAtk: '255,120,60', buffDef: '90,170,255',
                      debuffAtk: '200,60,120', debuffDef: '120,90,220', cure: '170,255,210' },
 
@@ -134,7 +134,7 @@ var BattleSystem = {
   ENEMY_CAST_DELAY: 650,  // ms an enemy charges a spell before it lands
   ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyDoom: '60,200,230', enemyHeal: '80,230,130' },
   // How each species attacks (drives the motion and the impact effect)
-  ATTACK_STYLES: { slime: 'hop', wolf: 'pounce', bat: 'dive', knight: 'heavy', demonKing: 'heavy',
+  ATTACK_STYLES: { slime: 'hop', wolf: 'pounce', bat: 'dive', knight: 'heavy', demonKing: 'heavy', abyssLord: 'heavy',
                    skeleton: 'slash', goblin: 'slash', mage: 'slash' },
   ATTACK_TINTS: { hop: '90,190,255', pounce: '255,60,60', dive: '200,30,60', heavy: '255,140,40', slash: '255,60,60' },
   // Eye positions per species (unscaled offsets from the sprite origin) for the stance glint
@@ -142,7 +142,7 @@ var BattleSystem = {
     slime: [[-5, 6], [6, 6]], goblin: [[-3.5, -13.5], [4.5, -13.5]], wolf: [[-26, -10]],
     bat: [[-3.5, -2.5], [4.5, -2.5]], skeleton: [[-3, -17.5], [3, -17.5]],
     knight: [[-2.5, -20.5], [3.5, -20.5]], mage: [[-2.5, -20.5], [3.5, -20.5]],
-    demonKing: [[-8, -25], [8, -25]]
+    demonKing: [[-8, -25], [8, -25]], abyssLord: [[-9, -27], [9, -27]]
   },
   ENEMY_HIT_DELAY: 260,   // ms between an enemy starting its lunge and the hit landing (peak of the charge)
 
@@ -1259,6 +1259,8 @@ var BattleSystem = {
       SoundSystem.buff();
     } else if (spell.target === 'allEnemy' || cmd.targetType === 'allEnemy' || cmd.targetType === 'partyAll') {
       SoundSystem.bigSpell();
+    } else if (pKind === 'sweep') {
+      SoundSystem.sweep();
     } else {
       SoundSystem.spell();
     }
@@ -3276,8 +3278,8 @@ var BattleSystem = {
     var i;
     ctx.save();
     var wave = Math.min(1, p / 0.35);
-    if (p < 0.35 && (kind === 'fire' || kind === 'ice' || kind === 'thunder' || kind === 'holy')) {
-      var col = { fire: '255,170,60', ice: '190,235,255', thunder: '230,236,255', holy: '255,245,190' }[kind];
+    if (p < 0.35 && (kind === 'fire' || kind === 'ice' || kind === 'thunder' || kind === 'holy' || kind === 'light')) {
+      var col = { fire: '255,170,60', ice: '190,235,255', thunder: '230,236,255', holy: '255,245,190', light: '255,250,205' }[kind];
       ctx.globalAlpha = (1 - wave) * 0.85;
       ctx.strokeStyle = 'rgb(' + col + ')';
       ctx.lineWidth = 5 * (1 - wave) + 1;
@@ -3326,7 +3328,7 @@ var BattleSystem = {
       ctx.ellipse(x, y + 22, 36, 10, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (kind === 'heal' || kind === 'holy') {
+    if (kind === 'heal' || kind === 'holy' || kind === 'light') {
       // twinkling stars drifting up
       for (i = 0; i < 7; i++) {
         var sx = x + (self.fxRnd(i + seed + 200) - 0.5) * 70;
@@ -3517,6 +3519,46 @@ var BattleSystem = {
         ctx.lineTo(x - 38 * dir + 76 * dir * sp, y - 42 + 84 * sp);
         ctx.stroke();
       }
+    } else if (kind === 'sweep') {
+      // a wide crescent sweeping left to right through the target, with a fading trail and sparks
+      ctx.lineCap = 'round';
+      var swp = Math.max(0, Math.min(1, p * 1.8));
+      var a0 = Math.PI * 1.08, a1 = a0 + Math.PI * 0.84 * swp;
+      for (i = 0; i < 3; i++) {
+        var ta = Math.max(a0, a1 - i * 0.22);
+        ctx.globalAlpha = (1 - Math.max(0, p - 0.55) / 0.45) * (1 - i * 0.32);
+        ctx.strokeStyle = i ? 'rgba(170,215,255,0.9)' : '#fff';
+        ctx.shadowColor = '#8cf';
+        ctx.shadowBlur = i ? 4 : 12;
+        ctx.lineWidth = 7 - i * 2 - swp * 2;
+        ctx.beginPath();
+        ctx.ellipse(x, y + 22, 56 - i * 5, 40 - i * 4, 0, a0, ta);
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#fff';
+      for (i = 0; i < 7; i++) {
+        var sa = a1 - 0.1 - r(i) * 0.5, sd = 6 + p * 24 * r(i + 9);
+        ctx.globalAlpha = Math.max(0, 1 - p) * 0.9;
+        ctx.fillRect(x + Math.cos(sa) * (56 + sd) - 1.5, y + 22 + Math.sin(sa) * (40 + sd * 0.7) - 1.5, 3, 3);
+      }
+    } else if (kind === 'light') {
+      // a slender column of light drops onto the target and rings out at its feet
+      var lp = Math.min(1, p * 1.6), la = Math.sin(Math.PI * Math.min(1, p)) ;
+      var lg = ctx.createLinearGradient(0, y - 130, 0, y + 26);
+      lg.addColorStop(0, 'rgba(255,250,205,0)'); lg.addColorStop(0.6, 'rgba(255,252,225,' + (0.85 * la) + ')'); lg.addColorStop(1, 'rgba(255,255,255,' + la + ')');
+      ctx.fillStyle = lg;
+      var lw = 8 + 12 * Math.sin(Math.PI * lp);
+      ctx.fillRect(x - lw / 2, y - 130, lw, 156);
+      ctx.globalAlpha = la * 0.9;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 2, y - 130, 4, 156);
+      ctx.globalAlpha = la * 0.8;
+      ctx.strokeStyle = '#fff6c0';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 24, 8 + lp * 34, 3 + lp * 11, 0, 0, Math.PI * 2);
+      ctx.stroke();
     } else if (kind === 'bash') {
       ctx.globalAlpha = 1 - p;
       ctx.strokeStyle = '#ffe9a0';

@@ -340,6 +340,37 @@ var UI = {
         ctx.arc(s(-18), s(-32), s(6), 0, Math.PI * 2);
         ctx.fill();
         break;
+      case 'abyssLord': {
+        // Zelgios: a winged shadow with a crown of spikes, a floating rune ring and a glowing void core
+        var tt = Date.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(tt * 2.4);
+        ctx.fillStyle = '#0c2a38';                      // wings
+        ctx.beginPath(); ctx.moveTo(s(-14), s(-18)); ctx.lineTo(s(-58), s(-44)); ctx.lineTo(s(-46), s(-8)); ctx.lineTo(s(-54), s(14)); ctx.lineTo(s(-14), s(8)); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(s(14), s(-18)); ctx.lineTo(s(58), s(-44)); ctx.lineTo(s(46), s(-8)); ctx.lineTo(s(54), s(14)); ctx.lineTo(s(14), s(8)); ctx.fill();
+        ctx.fillStyle = c;                              // body and head
+        ctx.fillRect(s(-18), s(-40), s(36), s(26));
+        ctx.fillRect(s(-24), s(-14), s(48), s(44));
+        ctx.fillStyle = '#06161e';                      // crown of spikes
+        for (var zi = -2; zi <= 2; zi++) {
+          ctx.beginPath(); ctx.moveTo(s(zi * 8 - 4), s(-40)); ctx.lineTo(s(zi * 8), s(-58 + Math.abs(zi) * 4)); ctx.lineTo(s(zi * 8 + 4), s(-40)); ctx.fill();
+        }
+        ctx.fillStyle = '#aff';                         // eyes
+        ctx.fillRect(s(-13), s(-32), s(9), s(5));
+        ctx.fillRect(s(4), s(-32), s(9), s(5));
+        ctx.fillStyle = '#031014';
+        ctx.fillRect(s(-9), s(-21), s(18), s(3));
+        var cg = ctx.createRadialGradient(0, s(6), 0, 0, s(6), s(14));   // void core
+        cg.addColorStop(0, 'rgba(200,255,255,' + (0.7 + 0.3 * pulse) + ')'); cg.addColorStop(1, 'rgba(40,200,230,0)');
+        ctx.fillStyle = cg; ctx.fillRect(s(-14), s(-8), s(28), s(28));
+        ctx.strokeStyle = 'rgba(90,230,255,' + (0.35 + 0.3 * pulse) + ')';   // rune ring
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(0, s(4), s(44), s(50), 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#9ff';
+        for (var zr = 0; zr < 6; zr++) {
+          var za = tt * 0.7 + zr * Math.PI / 3;
+          ctx.fillRect(s(Math.cos(za) * 44) - 1.5, s(4 + Math.sin(za) * 50) - 1.5, 3, 3);
+        }
+        break;
+      }
       case 'demonKing':
         // Large imposing figure
         ctx.fillStyle = c;
