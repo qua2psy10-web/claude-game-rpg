@@ -126,10 +126,12 @@ This file provides guidance for Claude and human developers working on this proj
 ### Requests (いらい)
 
 - **What:** small errands that villagers give. Talking to the giver accepts the request automatically (a toast announces it), and the request is finished by talking to the right NPC once its goal is met. Rewards (gold / items) go straight into the bag with a ★ toast.
+- **Eight requests:** ウルフたいじ / ガイコツたいじ / のどぐすり(届け物) / どくけしそう(集め物) at the start, then コウモリたいじ (child, after the forest), まじんへいたいじ (chief) and じょうやくそう (soldier), both after the castle trip, and こんとんのきしたいじ (traveller, after the Demon King). Finishing all eight grants the みんなの指輪 (achievement `helper`).
+- **Several per NPC / gating:** `quest` may be a list; the NPC gives the first request that is unfinished and whose `needs` flag (a story flag such as `visited_castle`) is set, so later requests appear as the story advances. Requests that are not yet available are shown as ？？？ in the menu.
 - **Three kinds** (`QUESTS` in `data.js`): `kill` (defeat `n` of `enemy` *after* accepting; only battles won while the request is active count), `fetch` (bring `n` of an item to the giver, who takes them), `deliver` (the giver hands over a package; the `target` NPC in another town completes it).
 - **Giving:** an NPC may carry `quest: '<id>'` (giver and, for kill/fetch, turn-in) and `questTarget: '<id>'` (deliver destination). `QuestSystem.talk(game, npc)` returns the lines to speak (offer / still-active with progress / finished / after) and applies the state change, or null so the NPC's normal `talk` / `dialogue` is used. Delivery targets use their normal lines until the package is carried.
 - **State:** `game.quests = { id: { state: 'active' | 'done', n } }` in the save (`quests`, no version bump; old saves load as none). New Game+ starts with none, so every request can be done again each cycle (the rewards are small gold / consumables).
-- **Menu:** 「いらい」 (after きろく) lists active and finished requests with progress and the reward.
+- **Menu:** 「いらい」 (after きろく) lists active and finished requests with progress and the reward, 4 per page (Left/Right turns the page).
 - **Code:** `js/quests.js` (`QuestSystem`), loaded after `records.js`; `MapSystem.interact` calls `talk`, `updateScoreAfterBattle` calls `onDefeated`.
 
 ### Records & achievements (きろく)

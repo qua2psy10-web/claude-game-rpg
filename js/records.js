@@ -24,7 +24,8 @@ var RecordsSystem = (function() {
       if (!ENEMIES[id].boss) { normal++; if (r.defeated >= 3) mastered++; }
     });
     var chests = chestEvents(), opened = chests.filter(function(c) { return game.flags && game.flags[c.flag]; }).length;
-    return { seen: seen, total: ids.length, kills: kills, normal: normal, mastered: mastered, chests: chests.length, opened: opened };
+    var qIds = Object.keys(QUESTS), qDone = qIds.filter(function(q) { return game.quests && game.quests[q] && game.quests[q].state === 'done'; }).length;
+    return { quests: qDone, questTotal: qIds.length, seen: seen, total: ids.length, kills: kills, normal: normal, mastered: mastered, chests: chests.length, opened: opened };
   }
   function met(a, s) {
     switch (a.kind) {
@@ -33,6 +34,7 @@ var RecordsSystem = (function() {
       case 'master':  return s.mastered >= s.normal;
       case 'chests':  return s.opened >= s.chests;
       case 'kills':   return s.kills >= a.n;
+      case 'quests':  return s.quests >= s.questTotal;
     }
     return false;
   }
@@ -43,6 +45,7 @@ var RecordsSystem = (function() {
       case 'master':  return s.mastered + '/' + s.normal;
       case 'chests':  return s.opened + '/' + s.chests;
       case 'kills':   return Math.min(s.kills, a.n) + '/' + a.n;
+      case 'quests':  return s.quests + '/' + s.questTotal;
     }
     return '';
   }
@@ -108,7 +111,7 @@ var RecordsSystem = (function() {
     var done = ACHIEVEMENTS.filter(function(a) { return game.achieved && game.achieved[a.id]; }).length;
     UI.drawText(ctx, 'たっせい  ' + done + '/' + ACHIEVEMENTS.length, 304, 34, '#ffd700');
     for (var j = 0; j < ACHIEVEMENTS.length; j++) {
-      var a = ACHIEVEMENTS[j], ok = game.achieved && game.achieved[a.id], y = 74 + j * 62;
+      var a = ACHIEVEMENTS[j], ok = game.achieved && game.achieved[a.id], y = 72 + j * 54;
       UI.drawText(ctx, (ok ? '★ ' : '☆ ') + a.name, 304, y, ok ? '#ffd700' : '#bbb', UI.FONT_SMALL);
       UI.drawText(ctx, a.desc + (ok ? '' : '  (' + progress(a, s) + ')'), 322, y + 18, ok ? '#8c8' : '#889', UI.FONT_SMALL);
       UI.drawText(ctx, 'ほうしゅう: ' + rewardText(a.reward), 322, y + 36, ok ? '#686' : '#889', UI.FONT_SMALL);

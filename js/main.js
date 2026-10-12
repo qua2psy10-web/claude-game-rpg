@@ -1000,7 +1000,7 @@ function renderMenu(ctx) {
   if (ms.subState === 'bestiary') { BestiarySystem.render(ctx, ms, game); return; }
   if (ms.subState === 'help') { HintSystem.helpRender(ctx, ms); return; }
   if (ms.subState === 'records') { RecordsSystem.render(ctx, game); return; }
-  if (ms.subState === 'quests') { QuestSystem.render(ctx, game); return; }
+  if (ms.subState === 'quests') { QuestSystem.render(ctx, game, ms); return; }
 
   // Main menu
   UI.drawMenu(ctx, 20, 20, 140, MENU_ITEMS, ms.index);

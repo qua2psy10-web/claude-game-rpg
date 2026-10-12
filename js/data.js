@@ -159,6 +159,7 @@ var ACCESSORIES = {
   powerRing: { name: '力の指輪', atk: 5, price: 400 },
   magicRing: { name: '魔力の指輪', int: 6, price: 400 },
   speedRing: { name: '素早さの指輪', spd: 5, price: 400 },
+  kindRing:   { name: 'みんなの指輪', atk: 4, def: 6, int: 6, spd: 4, hp: 40, price: 9999 },
   masterRing: { name: '達人の指輪', atk: 8, def: 8, int: 12, spd: 4, hp: 30, price: 9999 },
   lifeRing:  { name: '命の指輪', hp: 25, price: 600 },
   guardRing: { name: '守りの指輪', def: 8, price: 600 },
@@ -167,13 +168,14 @@ var ACCESSORIES = {
 };
 
 // ===== ACHIEVEMENTS =====
-// Granted automatically (RecordsSystem.check) the first time the condition holds; kinds: seen / seenAll / master / chests / kills
+// Granted automatically (RecordsSystem.check) the first time the condition holds; kinds: seen / seenAll / master / chests / kills / quests
 var ACHIEVEMENTS = [
   { id: 'seen5',   name: 'ずかん 5しゅるい',   desc: '5しゅるいの てきに であう',        kind: 'seen', n: 5,  reward: { item: 'highHerb', count: 3 } },
   { id: 'seen9',   name: 'ずかん 9しゅるい',   desc: '9しゅるいの てきに であう',        kind: 'seen', n: 9,  reward: { item: 'phoenix', count: 2 } },
   { id: 'seenAll', name: 'ずかん コンプリート', desc: 'すべての てきに であう',           kind: 'seenAll',     reward: { item: 'elixir', count: 5 } },
   { id: 'kills100', name: 'ひゃくたい たおし',  desc: 'てきを 100たい たおす',            kind: 'kills', n: 100, reward: { item: 'bigBomb', count: 3 } },
   { id: 'chests',  name: 'トレジャーハンター', desc: 'すべての たからばこを あける',     kind: 'chests',      reward: { item: 'phoenix', count: 3 } },
+  { id: 'helper',  name: 'みんなの ヒーロー',   desc: 'すべての いらいを かんりょうする', kind: 'quests',      reward: { accessory: 'kindRing' } },
   { id: 'master',  name: 'モンスターマスター', desc: 'ボスいがいを 3たいずつ たおす', kind: 'master',   reward: { accessory: 'masterRing' } },
 ];
 
@@ -220,6 +222,46 @@ var QUESTS = {
       offer:  ['兵士「森の 見張りで 毒を 受ける 者が 多くてな。', '毒消し草が 3つ ほしいのだが…', '持っていたら 分けて くれ。礼は する。」'],
       active: ['兵士「毒消し草は 3つ 集まったか？', '道具屋で 買えるぞ。」'],
       done:   ['兵士「助かった！ これで 見張りも 安心だ。', 'わずかだが 礼を 受け取ってくれ。」'],
+    },
+  },
+  batHunt: {
+    name: 'コウモリたいじ', kind: 'kill', enemy: 'giantBat', n: 4, needs: 'visited_forest',
+    desc: 'もりの ジャイアントバットを 4たい たおす',
+    reward: { gold: 120, item: 'magicWater', count: 3 },
+    lines: {
+      offer:  ['子ども「ねえ ゆうしゃさま！', 'もりの おおきな コウモリが こわくて', 'パパが かりに いけないんだ。', '4ひき やっつけて くれない？」'],
+      active: ['子ども「コウモリ やっつけて くれた？', 'もりに いるって パパが いってたよ！」'],
+      done:   ['子ども「わあ、ありがとう！', 'これ パパが くれた おれいだよ。', 'ゆうしゃさま だいすき！」'],
+    },
+  },
+  castleHunt: {
+    name: 'まじんへいたいじ', kind: 'kill', enemy: 'demonSoldier', n: 4, needs: 'visited_castle',
+    desc: 'まおうのしろの デーモンソルジャーを 4たい たおす',
+    reward: { gold: 600, item: 'phoenix', count: 1 },
+    lines: {
+      offer:  ['村長「城から 戻った お主らに 頼みが ある。', '城の デーモンソルジャーを', '4体 減らして もらえぬか。', '魔王の力を 削ぐ 助けに なるはずじゃ。」'],
+      active: ['村長「デーモンソルジャーは 手強い。', '無理は せぬように 頼むぞ。」'],
+      done:   ['村長「見事じゃ！ 魔王の軍勢も', 'これで ずいぶん 弱った はずじゃ。', '村からの 礼じゃ。受け取ってくれ。」'],
+    },
+  },
+  herbFetch: {
+    name: 'じょうやくそうを あつめて', kind: 'fetch', item: 'highHerb', n: 3, needs: 'visited_castle',
+    desc: 'じょうやくそうを 3つ 兵士に わたす',
+    reward: { gold: 400, item: 'bigBomb', count: 1 },
+    lines: {
+      offer:  ['兵士「城へ 向かう 仲間に 持たせたい。', '上薬草を 3つ 譲って もらえないか。', 'もちろん 礼は 弾むぞ。」'],
+      active: ['兵士「上薬草は 3つ 集まったか？', '道具屋か 宝箱で 手に入るぞ。」'],
+      done:   ['兵士「ありがたい！ これで 仲間も 心強い。', '礼に 爆裂石を 受け取ってくれ。」'],
+    },
+  },
+  abyssHunt: {
+    name: 'こんとんの きしたいじ', kind: 'kill', enemy: 'chaosKnight', n: 3, needs: 'demonKingDefeated',
+    desc: 'しんえんの こんとんの きしを 3たい たおす',
+    reward: { gold: 1000, item: 'elixir', count: 3 },
+    lines: {
+      offer:  ['旅人「深淵の迷宮に 混沌の騎士が いるらしい。', '腕に 自信が あるなら 3体 倒して みないか。', '礼は はずむぞ。」'],
+      active: ['旅人「混沌の騎士は 深淵の迷宮だ。', 'しっかり 備えて 行けよ。」'],
+      done:   ['旅人「本当に 倒したのか！ 大したもんだ！', 'これは 約束の 礼だ。」'],
     },
   },
 };
@@ -315,7 +357,7 @@ var MAPS = {
       '8,13': { type: 'mapTransfer', map: 'world', targetX: 14, targetY: 17, desc: 'フィールドへ' },
     },
     npcs: [
-      { x: 4, y: 3, name: '村長', color: '#aa8844', dir: 'down', wander: 2, quest: 'skeletonHunt',
+      { x: 4, y: 3, name: '村長', color: '#aa8844', dir: 'down', wander: 2, quest: ['skeletonHunt', 'castleHunt'],
         dialogue: [
           '村長「よく来たな、勇者たちよ。',
           '北の果てに魔王ヴァルザードが復活した。',
@@ -339,7 +381,7 @@ var MAPS = {
         talk: [{ flag: 'demonKingDefeated', lines: ['防具屋「指輪も 新しい 品が 入りましたよ。', '勇者さまに ぴったりです！」'] }] },
       { x: 14, y: 3, name: '宿屋', color: '#aaaa44', dir: 'down', inn: 30,
         dialogue: ['宿屋「一泊30ゴールドです。お泊りになりますか？」'] },
-      { x: 7, y: 7, name: '旅人', color: '#88aa88', dir: 'right', wander: 2, quest: 'wolfHunt',
+      { x: 7, y: 7, name: '旅人', color: '#88aa88', dir: 'right', wander: 2, quest: ['wolfHunt', 'abyssHunt'],
         dialogue: [
           '旅人「北の森を抜けると魔王の城があるらしい。',
           'でも森にはモンスターがうようよいるから',
@@ -359,7 +401,7 @@ var MAPS = {
           { flag: 'visited_castle', lines: ['老婆「魔王の城にも 宝箱が あると', '聞いたことが あるぞい。', '指輪や 薬が 入って おるそうじゃ。」'] },
           { flag: 'forest_chest1', lines: ['老婆「おお 鉄の剣を 見つけたか。', 'ほかにも 宝箱は あるはずじゃ。', '城の中も よく 探してみなされ。」'] },
         ]},
-      { x: 12, y: 6, name: '子ども', color: '#ddbb66', dir: 'down', wander: 2,
+      { x: 12, y: 6, name: '子ども', color: '#ddbb66', dir: 'down', wander: 2, quest: 'batHunt',
         dialogue: ['子ども「勇者さまだ！', 'ぼくも おおきくなったら', 'ゆうしゃに なるんだ！」'],
         talk: [
           { flag: 'abyssBossDefeated', lines: ['子ども「ほんとうに まじんを たおしたの！？', 'すごい すごい！', 'ぼく ずっと ゆうしゃさまの ファンだよ！」'] },
@@ -552,7 +594,7 @@ var MAPS = {
           { flag: 'visited_castle', lines: ['旅芸人「魔王の城まで 行ったのかい！', '無事で 何よりだ。ゆっくり 休んで いきなよ。」'] },
           { flag: 'visited_forest', lines: ['旅芸人「森から 戻って きたのかい。', '傷は 宿で 癒していきな。」'] },
         ]},
-      { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left', quest: 'antidoteFetch',
+      { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left', quest: ['antidoteFetch', 'herbFetch'],
         dialogue: ['兵士「ここから 北の 森には', '強い 魔物が 住んでいる。', '装備は ちゃんと 整えたか？」'],
         talk: [
           { flag: 'demonKingDefeated', lines: ['兵士「魔王が 倒されて 街道も', '平和に なったな。', '私も 仕事が 楽に なったよ。」'] },
