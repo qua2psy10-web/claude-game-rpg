@@ -300,6 +300,7 @@ var MapSystem = {
     switch (ev.type) {
       case 'mapTransfer':
         if (ev.requires && !game.flags[ev.requires]) break;   // a gate that only exists once its flag is set
+        HintSystem.show(game, 'enter_' + ev.map);              // only forest / castle / abyss have such a hint
         game.flags['visited_' + ev.map] = true;               // lets villagers react to how far the party has travelled
         game.currentMap = ev.map;
         var targetMap = MAPS[ev.map];

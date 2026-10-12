@@ -39,6 +39,7 @@ var BattleSystem = {
       });
     }
 
+    HintSystem.show(game, 'battle');
     var newEntries = BestiarySystem.recordSeen(game, enemyIds);   // first meetings are announced after the win
     game.battle = {
       newEntries: newEntries,
@@ -1170,6 +1171,7 @@ var BattleSystem = {
       // Poisonous attackers may taint a living, un-guarded target
       if (!guarded && defender.hp > 0 && attacker.poison && !defender.poisoned && Math.random() < attacker.poison) {
         defender.poisoned = true;
+        HintSystem.show(game, 'poison');
         defender.poisonAt = Date.now() + this.ENEMY_HIT_DELAY;
         b.messages.push(defender.name + 'は 毒に おかされた！');
         setTimeout(function() { if (game.battle === b) SoundSystem.poisonHit(); }, this.ENEMY_HIT_DELAY + 120);
@@ -1571,6 +1573,7 @@ var BattleSystem = {
       b.totalExp = totalExp;
       b.totalGold = totalGold;
       b.messages = ['戦闘に 勝利した！', totalExp + 'の 経験値を 獲得！', totalGold + 'ゴールド 手に入れた！'];
+      if (b.newEntries && b.newEntries.length) HintSystem.show(game, 'bestiary');
       if (b.newEntries && b.newEntries.length) b.messages.push(b.newEntries.join('、') + 'を ずかんに とうろくした！');
       var bossWin = b.enemies.some(function(e) { return e.finale; });   // only the Demon King ends the game
       if (bossWin) b.messages = ['魔王ヴァルザードを たおした！', '世界に 光が もどっていく…'];
