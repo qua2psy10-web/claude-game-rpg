@@ -66,7 +66,7 @@ var MapSystem = {
             UI.drawChest(ctx, px, py, ts, opened);
           }
           // Draw map transfer markers (town/dungeon entrances on world map)
-          if (ev && ev.type === 'mapTransfer' && game.currentMap === 'world') {
+          if (ev && ev.type === 'mapTransfer' && game.currentMap === 'world' && !(ev.requires && !game.flags[ev.requires])) {
             this.drawMapMarker(ctx, px, py, ts, ev.desc);
           }
         } else {
@@ -299,6 +299,7 @@ var MapSystem = {
   handleEvent: function(game, ev) {
     switch (ev.type) {
       case 'mapTransfer':
+        if (ev.requires && !game.flags[ev.requires]) break;   // a gate that only exists once its flag is set
         game.currentMap = ev.map;
         var targetMap = MAPS[ev.map];
         if (ev.targetX !== undefined) {

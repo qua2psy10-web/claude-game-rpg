@@ -28,6 +28,8 @@ var BattleSystem = {
         color: template.color,
         shape: template.shape,
         boss: template.boss || false,
+        finale: template.finale || false,
+        bigSkill: template.bigSkill || 'enemyDark',
         poison: template.poison || 0,
         skills: template.skills || [],
         alive: true,
@@ -84,7 +86,7 @@ var BattleSystem = {
   EFFECT_KINDS: {
     powerSlash: 'slash', shieldBash: 'bash', warCry: 'buffAtk', protect: 'buffDef',
     fire: 'fire', enemyFire: 'fire', iceStorm: 'ice', thunder: 'thunder',
-    heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark',
+    heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark', enemyDoom: 'dark',
     weaken: 'debuffAtk', armorBreak: 'debuffDef', cure: 'cure',
   },
 
@@ -130,7 +132,7 @@ var BattleSystem = {
   },
 
   ENEMY_CAST_DELAY: 650,  // ms an enemy charges a spell before it lands
-  ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyHeal: '80,230,130' },
+  ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyDoom: '60,200,230', enemyHeal: '80,230,130' },
   // How each species attacks (drives the motion and the impact effect)
   ATTACK_STYLES: { slime: 'hop', wolf: 'pounce', bat: 'dive', knight: 'heavy', demonKing: 'heavy',
                    skeleton: 'slash', goblin: 'slash', mage: 'slash' },
@@ -622,15 +624,7 @@ var BattleSystem = {
           b.levelUpIndex++;
           if (b.levelUpIndex < b.levelUps.length) SoundSystem.levelUp();
           if (b.levelUpIndex >= b.levelUps.length) {
-            game.state = 'map';
-            game.battle = null;
-            if (game.pendingBoss) {
-              game.flags[game.pendingBoss.flag] = true;
-              game.pendingBoss = null;
-              game.state = 'ending';
-            } else {
-              if (typeof saveGame === 'function') saveGame();
-            }
+            this.afterWin(game);
           }
         }
         break;
@@ -942,7 +936,7 @@ var BattleSystem = {
         e.bossPhase = np;
         b.bossPhaseFx = { idx: i, t0: Date.now(), phase: np };
         b.messages = [e.name + 'の 全身から ' + (np === 1 ? 'どす黒い 瘴気が あふれ出した！' : '真紅の 闇が 爆発した！'),
-                      np === 1 ? '魔王の 力が 増していく…！' : '魔王は 怒り狂っている！'];
+                      np === 1 ? e.name + 'の 力が 増していく…！' : e.name + 'は 怒り狂っている！'];
         b.messageTimer = 100;
         SoundSystem.bossPhase(np);
         this.shake(game, 12, 700);
@@ -957,7 +951,7 @@ var BattleSystem = {
 
     // Boss: a stored attack is released this round, at full force
     if (enemy.boss && enemy.charging) {
-      return { actor: idx, actorType: 'enemy', action: 'spell', spellId: 'enemyDark', target: -1, targetType: 'partyAll', charged: true };
+      return { actor: idx, actorType: 'enemy', action: 'spell', spellId: enemy.bigSkill || 'enemyDark', target: -1, targetType: 'partyAll', charged: true };
     }
 
     // Boss AI
@@ -968,7 +962,7 @@ var BattleSystem = {
       var skill = enemy.skills[Math.floor(Math.random() * enemy.skills.length)];
       var spell = SPELLS[skill];
       // The boss's party-wide attack is telegraphed: it spends a turn charging first
-      if (enemy.boss && skill === 'enemyDark') return { actor: idx, actorType: 'enemy', action: 'charge', target: -1 };
+      if (enemy.boss && skill === (enemy.bigSkill || 'enemyDark')) return { actor: idx, actorType: 'enemy', action: 'charge', target: -1 };
       if (spell.target === 'partyAll') {
         return { actor: idx, actorType: 'enemy', action: 'spell', spellId: skill, target: -1, targetType: 'partyAll' };
       } else if (spell.target === 'self') {
@@ -1548,8 +1542,9 @@ var BattleSystem = {
       b.totalGold = totalGold;
       b.messages = ['戦闘に 勝利した！', totalExp + 'の 経験値を 獲得！', totalGold + 'ゴールド 手に入れた！'];
       if (b.newEntries && b.newEntries.length) b.messages.push(b.newEntries.join('、') + 'を ずかんに とうろくした！');
-      var bossWin = b.enemies.some(function(e) { return e.boss; });
+      var bossWin = b.enemies.some(function(e) { return e.finale; });   // only the Demon King ends the game
       if (bossWin) b.messages = ['魔王ヴァルザードを たおした！', '世界に 光が もどっていく…'];
+      else if (game.pendingBoss) b.messages.unshift(b.enemies[0].name + 'を たおした！');
       game.gold += totalGold;
       b.phase = 'win';
       b.winStart = Date.now();
@@ -1591,16 +1586,28 @@ var BattleSystem = {
       b.levelUpIndex = 0;
       SoundSystem.levelUp();
     } else {
-      game.state = 'map';
-      game.battle = null;
-      if (game.pendingBoss) {
-        game.flags[game.pendingBoss.flag] = true;
-        game.pendingBoss = null;
-        game.state = 'ending';
+      this.afterWin(game);
+    }
+  },
+
+  // Back to the map after a won fight. A won boss fight flags its event; the Demon King's starts the
+  // ending (after parking the party outside the castle and saving, so つづきから resumes the post-game),
+  // other bosses (ending: false) show their closing lines and play goes on.
+  afterWin: function(game) {
+    var pb = game.pendingBoss;
+    game.state = 'map';
+    game.battle = null;
+    game.pendingBoss = null;
+    if (pb) {
+      game.flags[pb.flag] = true;
+      if (pb.ending === false) {
+        if (pb.postBattle) { game.dialogue = pb.postBattle; game.dialogueIndex = 0; game.state = 'dialogue'; }
       } else {
-        if (typeof saveGame === 'function') saveGame();
+        game.currentMap = 'world'; game.playerX = 12; game.playerY = 5; game.facing = 'down';
+        game.state = 'ending';
       }
     }
+    if (typeof saveGame === 'function') saveGame();
   },
 
   checkLevelUp: function(char) {
@@ -2556,8 +2563,8 @@ var BattleSystem = {
       }
     }
     // ---- Warning while a boss is storing an attack: pulsing red edges + banner
-    var storing = false;
-    for (i = 0; i < b.enemies.length; i++) if (b.enemies[i].boss && b.enemies[i].alive && b.enemies[i].charging) storing = true;
+    var storing = false, storingSkill = 'enemyDark';
+    for (i = 0; i < b.enemies.length; i++) if (b.enemies[i].boss && b.enemies[i].alive && b.enemies[i].charging) { storing = true; storingSkill = b.enemies[i].bigSkill; }
     if (storing && b.phase !== 'win' && b.phase !== 'lose' && b.phase !== 'levelup') {
       var wp = 0.5 + 0.5 * Math.sin(now / 160);
       ctx.save();
@@ -2568,7 +2575,7 @@ var BattleSystem = {
       ctx.globalAlpha = 0.55 + 0.45 * wp;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 20px monospace';
       ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a0010'; ctx.fillStyle = '#ff6a8a';
-      var wtxt = '▲ 暗黒の波動の 予兆 ▲  ぼうぎょで 備えよ';
+      var wtxt = '▲ ' + (SPELLS[storingSkill] ? SPELLS[storingSkill].name : '暗黒の波動') + 'の 予兆 ▲  ぼうぎょで 備えよ';
       ctx.strokeText(wtxt, w / 2, 40); ctx.fillText(wtxt, w / 2, 40);
       ctx.restore();
     }
@@ -4021,7 +4028,7 @@ var BattleSystem = {
           ctx.fillRect(ex - ar * 2, ey - ar * 2, ar * 4, ar * 4);
           ctx.fillStyle = 'rgba(' + castFx.tint + ',' + (0.9 * (1 - ct * 0.4)) + ')';
           // Rune glyphs orbit the caster (fire / dark / heal)
-          var runeCh = { enemyFire: '炎', enemyDark: '闇', enemyHeal: '癒' }[castFx.spellId];
+          var runeCh = { enemyFire: '炎', enemyDark: '闇', enemyDoom: '終', enemyHeal: '癒' }[castFx.spellId];
           if (runeCh) {
             ctx.save();
             ctx.font = 'bold 18px monospace';

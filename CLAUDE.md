@@ -66,7 +66,7 @@ This file provides guidance for Claude and human developers working on this proj
 
 ### Bestiary (ずかん)
 
-- **Where:** the in-game menu's ずかん: a list of all enemies (09 entries, the Demon King last) and a detail panel with a portrait. Unmet enemies show as ？？？？.
+- **Where:** the in-game menu's ずかん: a list of all enemies (13 entries; the post-game ones come after the Demon King) and a detail panel with a portrait. Unmet enemies show as ？？？？.
 - **Records:** `game.bestiary = { enemyId: { seen, defeated } }`. `seen` goes up once per battle that includes the enemy; `defeated` per enemy killed (counted on a win, not when fleeing or losing). Stored in the save file as `bestiary` without a version bump; saves that lack it load as an empty bestiary (`BestiarySystem.sanitize`).
 - **Unlocks:** seen -> portrait, description, habitat (`desc`/`area` in `data.js`); 1 defeat -> HP / EXP / gold; 3 defeats -> ATK / DEF / SPD, poison chance and skills.
 - **Announcement:** enemies met for the first time are listed in the win messages ("…を ずかんに とうろくした！").
@@ -87,6 +87,15 @@ This file provides guidance for Claude and human developers working on this proj
 - **Wiring:** touches call `inputPress` / `inputRelease` in `main.js`, the same path as keydown/keyup, so every screen (map, menus, shops, battle, settings, ずかん) works with no changes.
 - **Layout:** the canvas scales to fit (CSS only; its 640x480 internal size is unchanged). Portrait: controls sit under the screen. Landscape: the screen fills the height and translucent controls float at the lower left/right. Page scroll, pinch zoom and the long-press menu are disabled in touch mode.
 - **Code:** `js/touch.js` (`TouchControls`), markup in `index.html` (`#touchControls`), styles at the end of `css/style.css`.
+
+### Post-game (クリア後)
+
+- **Flow:** beating the Demon King sets `demonKingDefeated`, moves the party to the field just outside the castle and **saves** before the ending screen, so 「つづきから」 resumes the post-game world. The ending's Enter still returns to the title.
+- **Unlocked:** a new gate on the continent's south-west grass (a gold marker, hidden and inert until the flag is set) leads to the **深淵の迷宮** (`abyss`, 16x16, dark floor and lava). Its encounters are three stronger enemies (亡霊 / 混沌の騎士 / 虚空の魔導師); four chests hold new gear (ドラゴンスレイヤー, 終焉の杖, 深淵のローブ, 深淵の鎧) and revival feathers; at the far end waits the secret boss **終焉の魔神ゼルギオス** (`abyssBossDefeated`).
+- **Secret boss:** a `boss` with the Demon King's mechanics (forms at 66% / 33%, telegraphed big attack that Defend halves, self-heal) but its own big skill `終焉の波動` (`bigSkill` on the enemy; default is `enemyDark`) and no ending: the victory gives big EXP / gold, a closing line, and play continues. Boss events may set `ending: false` and `postBattle` lines; `finale: true` (Demon King only) triggers the white fade and the ending.
+- **Bestiary:** the new enemies are appended after the Demon King, so the ずかん grows to 13 entries.
+- **Balance:** the 深淵 enemies are meant for Lv 14+ (sim policy with shop gear only: wipe ~18% at Lv14, ~5% at Lv18; HP lost per battle 24% -> 12%); the secret boss is ~75% wipe at Lv20 and ~40% at Lv21 *without* the abyss chests (their gear makes it noticeably easier). `UNTIL=24 node tools/balance-sim.js 12 1 matrix` shows the 深淵 / ゼル columns up to Lv24.
+- **Code:** data in `js/data.js` (`MAPS.abyss`, enemies, `SPELLS.enemyDoom`, gear); `map.js` `handleEvent` honours `requires`; `battle.js` `afterBossWin` is shared by both win paths; `main.js` stores the cleared state.
 
 ### Shops & Inn presentation
 

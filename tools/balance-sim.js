@@ -140,7 +140,7 @@ function minLv(g) { return Math.min.apply(null, g.party.map(function(c) { return
 var ROUTE = [
   { name: '草原',   table: MAPS.world.encounters.grass,   until: 5 },
   { name: '森',     table: MAPS.forest.encounters.forest, until: 9 },
-  { name: '魔王城', table: MAPS.castle.encounters.dark,   until: 16 },
+  { name: '魔王城', table: MAPS.castle.encounters.dark,   until: +process.env.UNTIL || 16 },   // UNTIL=22 gives snapshots at higher levels for the post-game columns
 ];
 
 function playthrough(s) {
@@ -190,7 +190,7 @@ for (var i = 0; i < runs; i++) {
   bossWin += rp.boss.winRate; bossRounds += rp.boss.rounds; last = rp;
 }
 if (process.argv[4] === 'matrix') {
-  var areas = [['草原', MAPS.world.encounters.grass], ['森', MAPS.forest.encounters.forest], ['魔王城', MAPS.castle.encounters.dark], ['魔王', [{ enemies: ['demonKing'], weight: 1 }]]];
+  var areas = [['草原', MAPS.world.encounters.grass], ['森', MAPS.forest.encounters.forest], ['魔王城', MAPS.castle.encounters.dark], ['魔王', [{ enemies: ['demonKing'], weight: 1 }]], ['深淵', MAPS.abyss.encounters.dark], ['ゼル', [{ enemies: ['zelgios'], weight: 1 }]]];
   var snapAgg = {};
   for (var mi = 0; mi < Math.min(runs, 12); mi++) {
     var rr = playthrough(base + mi);
@@ -201,7 +201,7 @@ if (process.argv[4] === 'matrix') {
     var cols = areas.map(function(a) {
       var n = 0, wipes = 0, loss = 0, rds = 0;
       snapAgg[L].forEach(function(sn, si2) {
-        for (var f = 0; f < (a[0] === '魔王' ? 8 : 25); f++) {
+        for (var f = 0; f < ((a[0] === '魔王' || a[0] === 'ゼル') ? 8 : 25); f++) {
           seedRng(1000 + si2 * 97 + f);
           var gg = JSON.parse(sn); gg.battle = null; inn(gg);
           var mx = gg.party.reduce(function(x, c) { return x + c.maxHp; }, 0);

@@ -85,6 +85,7 @@ var SPELLS = {
   holyLight:   { name: 'ホーリーライト', mp: 10, type: 'magic', target: 'allEnemy', power: 42, desc: '聖なる光で敵全体を攻撃' },
   enemyFire:   { name: '火炎', mp: 0, type: 'magic', target: 'ally', power: 20, desc: '' },
   enemyDark:   { name: '暗黒の波動', mp: 0, type: 'magic', target: 'partyAll', power: 40, desc: '' },
+  enemyDoom:   { name: '終焉の波動', mp: 0, type: 'magic', target: 'partyAll', power: 62, desc: '' },
   enemyHeal:   { name: '回復', mp: 0, type: 'heal', target: 'self', power: 60, desc: '' },
 };
 
@@ -98,7 +99,12 @@ var ENEMIES = {
   darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [], desc: ['魔王に 忠誠を ちかった 騎士。', '重い よろいで 身を かためている。'], area: '魔王の城' },
   demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'], desc: ['魔界から よびだされた 兵士。', '炎の 魔法も つかいこなす。'], area: '魔王の城' },
   darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'], desc: ['闇の 魔術を きわめた 魔道士。', '魔力は 高いが 体は もろい。'], area: '魔王の城' },
-  demonKing:    { name: '魔王ヴァルザード', hp: 1200, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
+  demonKing:    { name: '魔王ヴァルザード', hp: 1200, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, finale: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
+  // ----- post-game (深淵の迷宮) -----
+  abyssWraith:  { name: '深淵の亡霊', hp: 480, atk: 130, def: 24, spd: 15, int: 20, exp: 140, gold: 110, color: '#66e0d0', shape: 'skeleton', skills: [], desc: ['深淵に とらわれた 戦士の 魂。', '冷たい 刃が 音もなく せまる。'], area: '深淵の迷宮' },
+  chaosKnight:  { name: '混沌の騎士', hp: 620, atk: 155, def: 36, spd: 10, int: 6, exp: 180, gold: 140, color: '#a04020', shape: 'knight', skills: [], desc: ['魔王すら 従えなかった 狂える 騎士。', '鎧は 魔王軍より はるかに 厚い。'], area: '深淵の迷宮' },
+  voidMage:     { name: '虚空の魔導師', hp: 420, atk: 80, def: 20, spd: 16, int: 85, exp: 160, gold: 130, color: '#2a7ab0', shape: 'mage', skills: ['enemyFire'], desc: ['虚空から 力を 引き出す 魔導師。', '炎の 魔法が 恐ろしく 強い。'], area: '深淵の迷宮' },
+  zelgios:      { name: '終焉の魔神ゼルギオス', hp: 2400, atk: 170, def: 34, spd: 18, int: 30, exp: 2500, gold: 3000, color: '#2a8aa8', shape: 'demonKing', boss: true, skills: ['enemyDoom', 'enemyHeal'], bigSkill: 'enemyDoom', desc: ['魔王が 生まれる はるか前から', '深淵に ねむる 終焉の 魔神。'], area: '深淵の迷宮の おく' },
 };
 
 // ===== ITEM DEFINITIONS =====
@@ -121,6 +127,8 @@ var WEAPONS = {
   mysticStaff:  { name: '魔法の杖', atk: 5, int: 15, price: 900, equip: ['dario'] },
   crystalStaff: { name: 'クリスタルロッド', atk: 8, int: 28, price: 2500, equip: ['dario'] },
   healingRod:   { name: '癒しの杖', atk: 5, int: 10, price: 500, equip: ['sundar'] },
+  abyssBlade:   { name: 'ドラゴンスレイヤー', atk: 62, price: 9999, equip: ['sam'] },
+  abyssStaff:   { name: '終焉の杖', atk: 12, int: 40, price: 9999, equip: ['dario', 'sundar'] },
   sacredRod:    { name: '聖なる杖', atk: 10, int: 22, price: 2200, equip: ['sundar'] },
 };
 
@@ -132,6 +140,8 @@ var ARMORS = {
   dragonArmor:  { name: 'ドラゴンアーマー', def: 42, price: 5000, equip: ['sam'] },
   silkRobe:     { name: '絹のローブ', def: 4, int: 4, price: 80, equip: ['dario', 'sundar'] },
   mysticRobe:   { name: '魔法のローブ', def: 10, int: 12, price: 800, equip: ['dario', 'sundar'] },
+  abyssRobe:    { name: '深淵のローブ', def: 26, int: 26, price: 9999, equip: ['dario', 'sundar'] },
+  abyssMail:    { name: '深淵の鎧', def: 52, price: 9999, equip: ['sam'] },
   holyRobe:     { name: '聖なるローブ', def: 18, int: 20, price: 3000, equip: ['dario', 'sundar'] },
 };
 
@@ -179,6 +189,7 @@ var MAPS = {
       '14,16': { type: 'mapTransfer', map: 'millhaven', desc: 'ミルヘイブン村' },
       '13,7':  { type: 'mapTransfer', map: 'forest', desc: '暗黒の森' },
       '12,4':  { type: 'mapTransfer', map: 'castle', desc: '魔王の城' },
+      '4,13':  { type: 'mapTransfer', map: 'abyss', requires: 'demonKingDefeated', desc: '深淵の迷宮' },
     },
     encounters: {
       grass: [
@@ -340,6 +351,56 @@ var MAPS = {
         { enemies: ['darkKnight', 'darkKnight'], weight: 20 },
         { enemies: ['demonSoldier', 'darkMage'], weight: 20 },
         { enemies: ['demonSoldier', 'demonSoldier'], weight: 10 },
+      ],
+    },
+    encounterRate: 0.14,
+  },
+
+  abyss: {
+    name: '深淵の迷宮',
+    nameEn: "THE ABYSS",
+    width: 16, height: 16,
+    tiles: [
+      'XXXXXXXXXXXXXXXX',
+      'XXXXXrrrrrrXXXXX',
+      'XXXXXDDDDDDXXXXX',
+      'XXLLXDDDDDDXLLXX',
+      'XXDDXXXDDXXXDDXX',
+      'XXDDDDDDDDDDDDXX',
+      'XXDDXXXXXXXXDDXX',
+      'XXDDXXDDDDXXDDXX',
+      'XXDDXXDDDDXXDDXX',
+      'XXDDDDDDDDDDDDXX',
+      'XXXXXDDXXDDXXXXX',
+      'XXDDDDDXXDDDDDXX',
+      'XXDDDDDXXDDDDDXX',
+      'XXXXXDDDDDDXXXXX',
+      'XXXXXXXDDXXXXXXX',
+      'XXXXXXXEEXXXXXXX',
+    ],
+    playerStart: { x: 8, y: 14 },
+    events: {
+      '7,15':  { type: 'mapTransfer', map: 'world', targetX: 4, targetY: 14, desc: 'フィールドへ' },
+      '8,15':  { type: 'mapTransfer', map: 'world', targetX: 4, targetY: 14, desc: 'フィールドへ' },
+      '2,12':  { type: 'chest', item: 'abyssBlade', itemType: 'weapon', flag: 'abyss_chest1', msg: '宝箱から ドラゴンスレイヤー を手に入れた！' },
+      '13,12': { type: 'chest', item: 'abyssRobe', itemType: 'armor', flag: 'abyss_chest2', msg: '宝箱から 深淵のローブ を手に入れた！' },
+      '6,7':   { type: 'chest', item: 'abyssStaff', itemType: 'weapon', flag: 'abyss_chest3', msg: '宝箱から 終焉の杖 を手に入れた！' },
+      '9,7':   { type: 'chest', item: 'abyssMail', itemType: 'armor', flag: 'abyss_chest4', msg: '宝箱から 深淵の鎧 を手に入れた！' },
+      '7,1':   { type: 'boss', enemy: 'zelgios', flag: 'abyssBossDefeated', ending: false,
+                 preBattle: ['終焉の魔神ゼルギオス「…魔王を 倒した 者たちか。', '深淵の底で 待っていたぞ。', '我が 終焉の波動を 受けてみよ！」'],
+                 postBattle: ['ゼルギオスは 深淵の闇に とけていった…', '勇者たちは 本当の 平和を 手に入れた！'] },
+      '8,1':   { type: 'boss', enemy: 'zelgios', flag: 'abyssBossDefeated', ending: false,
+                 preBattle: ['終焉の魔神ゼルギオス「…魔王を 倒した 者たちか。', '深淵の底で 待っていたぞ。', '我が 終焉の波動を 受けてみよ！」'],
+                 postBattle: ['ゼルギオスは 深淵の闇に とけていった…', '勇者たちは 本当の 平和を 手に入れた！'] },
+    },
+    npcs: [],
+    encounters: {
+      dark: [
+        { enemies: ['abyssWraith'], weight: 25 },
+        { enemies: ['chaosKnight'], weight: 20 },
+        { enemies: ['voidMage'], weight: 20 },
+        { enemies: ['abyssWraith', 'voidMage'], weight: 20 },
+        { enemies: ['chaosKnight', 'abyssWraith'], weight: 15 },
       ],
     },
     encounterRate: 0.14,
