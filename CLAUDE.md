@@ -124,7 +124,9 @@ Gold per battle is roughly 7 (grass) / 22 (forest) / 55 (castle), enough for one
 
 **Tool:** `node tools/balance-sim.js [runs] [seed]` runs full playthroughs through the real `BattleSystem` (stats per area and per level, boss win rate); add `matrix` as the 3rd argument for an area x level table. Re-run it after touching enemy stats, spells, growth, EXP or shop prices.
 
-Known gaps: level pacing (about 100 battles to Lv16) is not tuned for play time; the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~46%, Sundar ~10% of attack damage overall).
+**Pacing:** the EXP needed for level L is `8 * L^2` (was 12). Target is a full playthrough within about 1 hour: the simulator reaches Lv12 (boss-ready) in roughly 58 battles (was ~85), i.e. ~30 min of fights plus walking and story. Per-level difficulty is unchanged, so the boss odds at a given level are the same; fewer battles also means less gold per level, so buy gear a little more selectively.
+
+Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~46%, Sundar ~10% of attack damage overall).
 
 ### Progression & Economy
 

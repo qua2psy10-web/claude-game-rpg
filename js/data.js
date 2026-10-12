@@ -390,5 +390,5 @@ var SHOPS = {
 
 // ===== LEVEL UP TABLE =====
 function expForLevel(level) {
-  return Math.floor(level * level * 12);
+  return Math.floor(level * level * 8);
 }
