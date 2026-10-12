@@ -85,6 +85,7 @@ body.touch #dpad {
   border: 2px solid rgba(120,140,220,.6);
   touch-action: none;
 }
+body.touch #dpad::after { content: ''; position: absolute; inset: 7%; border-radius: 50%; border: 2px dashed rgba(255,215,0,.35); pointer-events: none; }   /* sliding past this ring = dash */
 body.touch #dpad .ar { position: absolute; color: rgba(200,215,255,.85); font-size: 22px; line-height: 1; pointer-events: none; }
 body.touch #dpad .up { top: 8px; left: 50%; transform: translateX(-50%); }
 body.touch #dpad .dn { bottom: 8px; left: 50%; transform: translateX(-50%); }

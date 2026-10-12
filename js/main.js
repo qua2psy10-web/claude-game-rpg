@@ -9,16 +9,19 @@ var keysDown = {};
 var keysPressed = {};
 var lastTime = 0;
 var moveTimer = 0;
-var MOVE_DELAY = 8;
+var MOVE_DELAY = 8;       // frames between steps while a direction is held
+var DASH_DELAY = 5;       // ... while dashing (~1.6x faster)
+
 
 // Key state shared by the keyboard and the on-screen touch controls (js/touch.js)
 function inputPress(key) {
+  key = SettingsSystem.normKey(key);   // letters are case-insensitive (Shift would otherwise change them)
   if (!keysDown[key]) keysPressed[key] = true;
   keysDown[key] = true;
   SoundSystem.resume(); // ブラウザのAutoplay制限対応
 }
 function inputRelease(key) {
-  keysDown[key] = false;
+  keysDown[SettingsSystem.normKey(key)] = false;
 }
 
 // ===== INITIALIZATION =====
@@ -354,9 +357,15 @@ function getInput() {
   else if (keysPressed['ArrowDown'] || keysPressed['s']) input = 'down';
   else if (keysPressed['ArrowLeft'] || keysPressed['a']) input = 'left';
   else if (keysPressed['ArrowRight'] || keysPressed['d']) input = 'right';
-  else if (keysPressed['z'] || keysPressed['Z'] || keysPressed['Enter'] || keysPressed[' ']) input = 'confirm';
-  else if (keysPressed['x'] || keysPressed['X'] || keysPressed['Escape']) input = 'cancel';
+  else if (keysPressed['Enter'] || keysPressed[SettingsSystem.key('confirm')] || keysPressed[' ']) input = 'confirm';
+  else if (keysPressed['Escape'] || keysPressed[SettingsSystem.key('cancel')]) input = 'cancel';
   return input;
+}
+
+// Dash = the dash key held (inverted when 常時ダッシュ is on), if dashing is enabled
+function isDashing() {
+  if (!SettingsSystem.get('dash')) return false;
+  return !!keysDown[SettingsSystem.key('dash')] !== SettingsSystem.get('autoDash');
 }
 
 function isMoving() {
@@ -694,14 +703,17 @@ function updateMap(dt) {
     var dirs = { up: { dx: 0, dy: -1 }, down: { dx: 0, dy: 1 }, left: { dx: -1, dy: 0 }, right: { dx: 1, dy: 0 } };
     var d = dirs[input];
     if (d) {
+      game.dashing = isDashing();
       MapSystem.movePlayer(game, d.dx, d.dy);
       moveTimer = 0;
     }
   } else if (isMoving()) {
     moveTimer++;
-    if (moveTimer >= MOVE_DELAY) {
+    var dashNow = isDashing();
+    if (moveTimer >= (dashNow ? DASH_DELAY : MOVE_DELAY)) {
       var dir = getMoveDir();
       if (dir) {
+        game.dashing = dashNow;
         MapSystem.movePlayer(game, dir.dx, dir.dy);
         moveTimer = 0;
       }
