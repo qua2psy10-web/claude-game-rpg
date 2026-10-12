@@ -176,6 +176,15 @@ Gold per battle is roughly 7 (grass) / 22 (forest) / 55 (castle), enough for one
 
 Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~46%, Sundar ~10% of attack damage overall).
 
+### Automated smoke test
+
+- **Run:** `node tools/smoke-test.js` (about 20 s; exit code 0 = all passed). It serves the repo itself and drives the real game in headless Chromium through Playwright (found in `node_modules`, or in `npm root -g`; set `PW_CHROMIUM` to point at a browser if `/opt/pw-browsers/chromium` is absent). Run it before every PR.
+- **Data checks:** every map is rectangular with events and NPCs on walkable tiles and known targets; enemies have `desc` / `area` (and bosses an `EYE_TABLE` entry); every character spell exists *and has an `EFFECT_KINDS` entry*; shops, chests and achievement rewards reference real items.
+- **Flows with real keys:** title -> new game -> opening -> dialogue -> walking, every menu screen, shop purchase, both inns (the full night scene), winning a battle, the ずかん record.
+- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
+- **Adding to it:** a new screen, map or mechanic should get a line in the matching section; keep it fast and deterministic (it forces random rolls where it must).
+- **History:** its first run found four world-map rows that were one tile short (fixed with it).
+
 ### Progression & Economy
 
 - **Currency:** Gold (G)
