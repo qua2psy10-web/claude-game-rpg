@@ -30,11 +30,10 @@ var MapSystem = {
 
     // Smooth movement: the player (and the followers behind) glide from the previous tile
     var now = Date.now();
-    var GLIDE_MS = 110;
     // A trail or glide recorded on another map must not leak into this one
     if (game.trailMap !== game.currentMap) { game.trail = []; game.moveAnim = null; game.stepFx = []; game.trailMap = game.currentMap; }
     var ma = game.moveAnim;
-    var mp = ma ? Math.min(1, (now - ma.t0) / GLIDE_MS) : 1;
+    var mp = ma ? Math.min(1, (now - ma.t0) / (ma.dur || 110)) : 1;   // dashing glides faster
     var mpe = 1 - Math.pow(1 - mp, 2);              // ease-out
     var drawPX = ma ? ma.fx + (game.playerX - ma.fx) * mpe : game.playerX;
     var drawPY = ma ? ma.fy + (game.playerY - ma.fy) * mpe : game.playerY;
@@ -267,7 +266,7 @@ var MapSystem = {
     var oldX = game.playerX, oldY = game.playerY;
     if (game.trailMap !== game.currentMap) { game.trail = []; game.trailMap = game.currentMap; }
     game.trail = [{ x: oldX, y: oldY }].concat(game.trail || []).slice(0, 4);
-    game.moveAnim = { fx: oldX, fy: oldY, t0: Date.now() };
+    game.moveAnim = { fx: oldX, fy: oldY, t0: Date.now(), dur: game.dashing ? 70 : 110 };
     if (!game.stepFx) game.stepFx = [];
     game.stepFx.push({ x: oldX, y: oldY, tile: map.tiles[oldY][oldX], t0: Date.now() });
     if (game.stepFx.length > 8) game.stepFx.shift();

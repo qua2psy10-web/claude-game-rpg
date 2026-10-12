@@ -72,6 +72,14 @@ This file provides guidance for Claude and human developers working on this proj
 - **Announcement:** enemies met for the first time are listed in the win messages ("…を ずかんに とうろくした！").
 - **Code:** `js/bestiary.js` (`BestiarySystem`); `battle.js` records on `startBattle`, `main.js` records defeats in `updateScoreAfterBattle` and owns the menu state. New enemies need `desc` and `area`.
 
+### Dash & key config
+
+- **Dash:** hold the dash key (default Shift) while walking: a step every 5 frames instead of 8 (~1.6x) and a shorter glide (70 ms instead of 110). Encounter chance is per step, unchanged, so you meet monsters faster per second but not per tile. Only on the map (dialogue, menus and battles never dash). Settings: ダッシュ ON/OFF and 常時ダッシュ (always dashing; the dash key then walks normally).
+- **Touch:** sliding the D-pad thumb out to the dashed outer ring presses the dash key; sliding back releases it.
+- **Key config:** the settings screen rebinds *confirm* (default Z), *cancel* (X) and *dash* (Shift): pick the row, press Z/confirm, press the new key (Esc cancels). Movement (arrows, WASD), Enter (confirm) and Esc (cancel) are fixed, so a bad binding can never lock you out; Space also confirms unless bound elsewhere. Reserved keys and keys already used by another action are refused with a message. Letters are stored lower-case.
+- **Storage:** in `eldrasia_settings` (`dash`, `autoDash`, `keys`). Old or damaged data falls back per field to the defaults; duplicate bindings are reset.
+- **Code:** `SettingsSystem.key(action)` is the single lookup used by `getInput`, `isDashing` (main.js) and the touch buttons (touch.js), so a rebinding applies immediately everywhere.
+
 ### Touch controls
 
 - **Detection:** `TouchControls.init` (js/touch.js) turns them on when the device reports touch (`ontouchstart`, `maxTouchPoints`, coarse pointer); `?touch=1` / `?touch=0` in the URL forces them on / off. Desktop play is unchanged.
@@ -151,6 +159,8 @@ python3 -m http.server 8000
 - Arrow keys: Move / Navigate menus
 - Z or Enter: Confirm
 - X or Escape: Cancel / Open menu
+- Shift (hold): Dash on the map
+- All three of Z / X / Shift can be rebound in せってい
 - Touch devices: on-screen D-pad plus A (confirm) / B (cancel, menu) buttons appear automatically
 
 ---
