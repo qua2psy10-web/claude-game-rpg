@@ -1285,6 +1285,7 @@ var BattleSystem = {
         for (var i = 0; i < targets.length; i++) {
           if (targets[i].alive) {
             var dmg = this.calcSpellDamage(caster, targets[i], spell);
+            if (spell.type === 'physical') dmg = Math.max(1, Math.floor(this.getEffectiveStat(caster, 'atk') * spell.power / 2 - this.getEffectiveStat(targets[i], 'def') * (1 - (spell.pierce || 0)) / 4));
             targets[i].hp = Math.max(0, targets[i].hp - dmg);
             this.pop(game, targets[i], dmg, 'dmg', fd);
             b.messages.push(targets[i].name + 'に ' + dmg + 'の ダメージ！');
