@@ -241,6 +241,26 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(af.map === 'world' && af.flag === true && af.x === 12 && af.y === 5, 'the clear is saved outside the castle', JSON.stringify(af));
   await press('z', 100);
   ok(await state() === 'title', 'the ending returns to the title');
+  console.log('\n[New Game+]');
+  ok(await ev(function() { return titleItems().indexOf('つよくてニューゲーム') === 2; }), 'the title offers つよくてニューゲーム after the Demon King has fallen');
+  await ev(function() { game.titleT0 = Date.now() - 5000; game.titleIndex = 0; game.titleGo = null; game.state = 'title'; });
+  var before = await ev(function() { var d = getSaveInfo(); return { lv: d.party.map(function(c) { return c.level; }).join(','), equip: d.equipInventory.length, ach: Object.keys(d.achieved || {}).length, bestiary: Object.keys(d.bestiary || {}).length }; });
+  await press('ArrowDown', 80); await press('ArrowDown', 80); await press('z', 80);
+  ok(await until(function() { return game.state === 'dialogue' && game.cycle === 2; }, 4000), 'choosing it starts cycle 2 with a dialogue (no opening)');
+  var ng = await ev(function() {
+    var o = { lv: game.party.map(function(c) { return c.level; }).join(','), gold: game.gold, flags: Object.keys(game.flags).length, map: game.currentMap, hpFull: game.party.every(function(c) { return c.hp === c.maxHp; }),
+              equip: game.equipInventory.length, ach: Object.keys(game.achieved).length, bestiary: Object.keys(game.bestiary).length };
+    BattleSystem.startBattle(game, ['slime']); var e = game.battle.enemies[0];
+    o.hp = e.maxHp; o.exp = e.exp; game.battle = null; game.state = 'map';
+    saveGame(); var d = JSON.parse(localStorage.getItem('eldrasia_save')); o.savedCycle = d.cycle;
+    var c2 = game.cycle; game.cycle = 1; loadGame(); o.loadedCycle = game.cycle; o.cycleBack = c2;
+    return o;
+  });
+  ok(ng.lv === before.lv && ng.equip === before.equip && ng.ach === before.ach && ng.bestiary === before.bestiary, 'levels, gear, achievements and ずかん carry over', JSON.stringify([before, ng]));
+  ok(ng.gold === 100 && ng.flags === 0 && ng.map === 'millhaven' && ng.hpFull, 'gold, story flags and position reset; the party is healed');
+  ok(ng.hp === Math.round(32) && ng.exp === Math.round(4 * 1.5), 'enemies are tougher and pay more in cycle 2', JSON.stringify([ng.hp, ng.exp]));
+  ok(ng.savedCycle === 2 && ng.loadedCycle === 2, 'the cycle is saved and loaded');
+
   var zel = await ev(function() {
     newGame(); game.state = 'map'; game.currentMap = 'abyss'; game.party.forEach(function(c) { c.level = 20; });
     game.pendingBoss = MAPS.abyss.events['8,1']; game.state = 'battle'; BattleSystem.startBattle(game, ['zelgios']);

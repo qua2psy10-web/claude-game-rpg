@@ -114,6 +114,15 @@ This file provides guidance for Claude and human developers working on this proj
 - **Balance:** the new gear is only a shop option; the balance sim does not buy it (it is cheaper per stat than the castle gear, so it is a gentle help, not a power spike).
 - **Code:** data only (`MAPS.haruka`, `SHOPS.roadShop`, `WEAPONS` / `ARMORS`), plus the three alias lines above.
 
+### New Game+ (つよくてニューゲーム)
+
+- **Unlock:** the title menu shows 「つよくてニューゲーム」 (between つづきから and せってい) when the saved game has `demonKingDefeated`. Choosing it fades out like the other entries and calls `newGamePlus()` (`main.js`).
+- **Carried over:** levels / stats / EXP, equipped gear and the equipment bag, items, ずかん, achievements (so rewards are not paid twice) and seen hints. **Reset:** gold (100), story flags (bosses, chests, `visited_*` ... all reopen), position (Millhaven), the party is fully healed. No opening cinematic; a short dialogue announces the cycle.
+- **Cycle:** `game.cycle` (1 = normal) is saved (`cycle`, no version bump; old saves load as 1) and shown as 「2周目」 in the map HUD, the records screen and the title's save summary.
+- **Difficulty:** `cycleScale(cycle)` in `data.js`: per cycle after the first, enemy HP / ATK / INT x(1 + 0.6c), DEF x(1 + 0.3c), EXP and gold x(1 + 0.5c) (c = cycles beyond the first). Applied in `BattleSystem.startBattle` to every enemy including bosses; the ずかん keeps showing base stats.
+- **Balance** (`NG=2 NGLV=20 node tools/balance-sim.js 12 1 ng`: the party arrives at that level with the best gear 6000G buys, 10 fights per area): at Lv20 cycle 2 is trivial in the grassland and forest (the carried levels), ~15% HP lost in the castle, the Demon King ~83% wipe and the abyss ~40% wipe; at Lv24 the Demon King is ~8% wipe, so the party levels up (EXP x1.5) before the climax. Cycle 3 at Lv20: castle 28% wipe, Demon King and abyss out of reach until higher levels.
+- **Code:** `main.js` (`titleItems`, `newGamePlus`, `updateTitle`), `data.js` (`cycleScale`), `battle.js` (`startBattle`), `tools/balance-sim.js` (`ng` mode), smoke test section `[New Game+]`.
+
 ### Records & achievements (きろく)
 
 - **きろく screen:** the in-game menu's きろく (after ずかん) shows per-save stats on the left (play time, steps, enemies defeated, ずかん species, chests opened of all 14, highest gold, whether the Demon King and Zelgios are down) and the achievement checklist on the right (★ done, ☆ with progress such as 6/9, and each reward).

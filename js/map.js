@@ -450,6 +450,7 @@ var MapSystem = {
     if (map) {
       UI.drawWindow(ctx, 4, 4, 180, 28);
       UI.drawText(ctx, map.name, 14, 10, '#fff', UI.FONT_SMALL);
+      if (game.cycle > 1) UI.drawText(ctx, game.cycle + '周目', 138, 10, '#ffd700', UI.FONT_SMALL);
     }
   },
 };

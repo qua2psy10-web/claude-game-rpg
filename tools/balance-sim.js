@@ -212,6 +212,34 @@ for (var i = 0; i < runs; i++) {
   Object.keys(rp.byLv).forEach(function(l) { var x = byLv[l] = byLv[l] || { b: 0, loss: 0, wipes: 0 }; x.b += rp.byLv[l].b; x.loss += rp.byLv[l].loss; x.wipes += rp.byLv[l].wipes; });
   bossWin += rp.boss.winRate; bossRounds += rp.boss.rounds; last = rp;
 }
+// New Game+ check: `node tools/balance-sim.js 12 1 ng` with NG=<cycle> (default 2) and NGLV=<carried level> (default 20).
+// The party arrives with that level and about the best gear its gold can buy, then fights each area (and the Demon King) at the cycle's strength.
+if (process.argv[4] === 'ng') {
+  var cyc = +process.env.NG || 2, nglv = +process.env.NGLV || 20, gold = +process.env.NGGOLD || 6000;
+  console.log('New Game+ cycle ' + cyc + ' (scale ' + JSON.stringify(cycleScale(cyc)) + '), party Lv ' + nglv + ', gear budget ' + gold + 'G');
+  var tables = [['草原', MAPS.world.encounters.grass], ['森', MAPS.forest.encounters.forest], ['魔王城', MAPS.castle.encounters.dark], ['魔王', [{ enemies: ['demonKing'], weight: 1 }]], ['深淵', MAPS.abyss.encounters.dark]];
+  var res = tables.map(function() { return { n: 0, wipes: 0, loss: 0, rounds: 0 }; });
+  for (var ri = 0; ri < runs; ri++) {
+    seedRng(base + ri);
+    var base0 = newGameState();
+    base0.party.forEach(function(c) { for (var k = 1; k < nglv; k++) { c.exp = expForLevel(k + 1); BattleSystem.checkLevelUp(c); } c.exp = expForLevel(nglv); });
+    base0.gold = gold; base0.cycle = cyc;
+    for (var sp = 0; sp < 6; sp++) shop(base0, 5);
+    var snap0 = JSON.stringify(base0);
+    tables.forEach(function(t, ti) {
+      for (var f = 0; f < (t[0] === '魔王' ? 3 : 10); f++) {
+        var gg = JSON.parse(snap0); gg.battle = null; gg.party.forEach(function(c) { c.hp = c.maxHp; c.mp = c.maxMp; });
+        var hp0 = gg.party.reduce(function(a, c) { return a + c.hp; }, 0), mx = gg.party.reduce(function(a, c) { return a + c.maxHp; }, 0);
+        var out = fight(gg, pick(t[1]));
+        var r2 = res[ti]; r2.n++; r2.rounds += out.rounds; if (!out.won) r2.wipes++;
+        r2.loss += out.won ? Math.max(0, hp0 - gg.party.reduce(function(a, c) { return a + c.hp; }, 0)) / mx : 1;
+      }
+    });
+  }
+  tables.forEach(function(t, ti) { var r3 = res[ti]; console.log((t[0] + '    ').slice(0, 5) + ' wipe ' + (r3.wipes / r3.n * 100).toFixed(0).padStart(3) + '%  hpLost ' + (r3.loss / r3.n * 100).toFixed(0).padStart(3) + '%  rounds ' + (r3.rounds / r3.n).toFixed(1)); });
+  var lastp = JSON.parse(snap0); console.log('sample party: ' + lastp.party.map(function(c) { return c.name + ' Lv' + c.level + ' ATK' + c.atk + ' DEF' + c.def + ' HP' + c.maxHp; }).join(' | '));
+  return;
+}
 if (process.argv[4] === 'matrix') {
   var areas = [['草原', MAPS.world.encounters.grass], ['森', MAPS.forest.encounters.forest], ['魔王城', MAPS.castle.encounters.dark], ['魔王', [{ enemies: ['demonKing'], weight: 1 }]], ['深淵', MAPS.abyss.encounters.dark], ['ゼル', [{ enemies: ['zelgios'], weight: 1 }]]];
   var snapAgg = {};

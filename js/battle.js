@@ -12,19 +12,20 @@ var BattleSystem = {
       game.party[pi].hpShown = 0; game.party[pi].hpGhost = 0; game.party[pi].mpShown = 0;   // gauges fill up as the panel slides in
       game.party[pi].hpLast = game.party[pi].hp;
     }
+    var cs = cycleScale(game.cycle);
     for (var i = 0; i < enemyIds.length; i++) {
       var template = ENEMIES[enemyIds[i]];
       enemies.push({
         id: enemyIds[i],
         name: template.name + (enemyIds.length > 1 && enemyIds.filter(function(e) { return e === enemyIds[i]; }).length > 1 ? String.fromCharCode(65 + i) : ''),
-        hp: template.hp,
-        maxHp: template.hp,
-        atk: template.atk,
-        def: template.def,
+        hp: Math.round(template.hp * cs.stat),
+        maxHp: Math.round(template.hp * cs.stat),
+        atk: Math.round(template.atk * cs.stat),
+        def: Math.round(template.def * cs.def),
         spd: template.spd,
-        int: template.int,
-        exp: template.exp,
-        gold: template.gold,
+        int: Math.round(template.int * cs.stat),
+        exp: Math.round(template.exp * cs.reward),
+        gold: Math.round(template.gold * cs.reward),
         color: template.color,
         shape: template.shape,
         boss: template.boss || false,
