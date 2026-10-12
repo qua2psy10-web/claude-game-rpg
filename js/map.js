@@ -418,7 +418,7 @@ var MapSystem = {
         npc.dir = { left: 'right', right: 'left', up: 'down', down: 'up' }[game.facing] || npc.dir;   // turns to face the party
         npc.anim = null;
         game.currentNPC = npc;
-        game.dialogue = this.npcLines(game, npc);
+        game.dialogue = (typeof QuestSystem !== 'undefined' && QuestSystem.talk(game, npc)) || this.npcLines(game, npc);
         game.dialogueIndex = 0;
         game.state = 'dialogue';
         return true;

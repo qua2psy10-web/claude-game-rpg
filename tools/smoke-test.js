@@ -89,6 +89,15 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
       SHOPS[sid].items.forEach(function(i) { var tb = i.type === 'weapon' ? WEAPONS : i.type === 'armor' ? ARMORS : i.type === 'accessory' ? ACCESSORIES : ITEMS; if (!tb[i.id]) bad.push(sid + ' sells unknown ' + i.id); });
     });
     ACHIEVEMENTS.forEach(function(a) { var r = a.reward; if (r.item && !ITEMS[r.item]) bad.push(a.id + ' reward item'); if (r.accessory && !ACCESSORIES[r.accessory]) bad.push(a.id + ' reward accessory'); });
+    Object.keys(QUESTS).forEach(function(id) {
+      var q = QUESTS[id], giver = 0, target = 0;
+      if (q.kind === 'kill' && !ENEMIES[q.enemy]) bad.push(id + ' unknown enemy');
+      if (q.kind === 'fetch' && !ITEMS[q.item]) bad.push(id + ' unknown item');
+      if (q.reward.item && !ITEMS[q.reward.item]) bad.push(id + ' reward item');
+      ['offer', 'active', 'done'].forEach(function(k) { if (!q.lines[k] || !q.lines[k].length) bad.push(id + ' missing ' + k + ' lines'); });
+      Object.keys(MAPS).forEach(function(mid) { (MAPS[mid].npcs || []).forEach(function(n) { if (n.quest === id) giver++; if (n.questTarget === id) target++; }); });
+      if (giver !== 1) bad.push(id + ' needs exactly one giver'); if (q.kind === 'deliver' && target !== 1) bad.push(id + ' needs one target');
+    });
     Object.keys(ITEMS).forEach(function(id) { var it = ITEMS[id]; if (it.fx && !ITEMS[it.fx]) bad.push(id + ' fx borrows unknown ' + it.fx); });
     return bad;
   });
@@ -223,6 +232,38 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(sv.slime === 2 && sv.hint === true && sv.ach === true, 'ずかん, hints and achievements round-trip');
   ok(sv.oldLoaded && sv.oldHints && sv.oldBestiary, 'a save from before hints / ずかん / achievements loads');
   ok(sv.corrupt, 'a corrupt save is reported as corrupt, not loaded');
+
+  console.log('\n[requests]');
+  var qs = await ev(function() {
+    newGame(); game.state = 'map'; var o = {};
+    function npc(map, name) { return MAPS[map].npcs.filter(function(n) { return n.name === name; })[0]; }
+    var tr = npc('millhaven', '旅人'), ba = npc('millhaven', '老婆'), ge = npc('haruka', '旅芸人'), so = npc('haruka', '兵士');
+    o.offer = QuestSystem.talk(game, tr) === QUESTS.wolfHunt.lines.offer && game.quests.wolfHunt.state === 'active';
+    QuestSystem.onDefeated(game, ['wolf', 'slime', 'wolf']); o.n2 = game.quests.wolfHunt.n === 2;
+    o.active = QuestSystem.talk(game, tr)[0] === QUESTS.wolfHunt.lines.active[0];
+    QuestSystem.onDefeated(game, ['wolf']);
+    var g0 = game.gold; o.done = QuestSystem.talk(game, tr) === QUESTS.wolfHunt.lines.done && game.gold === g0 + 150 && game.quests.wolfHunt.state === 'done';
+    o.after = QuestSystem.talk(game, tr) === null;
+    QuestSystem.onDefeated(game, ['wolf']); o.noRecount = game.quests.wolfHunt.n === 3;
+    o.before = QuestSystem.talk(game, ge) === null;                    // the target says nothing special before the package is carried
+    QuestSystem.talk(game, ba); var g1 = game.gold;
+    o.deliver = QuestSystem.talk(game, ge) === QUESTS.herbDelivery.lines.done && game.gold === g1 + 100;
+    QuestSystem.talk(game, so); o.fetchWait = QuestSystem.talk(game, so)[0] === QUESTS.antidoteFetch.lines.active[0];
+    MapSystem.giveItem(game, 'antidote', 3); o.fetch = QuestSystem.talk(game, so) === QUESTS.antidoteFetch.lines.done && !game.inventory.some(function(i) { return i.id === 'antidote'; });
+    saveGame(); var back = QuestSystem.sanitize(JSON.parse(localStorage.getItem('eldrasia_save')).quests);
+    o.saved = back.wolfHunt.state === 'done' && back.antidoteFetch.state === 'done';
+    o.oldSave = Object.keys(QuestSystem.sanitize(undefined)).length === 0;
+    newGame(); o.reset = Object.keys(game.quests).length === 0;
+    return o;
+  });
+  ok(qs.offer && qs.n2 && qs.active && qs.done && qs.after && qs.noRecount, 'a kill request is accepted, counted, rewarded once', JSON.stringify(qs));
+  ok(qs.before && qs.deliver, 'a delivery is finished by the target NPC in another town');
+  ok(qs.fetchWait && qs.fetch, 'a fetch request takes the items and pays');
+  ok(qs.saved && qs.oldSave && qs.reset, 'requests are saved, absent in old saves, reset by a new game');
+  await ev(function() { game.state = 'menu'; game.menuState = { index: MENU_ITEMS.indexOf('いらい'), subState: null }; });
+  await press('z', 100);
+  ok(await ev(function() { return game.menuState.subState === 'quests'; }), 'the menu opens the requests screen');
+  await press('x', 100);
 
   console.log('\n[achievements and the post-game flow]');
   var pg = await ev(function() {

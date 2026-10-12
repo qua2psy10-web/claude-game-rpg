@@ -177,6 +177,53 @@ var ACHIEVEMENTS = [
   { id: 'master',  name: 'モンスターマスター', desc: 'ボスいがいを 3たいずつ たおす', kind: 'master',   reward: { accessory: 'masterRing' } },
 ];
 
+// ===== REQUESTS (いらい) =====
+// Villager errands (QuestSystem). kind: kill (enemy, n) / fetch (item, n) / deliver (target = the NPC's quest id in another town).
+// An NPC carries `quest: id` (giver; also the turn-in for kill/fetch) or `questTarget: id` (deliver destination).
+// lines: offer / active / done (spoken on completion); reward: { gold, item, count }.
+var QUESTS = {
+  wolfHunt: {
+    name: 'ウルフたいじ', kind: 'kill', enemy: 'wolf', n: 3,
+    desc: 'もりの ウルフを 3たい たおす',
+    reward: { gold: 150, item: 'highHerb', count: 2 },
+    lines: {
+      offer:  ['旅人「実は 森で ウルフに 荷物を 奪われてな…', '頼む、森の ウルフを 3匹 退治してくれ！', '礼は するぞ。」'],
+      active: ['旅人「ウルフ退治は どうだ？', '森に 3匹 いるはずだ。頼んだぞ。」'],
+      done:   ['旅人「やってくれたか！ ありがたい！', 'これは 礼だ。受け取ってくれ。」'],
+    },
+  },
+  skeletonHunt: {
+    name: 'ガイコツたいじ', kind: 'kill', enemy: 'skeleton', n: 4,
+    desc: 'きたの やみの ガイコツを 4たい たおす',
+    reward: { gold: 300, item: 'phoenix', count: 1 },
+    lines: {
+      offer:  ['村長「北の 暗い大地に 骸骨の 魔物が 出ると いう。', '街道の 旅人が 怖がっておる。', '4体ほど 退治しては くれぬか。」'],
+      active: ['村長「骸骨の 退治は 進んでおるか。', '北の 暗い大地じゃ。気をつけてな。」'],
+      done:   ['村長「おお、これで 旅人も 安心じゃ！', '村からの 礼じゃ。」'],
+    },
+  },
+  herbDelivery: {
+    name: 'のどぐすりを とどけて', kind: 'deliver', target: 'herbDelivery',
+    desc: 'ハルカ宿場の 旅芸人に くすりを とどける',
+    reward: { gold: 100, item: 'elixir', count: 1 },
+    lines: {
+      offer:  ['老婆「東の ハルカ宿場に 旅芸人が おってな。', '歌いすぎで のどを 痛めて おるそうじゃ。', 'この 薬草を 届けて やってくれんか。」', '（のどぐすりを あずかった）'],
+      active: ['老婆「あの 薬草は もう 届けて くれたかの？', '東の 街道の ハルカ宿場じゃよ。」'],
+      done:   ['旅芸人「あら、村の おばあさんからの 薬草！', 'ありがたい。これで また 歌えるわ。', '礼に これを あげる。持っていきな！」'],
+    },
+  },
+  antidoteFetch: {
+    name: 'どくけしそうを あつめて', kind: 'fetch', item: 'antidote', n: 3,
+    desc: 'どくけしそうを 3つ 兵士に わたす',
+    reward: { gold: 250 },
+    lines: {
+      offer:  ['兵士「森の 見張りで 毒を 受ける 者が 多くてな。', '毒消し草が 3つ ほしいのだが…', '持っていたら 分けて くれ。礼は する。」'],
+      active: ['兵士「毒消し草は 3つ 集まったか？', '道具屋で 買えるぞ。」'],
+      done:   ['兵士「助かった！ これで 見張りも 安心だ。', 'わずかだが 礼を 受け取ってくれ。」'],
+    },
+  },
+};
+
 // ===== MAP DATA =====
 // Each map: { width, height, tiles (string array), playerStart, events, npcs, encounters }
 
@@ -268,7 +315,7 @@ var MAPS = {
       '8,13': { type: 'mapTransfer', map: 'world', targetX: 14, targetY: 17, desc: 'フィールドへ' },
     },
     npcs: [
-      { x: 4, y: 3, name: '村長', color: '#aa8844', dir: 'down', wander: 2,
+      { x: 4, y: 3, name: '村長', color: '#aa8844', dir: 'down', wander: 2, quest: 'skeletonHunt',
         dialogue: [
           '村長「よく来たな、勇者たちよ。',
           '北の果てに魔王ヴァルザードが復活した。',
@@ -292,7 +339,7 @@ var MAPS = {
         talk: [{ flag: 'demonKingDefeated', lines: ['防具屋「指輪も 新しい 品が 入りましたよ。', '勇者さまに ぴったりです！」'] }] },
       { x: 14, y: 3, name: '宿屋', color: '#aaaa44', dir: 'down', inn: 30,
         dialogue: ['宿屋「一泊30ゴールドです。お泊りになりますか？」'] },
-      { x: 7, y: 7, name: '旅人', color: '#88aa88', dir: 'right', wander: 2,
+      { x: 7, y: 7, name: '旅人', color: '#88aa88', dir: 'right', wander: 2, quest: 'wolfHunt',
         dialogue: [
           '旅人「北の森を抜けると魔王の城があるらしい。',
           'でも森にはモンスターがうようよいるから',
@@ -305,7 +352,7 @@ var MAPS = {
           { flag: 'demonKingDefeated', lines: ['旅人「魔王を 倒すとは 大したもんだ！', '噂じゃ 大陸の南西に 新しい 門が', 'できたらしい。力試しに ちょうどいいぞ。」'] },
           { flag: 'visited_castle', lines: ['旅人「城まで 行ったのか！', '中の 魔物は 森とは 桁違いだろう。', 'レベルを 上げてから 行った方が いいぞ。」'] },
         ]},
-      { x: 2, y: 12, name: '老婆', color: '#aa88aa', dir: 'up',
+      { x: 2, y: 12, name: '老婆', color: '#aa88aa', dir: 'up', quest: 'herbDelivery',
         dialogue: ['老婆「森の 奥には 昔の 旅人が', '残した 宝箱が あるそうじゃ。', '鉄の剣が 眠って おるとか…」'],
         talk: [
           { flag: 'demonKingDefeated', lines: ['老婆「大陸の 北の 暗い土地にも', '宝箱が あるそうじゃ。', 'わしも 若ければ 探しに 行くのにのう。」'] },
@@ -497,7 +544,7 @@ var MAPS = {
       { x: 10, y: 3, name: '行商人', color: '#44aaaa', dir: 'down', shop: 'roadShop',
         dialogue: ['行商人「旅人向けの 良い品を 揃えてますよ！」'],
         talk: [{ flag: 'demonKingDefeated', lines: ['行商人「魔王を 倒した 勇者さまですか！', 'うちの 品は 世界中から 集めた 自慢の 一品です！」'] }] },
-      { x: 6, y: 6, name: '旅芸人', color: '#cc88aa', dir: 'down', wander: 2,
+      { x: 6, y: 6, name: '旅芸人', color: '#cc88aa', dir: 'down', wander: 2, questTarget: 'herbDelivery',
         dialogue: ['旅芸人「この 宿場は 村と 森の 中間にあってね。', '森へ 向かう 旅人が 最後に 休む 場所さ。', 'しっかり 準備してから 行きなよ！」'],
         talk: [
           { flag: 'abyssBossDefeated', lines: ['旅芸人「深淵の魔神を 倒した 勇者たちの 歌を', '作ったんだ！ 世界中で 歌うよ！」'] },
@@ -505,7 +552,7 @@ var MAPS = {
           { flag: 'visited_castle', lines: ['旅芸人「魔王の城まで 行ったのかい！', '無事で 何よりだ。ゆっくり 休んで いきなよ。」'] },
           { flag: 'visited_forest', lines: ['旅芸人「森から 戻って きたのかい。', '傷は 宿で 癒していきな。」'] },
         ]},
-      { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left',
+      { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left', quest: 'antidoteFetch',
         dialogue: ['兵士「ここから 北の 森には', '強い 魔物が 住んでいる。', '装備は ちゃんと 整えたか？」'],
         talk: [
           { flag: 'demonKingDefeated', lines: ['兵士「魔王が 倒されて 街道も', '平和に なったな。', '私も 仕事が 楽に なったよ。」'] },
