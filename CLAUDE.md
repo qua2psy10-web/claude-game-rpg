@@ -19,7 +19,7 @@ This file provides guidance for Claude and human developers working on this proj
 ### World & Setting
 
 - **World name:** Eldrasia (エルドラシア)
-- **Regions:** Millhaven Village (starting town), Dark Forest, Crystal Caverns, Demon King's Castle
+- **Regions:** Millhaven Village (starting town), Haruka Waystation (a small town on the east road), Dark Forest, Crystal Caverns, Demon King's Castle, the Abyss (post-game)
 - **Lore:** The Demon King has awoken and threatens the land. Three heroes must journey north to defeat him.
 
 ### Character System
@@ -104,6 +104,13 @@ This file provides guidance for Claude and human developers working on this proj
 - **Progress-aware lines:** an NPC in `data.js` may carry `talk: [{ flag, lines }, ...]`, listed most advanced first; `MapSystem.npcLines` returns the first entry whose flag is set, else the default `dialogue`. Flags used: `visited_<map>` (set whenever the party goes through a map transfer, so it is saved with the flags; saves from before this simply get them on the next trip), `demonKingDefeated`, `abyssBossDefeated`, chest flags.
 - **Who says what:** the village chief and the traveller react to the forest / castle trips, the Demon King's fall (the chief and traveller hint at the new south-west gate) and the secret boss; the shopkeepers greet a clear-game party; the old woman hints at chests; the child (wanders) reacts to the forest and the clears. The innkeeper has a single line.
 - **Code:** data in the `millhaven` NPC list; `map.js` (`npcLines`, called from `interact`).
+
+### Haruka Waystation (ハルカ宿場)
+
+- **Where:** `MAPS.haruka` (14x10), entered from the marker at world (18,12), just east of the road to the forest; the exit returns to (18,13). It shares the village's town BGM, ambient bed and sunlit atmosphere (aliases in `getMapBgm`, `updateBgm` and `AmbienceSystem`).
+- **Contents:** an inn (30G), the travelling merchant's shop `roadShop` (上薬草, 毒消し草 and three mid-game pieces that fill the gap before the castle gear: 銀の剣 ATK+28 1000G, 銀の杖 ATK+4 INT+20 1100G, ウロコの鎧 DEF+23 800G), two chests (上薬草x2, 素早さの指輪), and three villagers (a travelling entertainer who wanders, a soldier, the merchant) with `talk` lines that follow the party's progress. The traveller in Millhaven hints at the waystation.
+- **Balance:** the new gear is only a shop option; the balance sim does not buy it (it is cheaper per stat than the castle gear, so it is a gentle help, not a power spike).
+- **Code:** data only (`MAPS.haruka`, `SHOPS.roadShop`, `WEAPONS` / `ARMORS`), plus the three alias lines above.
 
 ### Shops & Inn presentation
 

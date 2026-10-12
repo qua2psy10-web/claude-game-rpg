@@ -123,6 +123,8 @@ var ITEMS = {
 var WEAPONS = {
   woodenSword:  { name: '木の剣', atk: 5, price: 50, equip: ['sam'] },
   ironSword:    { name: '鉄の剣', atk: 12, price: 200, equip: ['sam'] },
+  silverSword:  { name: '銀の剣', atk: 28, price: 1000, equip: ['sam'] },
+  silverStaff:  { name: '銀の杖', atk: 4, int: 20, price: 1100, equip: ['dario', 'sundar'] },
   steelSword:   { name: '鋼の剣', atk: 22, price: 600, equip: ['sam'] },
   flameSword:   { name: '炎の剣', atk: 32, price: 1800, equip: ['sam'] },
   holySword:    { name: '聖なる剣', atk: 48, price: 6000, equip: ['sam'] },
@@ -139,6 +141,7 @@ var ARMORS = {
   clothArmor:   { name: '布の服', def: 4, price: 40, equip: ['sam', 'dario', 'sundar'] },
   leatherArmor: { name: '皮の鎧', def: 10, price: 180, equip: ['sam', 'sundar'] },
   chainMail:    { name: '鎖帷子', def: 18, price: 500, equip: ['sam'] },
+  scaleMail:    { name: 'ウロコの鎧', def: 23, price: 800, equip: ['sam'] },
   plateArmor:   { name: 'プレートアーマー', def: 28, price: 1500, equip: ['sam'] },
   dragonArmor:  { name: 'ドラゴンアーマー', def: 42, price: 5000, equip: ['sam'] },
   silkRobe:     { name: '絹のローブ', def: 4, int: 4, price: 80, equip: ['dario', 'sundar'] },
@@ -197,6 +200,7 @@ var MAPS = {
       '14,16': { type: 'mapTransfer', map: 'millhaven', desc: 'ミルヘイブン村' },
       '13,7':  { type: 'mapTransfer', map: 'forest', desc: '暗黒の森' },
       '12,4':  { type: 'mapTransfer', map: 'castle', desc: '魔王の城' },
+      '18,12': { type: 'mapTransfer', map: 'haruka', desc: 'ハルカ宿場' },
       '4,13':  { type: 'mapTransfer', map: 'abyss', requires: 'demonKingDefeated', desc: '深淵の迷宮' },
     },
     encounters: {
@@ -276,7 +280,9 @@ var MAPS = {
         dialogue: [
           '旅人「北の森を抜けると魔王の城があるらしい。',
           'でも森にはモンスターがうようよいるから',
-          '気をつけた方がいいぞ。」',
+          '気をつけた方がいいぞ。',
+          '東の街道の ハルカ宿場なら',
+          '旅の装備も 買えるらしい。」',
         ],
         talk: [
           { flag: 'abyssBossDefeated', lines: ['旅人「あの深淵の魔神を 倒したのか！', '俺は 長く 旅をしてきたが', 'こんな 話は 初めて 聞いたぞ。」'] },
@@ -445,6 +451,54 @@ var MAPS = {
     },
     encounterRate: 0.14,
   },
+
+  haruka: {
+    name: 'ハルカ宿場',
+    nameEn: "HARUKA WAYSIDE",
+    width: 14, height: 10,
+    tiles: [
+      'wwwwwwwwwwwwww',
+      'wffffffffffffw',
+      'wfwwwwffwwwwfw',
+      'wfwffwffwffwfw',
+      'wfwcfwffwcfwfw',
+      'wfwwdwffwwdwfw',
+      'wffffffffffffw',
+      'wf.ffffffff.fw',
+      'wffffffffffffw',
+      'wwwwwwEEwwwwww',
+    ],
+    playerStart: { x: 6, y: 8 },
+    events: {
+      '6,9':  { type: 'mapTransfer', map: 'world', targetX: 18, targetY: 13, desc: 'フィールドへ' },
+      '7,9':  { type: 'mapTransfer', map: 'world', targetX: 18, targetY: 13, desc: 'フィールドへ' },
+      '12,1': { type: 'chest', item: 'highHerb', itemType: 'item', count: 2, flag: 'haruka_chest1', msg: '宝箱から 上薬草x2 を手に入れた！' },
+      '1,8':  { type: 'chest', item: 'speedRing', itemType: 'accessory', flag: 'haruka_chest2', msg: '宝箱から 素早さの指輪 を手に入れた！' },
+    },
+    npcs: [
+      { x: 4, y: 3, name: '宿屋', color: '#aaaa44', dir: 'down', inn: 30,
+        dialogue: ['宿屋「ハルカ宿場へ ようこそ。', '一泊30ゴールドです。お泊りになりますか？」'] },
+      { x: 10, y: 3, name: '行商人', color: '#44aaaa', dir: 'down', shop: 'roadShop',
+        dialogue: ['行商人「旅人向けの 良い品を 揃えてますよ！」'],
+        talk: [{ flag: 'demonKingDefeated', lines: ['行商人「魔王を 倒した 勇者さまですか！', 'うちの 品は 世界中から 集めた 自慢の 一品です！」'] }] },
+      { x: 6, y: 6, name: '旅芸人', color: '#cc88aa', dir: 'down', wander: 2,
+        dialogue: ['旅芸人「この 宿場は 村と 森の 中間にあってね。', '森へ 向かう 旅人が 最後に 休む 場所さ。', 'しっかり 準備してから 行きなよ！」'],
+        talk: [
+          { flag: 'abyssBossDefeated', lines: ['旅芸人「深淵の魔神を 倒した 勇者たちの 歌を', '作ったんだ！ 世界中で 歌うよ！」'] },
+          { flag: 'demonKingDefeated', lines: ['旅芸人「魔王を 倒した 勇者たちの 歌を', '作っているところさ。', 'もう少しで 完成だよ！」'] },
+          { flag: 'visited_castle', lines: ['旅芸人「魔王の城まで 行ったのかい！', '無事で 何よりだ。ゆっくり 休んで いきなよ。」'] },
+          { flag: 'visited_forest', lines: ['旅芸人「森から 戻って きたのかい。', '傷は 宿で 癒していきな。」'] },
+        ]},
+      { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left',
+        dialogue: ['兵士「ここから 北の 森には', '強い 魔物が 住んでいる。', '装備は ちゃんと 整えたか？」'],
+        talk: [
+          { flag: 'demonKingDefeated', lines: ['兵士「魔王が 倒されて 街道も', '平和に なったな。', '私も 仕事が 楽に なったよ。」'] },
+          { flag: 'visited_castle', lines: ['兵士「城へ 入ったのか。', '無事に 戻ってきて 何よりだ。」'] },
+        ]},
+    ],
+    encounters: {},
+    encounterRate: 0,
+  },
 };
 
 // ===== SHOP DATA =====
@@ -460,6 +514,16 @@ var SHOPS = {
       { id: 'highHerb', type: 'item' },
       { id: 'elixir', type: 'item' },
       { id: 'bigBomb', type: 'item' },
+    ],
+  },
+  roadShop: {
+    name: '行商人',
+    items: [
+      { id: 'highHerb', type: 'item' },
+      { id: 'antidote', type: 'item' },
+      { id: 'silverSword', type: 'weapon' },
+      { id: 'silverStaff', type: 'weapon' },
+      { id: 'scaleMail', type: 'armor' },
     ],
   },
   weaponShop: {

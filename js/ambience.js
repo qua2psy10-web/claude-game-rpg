@@ -102,7 +102,7 @@ var AmbienceSystem = {
     this.updateNPCs(game, now);
     var a = game.ambience;
     if (!a || a.map !== game.currentMap) { a = game.ambience = { map: game.currentMap, nextBird: now + 6000 + Math.random() * 8000, nextBolt: now + 9000 + Math.random() * 12000, boltAt: 0 }; }
-    var id = game.currentMap;
+    var id = game.currentMap === 'haruka' ? 'millhaven' : game.currentMap;   // the waystation shares the village's sunlit atmosphere
     if ((id === 'world' || id === 'millhaven' || id === 'forest') && now >= a.nextBird) {
       a.nextBird = now + 11000 + Math.random() * 16000;
       if (typeof SoundSystem !== 'undefined' && SoundSystem.birdsFar) SoundSystem.birdsFar(id === 'forest');
@@ -117,7 +117,7 @@ var AmbienceSystem = {
 
   // ---------- area atmosphere (drawn over the map, under the HUD) ----------
   renderOverlay: function(ctx, game, now, w, h) {
-    var id = game.currentMap, i;
+    var id = game.currentMap === 'haruka' ? 'millhaven' : game.currentMap, i;
     var vig = function(r, g, b, a0, a1) {
       var v = ctx.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, h * 0.85);
       v.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + a0 + ')');
