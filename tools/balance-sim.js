@@ -80,6 +80,7 @@ function planRound(g) {
       var pz = -1; g.party.forEach(function(m, j) { if (m.alive && m.poisoned && m.hp / m.maxHp < 0.7) pz = j; });
       if (pz >= 0 && has('cure')) return P({ action: 'spell', spellId: 'cure', target: pz, targetType: 'ally' });
       if (ne >= 2 && has('holyLight')) return P({ action: 'spell', spellId: 'holyLight', target: -1, targetType: 'allEnemy' });
+      if (has('light') && c.mp >= 8) return P({ action: 'spell', spellId: 'light', target: tgt, targetType: 'enemy' });
       return P({ action: 'attack', target: tgt, targetType: 'enemy' });
     }
     if (low >= 0 && lr < 0.35 && herb && i !== 2) return P({ action: 'item', itemId: 'herb', target: low, targetType: 'ally' });
@@ -89,6 +90,7 @@ function planRound(g) {
       if (has('fire')) return P({ action: 'spell', spellId: 'fire', target: tgt, targetType: 'enemy' });
       return P({ action: 'attack', target: tgt, targetType: 'enemy' });
     }
+    if (ne >= 2 && has('sweep')) return P({ action: 'spell', spellId: 'sweep', target: -1, targetType: 'allEnemy' });
     if (has('powerSlash')) return P({ action: 'spell', spellId: 'powerSlash', target: tgt, targetType: 'enemy' });
     return P({ action: 'attack', target: tgt, targetType: 'enemy' });
   });

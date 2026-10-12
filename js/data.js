@@ -33,6 +33,7 @@ var CHARACTERS = {
     growth: { hp: 8, mp: 2, atk: 3, def: 3, spd: 1, int: 1 },
     spells: [
       { id: 'powerSlash', learnLevel: 1 },
+      { id: 'sweep', learnLevel: 3 },
       { id: 'shieldBash', learnLevel: 5 },
       { id: 'warCry', learnLevel: 10 },
     ],
@@ -56,10 +57,11 @@ var CHARACTERS = {
     growth: { hp: 6, mp: 4, atk: 2, def: 2, spd: 1, int: 3 },
     spells: [
       { id: 'heal', learnLevel: 1 },
+      { id: 'light', learnLevel: 2 },
       { id: 'cure', learnLevel: 3 },
       { id: 'protect', learnLevel: 6 },
       { id: 'armorBreak', learnLevel: 8 },
-      { id: 'holyLight', learnLevel: 12 },
+      { id: 'holyLight', learnLevel: 10 },
     ],
     color: '#44cc88',
   },
@@ -68,11 +70,13 @@ var CHARACTERS = {
 // ===== SPELL DEFINITIONS =====
 var SPELLS = {
   powerSlash:  { name: 'パワースラッシュ', mp: 3, type: 'physical', target: 'enemy', power: 2.0, pierce: 0.5, desc: '敵の守りを半分無視する強力な一撃' },
+  sweep:       { name: 'なぎはらい', mp: 5, type: 'physical', target: 'allEnemy', power: 1.2, pierce: 0.25, desc: '剣で敵全体をなぎはらう' },
   shieldBash:  { name: 'シールドバッシュ', mp: 5, type: 'physical', target: 'enemy', power: 1.2, pierce: 0.25, stun: 0.3, desc: '盾で殴りスタンさせる' },
   warCry:      { name: 'ウォークライ', mp: 8, type: 'buff', target: 'party', stat: 'atk', mult: 1.25, turns: 3, desc: '味方全体の攻撃力UP' },
   fire:        { name: 'ファイア', mp: 4, type: 'magic', target: 'enemy', power: 24, desc: '炎で敵一体を攻撃' },
   iceStorm:    { name: 'アイスストーム', mp: 8, type: 'magic', target: 'allEnemy', power: 18, desc: '吹雪で敵全体を攻撃' },
   thunder:     { name: 'サンダー', mp: 12, type: 'magic', target: 'enemy', power: 48, desc: '雷で敵一体を大ダメージ' },
+  light:       { name: 'ライト', mp: 4, type: 'magic', target: 'enemy', power: 22, desc: '聖なる光で敵一体を攻撃' },
   heal:        { name: 'ヒール', mp: 4, type: 'heal', target: 'ally', power: 50, desc: '味方一人のHPを回復' },
   weaken:      { name: 'ウィークン', mp: 6, type: 'debuff', target: 'enemy', stat: 'atk', mult: 0.7, turns: 3, desc: '敵一体の攻撃力DOWN' },
   armorBreak:  { name: 'ブレイク', mp: 8, type: 'debuff', target: 'allEnemy', stat: 'def', mult: 0.7, turns: 3, desc: '敵全体の防御力DOWN' },
@@ -94,7 +98,7 @@ var ENEMIES = {
   darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [], desc: ['魔王に 忠誠を ちかった 騎士。', '重い よろいで 身を かためている。'], area: '魔王の城' },
   demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'], desc: ['魔界から よびだされた 兵士。', '炎の 魔法も つかいこなす。'], area: '魔王の城' },
   darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'], desc: ['闇の 魔術を きわめた 魔道士。', '魔力は 高いが 体は もろい。'], area: '魔王の城' },
-  demonKing:    { name: '魔王ヴァルザード', hp: 950, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
+  demonKing:    { name: '魔王ヴァルザード', hp: 1200, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
 };
 
 // ===== ITEM DEFINITIONS =====

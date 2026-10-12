@@ -24,9 +24,9 @@ This file provides guidance for Claude and human developers working on this proj
 
 ### Character System
 
-- **Sam (サム)** — Warrior. High HP/ATK/DEF. Skills: Power Slash, Shield Bash, War Cry
+- **Sam (サム)** — Warrior. High HP/ATK/DEF. Skills: Power Slash (Lv1), Sweep (なぎはらい, Lv3), Shield Bash (Lv5), War Cry (Lv10)
 - **Dario (ダリオ)** — Mage. High MP/INT. Skills: Fire, Ice Storm, Thunder
-- **Sundar (スンダー)** — Healer. Balanced stats. Skills: Heal, Protect, Holy Light
+- **Sundar (スンダー)** — Healer. Balanced stats. Skills: Heal (Lv1), Light (ライト, Lv2), Cure (Lv3), Protect (Lv6), Armor Break (Lv8), Holy Light (Lv10, was 12)
 - **Core stats:** HP, MP, ATK, DEF, SPD, INT
 - **Leveling:** Experience-based, level cap 50
 - **Equipment slots:** Weapon, Armor, Accessory
@@ -123,6 +123,8 @@ Shops (Millhaven) sell the full equipment set; long lists scroll. Late gear (Fla
 Gold per battle is roughly 7 (grass) / 22 (forest) / 55 (castle), enough for one shop upgrade per ~10-25 battles early on.
 
 **Tool:** `node tools/balance-sim.js [runs] [seed]` runs full playthroughs through the real `BattleSystem` (stats per area and per level, boss win rate); add `matrix` as the 3rd argument for an area x level table. Re-run it after touching enemy stats, spells, growth, EXP or shop prices.
+
+**Roles:** Sweep is a physical all-enemy skill (ATK x1.2, ignores 25% DEF, 5 MP; the `allEnemy` branch now uses the physical formula for physical spells) so Sam can clear groups; Light is a cheap single-target magic attack (power 22, 4 MP) so Sundar helps with damage between heals. With these the sim's attack-damage share moved from Sam 42 / Dario 47 / Sundar 12% to about 34 / 40 / 26%. Fights got easier, so the Demon King's HP was raised 950 -> 1200 to keep the boss odds (~73% wipe at Lv12, ~35% at Lv13 for the sim policy, similar to before).
 
 **Pacing:** the EXP needed for level L is `8 * L^2` (was 12). Target is a full playthrough within about 1 hour: the simulator reaches Lv12 (boss-ready) in roughly 58 battles (was ~85), i.e. ~30 min of fights plus walking and story. Per-level difficulty is unchanged, so the boss odds at a given level are the same; fewer battles also means less gold per level, so buy gear a little more selectively.
 
