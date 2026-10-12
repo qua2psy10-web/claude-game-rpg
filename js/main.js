@@ -59,6 +59,7 @@ function initGame() {
     innState: null,
     bestiary: {},
     hints: {},
+    cycle: 1,
   };
 
   SoundSystem.init();
@@ -95,6 +96,7 @@ function newGame() {
   game.bestiary = {};
   game.hints = {};
   game.achieved = {};
+  game.cycle = 1;
   HintSystem.reset();
   game.battle = null;
   game.currentNPC = null;
@@ -211,6 +213,7 @@ function saveGame(manual) {
       bestiary: game.bestiary,
       hints: game.hints,
       achieved: game.achieved,
+      cycle: game.cycle,
       playTime: gameScore.playTime,
       savedAt: Date.now(),
     };
@@ -277,6 +280,7 @@ function loadGame() {
     game.hints = HintSystem.sanitize(data.hints);   // saves from before the hints count every hint as seen
     HintSystem.reset();
     game.achieved = RecordsSystem.sanitize(data.achieved);
+    game.cycle = Math.max(1, Math.min(99, Math.floor(data.cycle) || 1));
     game.bestiary = BestiarySystem.sanitize(data.bestiary);   // saves from before the ずかん have none
     if (typeof data.playTime === 'number') gameScore.playTime = Math.max(gameScore.playTime, data.playTime);
     game.battle = null;
@@ -542,7 +546,7 @@ function updateTitle() {
     if (now - game.titleGo.t0 > 650) {
       var next = game.titleGo.next;
       game.titleGo = null;
-      if (next === 'new') newGame(); else loadGame();
+      if (next === 'new') newGame(); else if (next === 'ng') newGamePlus(); else loadGame();
     }
     return;
   }
@@ -553,22 +557,60 @@ function updateTitle() {
   }
 
   var hasSave = !!getSaveInfo();
-  if (input === 'up') { game.titleIndex = (game.titleIndex - 1 + 3) % 3; SoundSystem.cursor(); }
-  if (input === 'down') { game.titleIndex = (game.titleIndex + 1) % 3; SoundSystem.cursor(); }
+  var items = titleItems(), n = items.length;
+  if (game.titleIndex >= n) game.titleIndex = 0;
+  if (input === 'up') { game.titleIndex = (game.titleIndex - 1 + n) % n; SoundSystem.cursor(); }
+  if (input === 'down') { game.titleIndex = (game.titleIndex + 1) % n; SoundSystem.cursor(); }
   if (input === 'confirm') {
-    if (game.titleIndex === 0) {
+    var sel = items[game.titleIndex];
+    if (sel === 'はじめから') {
       SoundSystem.gameStart();
       game.titleGo = { t0: now, next: 'new' };
-    } else if (game.titleIndex === 1 && hasSave) {
+    } else if (sel === 'つづきから' && hasSave) {
       SoundSystem.gameStart();
       game.titleGo = { t0: now, next: 'load' };
-    } else if (game.titleIndex === 2) {
+    } else if (sel === 'つよくてニューゲーム') {
+      SoundSystem.gameStart();
+      game.titleGo = { t0: now, next: 'ng' };
+    } else if (sel === 'せってい') {
       SoundSystem.confirm();
       game.settings = { index: 0 };
-    } else if (game.titleIndex === 1 && readSave().status === 'corrupt') {
+    } else if (sel === 'つづきから' && readSave().status === 'corrupt') {
       SoundSystem.cancel();
     }
   }
+}
+
+// The title menu: 「つよくてニューゲーム」 appears once the saved game has beaten the Demon King
+function titleItems() {
+  var info = getSaveInfo(), items = ['はじめから', 'つづきから'];
+  if (info && info.flags && info.flags.demonKingDefeated) items.push('つよくてニューゲーム');
+  items.push('せってい');
+  return items;
+}
+
+// New Game+: restart from the village with the saved game's levels, gear, items, ずかん and achievements.
+// Flags (bosses, chests, story) and gold reset, and every enemy is tougher (cycleScale). No opening cinematic.
+function newGamePlus() {
+  if (!loadGame()) { newGame(); return; }
+  var carry = { party: game.party, items: game.inventory, equip: game.equipInventory, bestiary: game.bestiary,
+                achieved: game.achieved, hints: game.hints, cycle: (game.cycle || 1) + 1 };
+  newGame();
+  game.party = carry.party;
+  game.party.forEach(function(c) { c.hp = c.maxHp; c.mp = c.maxMp; c.alive = true; c.buffs = {}; c.defending = false; c.poisoned = false; });
+  game.inventory = carry.items; game.equipInventory = carry.equip;
+  game.bestiary = carry.bestiary; game.achieved = carry.achieved; game.hints = carry.hints;
+  game.cycle = carry.cycle;
+  game.dialogue = [
+    'ふたたび ミルヘイブン村。',
+    '魔王を 倒したはずの 世界に また',
+    '闇の気配が 広がっている…',
+    '(' + game.cycle + 'しゅうめ: てきが つよくなっている！)',
+  ];
+  game.dialogueIndex = 0;
+  game.opening = null;
+  game.state = 'dialogue';
+  saveGame();
 }
 
 // ===== OPENING CINEMATIC (new game) =====
@@ -628,41 +670,44 @@ function renderTitle(ctx) {
   // Menu
   ctx.textAlign = 'left';
   var saveInfo = getSaveInfo();
-  var menuH = saveInfo ? 164 : 108;
-  UI.drawWindow(ctx, 220, 280, 200, menuH);
-  var menuItems = ['はじめから', 'つづきから', 'せってい'];
+  var menuItems = titleItems();
+  var oy = menuItems.length > 3 ? -24 : 0;   // the longer menu starts higher so it clears the footer
+  var menuH = (saveInfo ? 164 : 108) + (menuItems.length - 3) * 28;
+  UI.drawWindow(ctx, 220, 280 + oy, 200 + (menuItems.length > 3 ? 40 : 0), menuH);
   for (var j = 0; j < menuItems.length; j++) {
-    var ty = 296 + j * 28;
+    var ty = 296 + oy + j * 28;
     if (j === game.titleIndex) {
       var blink2 = Math.floor(Date.now() / 500) % 2 === 0;
       if (blink2) UI.drawText(ctx, UI.CURSOR, 234, ty);
     }
-    var itemColor = (j === 1 && !saveInfo) ? '#555' : '#fff';
+    var itemColor = (menuItems[j] === 'つづきから' && !saveInfo) ? '#555' : '#fff';
     UI.drawText(ctx, menuItems[j], 258, ty, itemColor);
   }
   if (saveInfo) {
     var mapName = MAPS[saveInfo.currentMap] ? MAPS[saveInfo.currentMap].name : '？';
     var lvs = saveInfo.party.map(function(m) { return m.level; }).join('/');
-    UI.drawText(ctx, mapName + '  Lv.' + lvs, 238, 382, '#aaa', UI.FONT_SMALL);
+    var sy0 = 382 + oy + (menuItems.length - 3) * 28;
+    UI.drawText(ctx, mapName + '  Lv.' + lvs + ((saveInfo.cycle || 1) > 1 ? '  ' + saveInfo.cycle + '周目' : ''), 238, sy0, '#aaa', UI.FONT_SMALL);
     var pt = Math.floor(saveInfo.playTime || 0);
     var d = saveInfo.savedAt ? new Date(saveInfo.savedAt) : null;
     var line = (saveInfo.gold || 0) + 'G  ' + Math.floor(pt / 60) + ':' + (pt % 60 < 10 ? '0' : '') + (pt % 60);
-    UI.drawText(ctx, line, 238, 400, '#aaa', UI.FONT_SMALL);
-    if (d) UI.drawText(ctx, (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + ' セーブ', 238, 418, '#777', UI.FONT_SMALL);
+    UI.drawText(ctx, line, 238, sy0 + 18, '#aaa', UI.FONT_SMALL);
+    if (d) UI.drawText(ctx, (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + ' セーブ', 238, sy0 + 36, '#777', UI.FONT_SMALL);
   } else if (readSave().status === 'corrupt') {
     UI.drawText(ctx, 'セーブデータを よみこめません', 226, 382, '#f88', UI.FONT_SMALL);
   }
 
   // Score records (right of menu, shown once any battle has been won)
   if (gameScore.battlesWon > 0) {
-    UI.drawWindow(ctx, 430, 280, 196, 130);
-    UI.drawText(ctx, '【記録】', 446, 292, '#ffd700', UI.FONT_SMALL);
-    UI.drawText(ctx, '戦闘勝利: ' + gameScore.battlesWon + '回', 446, 310, '#aaa', UI.FONT_SMALL);
-    UI.drawText(ctx, '倒した敵: ' + gameScore.enemiesDefeated + '体', 446, 328, '#aaa', UI.FONT_SMALL);
-    UI.drawText(ctx, '最高所持金: ' + gameScore.highGold + 'G', 446, 346, '#ffd700', UI.FONT_SMALL);
-    UI.drawText(ctx, 'ボス討伐: ' + gameScore.bossesDefeated + '体', 446, 364, gameScore.bossesDefeated > 0 ? '#f88' : '#555', UI.FONT_SMALL);
+    var rx = menuItems.length > 3 ? 470 : 430;   // clear of the wider menu
+    UI.drawWindow(ctx, rx, 280, 640 - rx - 14, 130);
+    UI.drawText(ctx, '【記録】', rx + 16, 292, '#ffd700', UI.FONT_SMALL);
+    UI.drawText(ctx, '戦闘勝利: ' + gameScore.battlesWon + '回', rx + 16, 310, '#aaa', UI.FONT_SMALL);
+    UI.drawText(ctx, '倒した敵: ' + gameScore.enemiesDefeated + '体', rx + 16, 328, '#aaa', UI.FONT_SMALL);
+    UI.drawText(ctx, '最高所持金: ' + gameScore.highGold + 'G', rx + 16, 346, '#ffd700', UI.FONT_SMALL);
+    UI.drawText(ctx, 'ボス討伐: ' + gameScore.bossesDefeated + '体', rx + 16, 364, gameScore.bossesDefeated > 0 ? '#f88' : '#555', UI.FONT_SMALL);
     var ptSec = Math.floor(gameScore.playTime), ptMin = Math.floor(ptSec / 60); ptSec %= 60;
-    UI.drawText(ctx, 'プレイ: ' + ptMin + ':' + (ptSec < 10 ? '0' : '') + ptSec, 446, 382, '#aaa', UI.FONT_SMALL);
+    UI.drawText(ctx, 'プレイ: ' + ptMin + ':' + (ptSec < 10 ? '0' : '') + ptSec, rx + 16, 382, '#aaa', UI.FONT_SMALL);
   }
 
   ctx.restore();

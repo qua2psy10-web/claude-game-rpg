@@ -579,6 +579,13 @@ var SHOPS = {
   },
 };
 
+// ===== NEW GAME+ SCALING =====
+// Cycle 1 is the normal game. Each later cycle ("つよくてニューゲーム") makes every enemy tougher and its rewards richer.
+function cycleScale(cycle) {
+  var c = Math.max(0, Math.floor(cycle || 1) - 1);
+  return { stat: 1 + 0.6 * c, def: 1 + 0.3 * c, reward: 1 + 0.5 * c };
+}
+
 // ===== LEVEL UP TABLE =====
 function expForLevel(level) {
   return Math.floor(level * level * 8);
