@@ -300,6 +300,7 @@ var MapSystem = {
     switch (ev.type) {
       case 'mapTransfer':
         if (ev.requires && !game.flags[ev.requires]) break;   // a gate that only exists once its flag is set
+        game.flags['visited_' + ev.map] = true;               // lets villagers react to how far the party has travelled
         game.currentMap = ev.map;
         var targetMap = MAPS[ev.map];
         if (ev.targetX !== undefined) {
@@ -341,6 +342,16 @@ var MapSystem = {
         }
         break;
     }
+  },
+
+  // What an NPC says now: the first `talk` entry whose flag is set (listed most advanced first), else the default lines
+  npcLines: function(game, npc) {
+    if (npc.talk) {
+      for (var i = 0; i < npc.talk.length; i++) {
+        if (game.flags[npc.talk[i].flag]) return npc.talk[i].lines;
+      }
+    }
+    return npc.dialogue;
   },
 
   // Give item to inventory
@@ -405,7 +416,7 @@ var MapSystem = {
         npc.dir = { left: 'right', right: 'left', up: 'down', down: 'up' }[game.facing] || npc.dir;   // turns to face the party
         npc.anim = null;
         game.currentNPC = npc;
-        game.dialogue = npc.dialogue;
+        game.dialogue = this.npcLines(game, npc);
         game.dialogueIndex = 0;
         game.state = 'dialogue';
         return true;
