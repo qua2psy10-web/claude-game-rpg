@@ -113,7 +113,10 @@ var ITEMS = {
   magicWater: { name: '魔法の水', type: 'healMp', target: 'ally', power: 20, price: 25, desc: 'MP20回復' },
   antidote:   { name: '毒消し草', type: 'cure', target: 'ally', status: 'poison', price: 8, desc: '毒を治す' },
   phoenix:    { name: 'フェニックスの羽', type: 'revive', power: 0.5, price: 120, desc: '戦闘不能から復活' },
+  highHerb:   { name: '上薬草', type: 'heal', target: 'ally', power: 100, price: 45, fx: 'herb', desc: 'HP100回復' },
+  elixir:     { name: '魔法の聖水', type: 'healMp', target: 'ally', power: 60, price: 90, fx: 'magicWater', desc: 'MP60回復' },
   bomb:       { name: '爆弾石', type: 'damage', target: 'enemy', power: 35, price: 60, desc: '敵一体に35ダメージ' },
+  bigBomb:    { name: '爆裂石', type: 'damage', target: 'enemy', power: 90, price: 150, fx: 'bomb', desc: '敵一体に90ダメージ' },
 };
 
 // ===== EQUIPMENT DEFINITIONS =====
@@ -150,6 +153,9 @@ var ACCESSORIES = {
   magicRing: { name: '魔力の指輪', int: 6, price: 400 },
   speedRing: { name: '素早さの指輪', spd: 5, price: 400 },
   lifeRing:  { name: '命の指輪', hp: 25, price: 600 },
+  guardRing: { name: '守りの指輪', def: 8, price: 600 },
+  sageRing:  { name: '賢者の指輪', int: 12, price: 1400 },
+  heroRing:  { name: '勇者の指輪', atk: 9, def: 5, price: 1500 },
 };
 
 // ===== MAP DATA =====
@@ -186,6 +192,8 @@ var MAPS = {
     ],
     playerStart: { x: 14, y: 16 },
     events: {
+      '3,5':   { type: 'chest', item: 'elixir', itemType: 'item', count: 3, flag: 'world_chest1', msg: '宝箱から 魔法の聖水x3 を手に入れた！' },
+      '22,5':  { type: 'chest', item: 'guardRing', itemType: 'accessory', flag: 'world_chest2', msg: '宝箱から 守りの指輪 を手に入れた！' },
       '14,16': { type: 'mapTransfer', map: 'millhaven', desc: 'ミルヘイブン村' },
       '13,7':  { type: 'mapTransfer', map: 'forest', desc: '暗黒の森' },
       '12,4':  { type: 'mapTransfer', map: 'castle', desc: '魔王の城' },
@@ -336,6 +344,10 @@ var MAPS = {
     ],
     playerStart: { x: 8, y: 16 },
     events: {
+      '2,9':   { type: 'chest', item: 'highHerb', itemType: 'item', count: 3, flag: 'castle_chest1', msg: '宝箱から 上薬草x3 を手に入れた！' },
+      '13,9':  { type: 'chest', item: 'phoenix', itemType: 'item', count: 2, flag: 'castle_chest2', msg: '宝箱から フェニックスの羽x2 を手に入れた！' },
+      '2,3':   { type: 'chest', item: 'heroRing', itemType: 'accessory', flag: 'castle_chest3', msg: '宝箱から 勇者の指輪 を手に入れた！' },
+      '13,3':  { type: 'chest', item: 'bigBomb', itemType: 'item', count: 2, flag: 'castle_chest4', msg: '宝箱から 爆裂石x2 を手に入れた！' },
       '7,17':  { type: 'mapTransfer', map: 'world', targetX: 12, targetY: 5, desc: 'フィールドへ' },
       '8,17':  { type: 'mapTransfer', map: 'world', targetX: 12, targetY: 5, desc: 'フィールドへ' },
       '7,1':   { type: 'boss', enemy: 'demonKing', flag: 'demonKingDefeated',
@@ -417,6 +429,9 @@ var SHOPS = {
       { id: 'antidote', type: 'item' },
       { id: 'phoenix', type: 'item' },
       { id: 'bomb', type: 'item' },
+      { id: 'highHerb', type: 'item' },
+      { id: 'elixir', type: 'item' },
+      { id: 'bigBomb', type: 'item' },
     ],
   },
   weaponShop: {
@@ -449,6 +464,9 @@ var SHOPS = {
       { id: 'magicRing', type: 'accessory' },
       { id: 'speedRing', type: 'accessory' },
       { id: 'lifeRing', type: 'accessory' },
+      { id: 'guardRing', type: 'accessory' },
+      { id: 'sageRing', type: 'accessory' },
+      { id: 'heroRing', type: 'accessory' },
     ],
   },
 };

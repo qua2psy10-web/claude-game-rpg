@@ -320,6 +320,8 @@ var MapSystem = {
             this.giveEquipment(game, ev.item, 'weapon');
           } else if (ev.itemType === 'armor') {
             this.giveEquipment(game, ev.item, 'armor');
+          } else if (ev.itemType === 'accessory') {
+            this.giveEquipment(game, ev.item, 'accessory');
           } else {
             this.giveItem(game, ev.item, ev.count || 1);
           }

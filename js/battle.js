@@ -1416,7 +1416,8 @@ var BattleSystem = {
     b.messages = [user.name + 'は ' + item.name + 'を つかった！'];
 
     // Item effect: the item is tossed to its target, then the effect lands after d ms
-    var d = cmd.itemId === 'bomb' ? 420 : 220;
+    var fxId = item.fx || cmd.itemId;   // items may borrow another item's visuals and sound
+    var d = fxId === 'bomb' ? 420 : 220;
     var fxTarget = -1, fxSide = 'party';
     if (item.type === 'heal' || item.type === 'healMp' || item.type === 'cure') fxTarget = cmd.target >= 0 && game.party[cmd.target] ? cmd.target : 0;
     else if (item.type === 'revive') {
@@ -1426,13 +1427,13 @@ var BattleSystem = {
       fxTarget = b.enemies[cmd.target] && b.enemies[cmd.target].alive ? cmd.target : -1;
     }
     if (fxTarget >= 0) {
-      b.itemFx = { id: cmd.itemId, side: fxSide, idx: fxTarget, from: cmd.actor, t0: Date.now(), d: d,
+      b.itemFx = { id: fxId, side: fxSide, idx: fxTarget, from: cmd.actor, t0: Date.now(), d: d,
                    dur: d + (cmd.itemId === 'phoenix' ? 1100 : 800) };
       SoundSystem.itemToss();
       setTimeout(function() {
         if (game.battle !== b) return;
-        if (cmd.itemId !== 'antidote') SoundSystem.itemHit(cmd.itemId);
-        if (cmd.itemId === 'bomb') BattleSystem.shake(game, 12, 420);
+        if (cmd.itemId !== 'antidote') SoundSystem.itemHit(fxId);
+        if (fxId === 'bomb') BattleSystem.shake(game, 12, 420);
         else if (cmd.itemId === 'phoenix') BattleSystem.shake(game, 5, 300);
       }, d);
     }
