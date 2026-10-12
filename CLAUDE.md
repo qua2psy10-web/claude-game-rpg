@@ -116,7 +116,7 @@ This file provides guidance for Claude and human developers working on this proj
 
 ### New Game+ (つよくてニューゲーム)
 
-- **Unlock:** the title menu shows 「つよくてニューゲーム」 (between つづきから and せってい) when the saved game has `demonKingDefeated`. Choosing it fades out like the other entries and calls `newGamePlus()` (`main.js`).
+- **Unlock:** the title menu shows 「つよくてニューゲーム」 (between つづきから and せってい) when any save slot has `demonKingDefeated`. Choosing it opens the slot pickers (source, then destination), fades out like the other entries and calls `newGamePlus(src, dst)` (`main.js`); the source slot is left as it was unless the destination is the same slot (the picker warns).
 - **Carried over:** levels / stats / EXP, equipped gear and the equipment bag, items, ずかん, achievements (so rewards are not paid twice) and seen hints. **Reset:** gold (100), story flags (bosses, chests, `visited_*` ... all reopen), position (Millhaven), the party is fully healed. No opening cinematic; a short dialogue announces the cycle.
 - **Cycle:** `game.cycle` (1 = normal) is saved (`cycle`, no version bump; old saves load as 1) and shown as 「2周目」 in the map HUD, the records screen and the title's save summary.
 - **Difficulty:** `cycleScale(cycle)` in `data.js`: per cycle after the first, enemy HP / ATK / INT x(1 + 0.6c), DEF x(1 + 0.3c), EXP and gold x(1 + 0.5c) (c = cycles beyond the first). Applied in `BattleSystem.startBattle` to every enemy including bosses; the ずかん keeps showing base stats.
@@ -153,10 +153,11 @@ This file provides guidance for Claude and human developers working on this proj
 
 ### Save / Load
 
-- **Storage:** `localStorage` key `eldrasia_save`, JSON with `version` (currently 2). Party, inventory, equipment, gold, map/position, flags, play time, timestamp.
+- **Storage:** `localStorage` keys `eldrasia_save` (slot 1, the original key, so existing saves are simply slot 1), `eldrasia_save_2`, `eldrasia_save_3`; JSON with `version` (currently 2). Party, inventory, equipment, gold, map/position, flags, play time, timestamp.
+- **Slots:** `SlotSystem` (`js/slots.js`) owns the keys and the picker; `game.slot` is the slot the running game auto-saves / manually saves into (`saveGame`), set by `newGame(slot)` / `loadGame(slot)`. On the title, はじめから / つづきから / つよくてニューゲーム open a picker listing the three slots (place, party levels, cycle, gold, play time, ★クリア, save time; empty or unreadable slots say so). Loading only allows readable slots; starting a game in an occupied slot asks for a second confirm ("うわがきされます"). つよくてニューゲーム asks for the source slot (cleared saves only) and then the destination, so the cleared save can stay untouched. The きろく screen shows the current slot.
 - **Auto-save:** closing the menu, resting at the inn, after battle wins, leaving the page. **Manual:** the menu's セーブ command (shows a "saved" overlay + SFX).
 - **Transient battle fields** (buffs, poison, gauge animation values, ...) are stripped on save; buffs/defending are reset on load.
-- **Safe load:** a save that fails structural validation (3 valid party members, known classes, known map) is treated as corrupt: 「つづきから」 stays disabled and the title says so. The data is not deleted.
+- **Safe load:** a save that fails structural validation (3 valid party members, known classes, known map) is treated as corrupt: its slot shows よみこめません and cannot be loaded (「つづきから」 is disabled when no slot is readable). The data is not deleted; starting a new game in that slot overwrites it after the confirm.
 
 ### Balance
 
@@ -252,11 +253,12 @@ python3 -m http.server 8000
 /js/bestiary.js     # Monster encyclopedia records and screen
 /js/hints.js        # First-time hint toasts and the menu's help screen
 /js/records.js      # Achievements (rewards) and the records screen
+/js/slots.js        # The three save slots and the title's slot picker
 /js/touch.js        # On-screen D-pad and A/B buttons for touch devices
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → touch.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → slots.js → touch.js → main.js
 
 ---
 

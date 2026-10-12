@@ -97,7 +97,9 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   console.log('\n[boot and new game, with real keys]');
   ok(await state() === 'title', 'starts on the title screen');
   await press('z', 100);      // skip the title intro
-  await press('z', 100);      // はじめから (fades out, then starts)
+  await press('z', 100);      // はじめから -> the slot picker
+  ok(await ev(function() { return !!game.slotPick && game.slotPick.mode === 'new'; }), 'はじめから opens the slot picker');
+  await press('z', 100);      // an empty slot 1 (fades out, then starts)
   ok(await until(function() { return game.state === 'opening'; }, 4000), 'opening starts');
   var skipped = false;
   for (var sk = 0; sk < 40 && !skipped; sk++) { await press('z', 120); skipped = (await state()) === 'dialogue'; }   // Z skips the opening (it may ignore the first presses)
@@ -246,20 +248,51 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   await ev(function() { game.titleT0 = Date.now() - 5000; game.titleIndex = 0; game.titleGo = null; game.state = 'title'; });
   var before = await ev(function() { var d = getSaveInfo(); return { lv: d.party.map(function(c) { return c.level; }).join(','), equip: d.equipInventory.length, ach: Object.keys(d.achieved || {}).length, bestiary: Object.keys(d.bestiary || {}).length }; });
   await press('ArrowDown', 80); await press('ArrowDown', 80); await press('z', 80);
+  ok(await ev(function() { return !!game.slotPick && game.slotPick.mode === 'ngSrc'; }), 'it first asks which slot to carry over');
+  await press('z', 80);       // slot 1 (the cleared save)
+  ok(await ev(function() { return !!game.slotPick && game.slotPick.mode === 'ngDst' && game.slotPick.src === 1; }), 'then which slot to save the new cycle in');
+  await press('ArrowDown', 80); await press('z', 80);   // the empty slot 2
   ok(await until(function() { return game.state === 'dialogue' && game.cycle === 2; }, 4000), 'choosing it starts cycle 2 with a dialogue (no opening)');
   var ng = await ev(function() {
     var o = { lv: game.party.map(function(c) { return c.level; }).join(','), gold: game.gold, flags: Object.keys(game.flags).length, map: game.currentMap, hpFull: game.party.every(function(c) { return c.hp === c.maxHp; }),
               equip: game.equipInventory.length, ach: Object.keys(game.achieved).length, bestiary: Object.keys(game.bestiary).length };
     BattleSystem.startBattle(game, ['slime']); var e = game.battle.enemies[0];
     o.hp = e.maxHp; o.exp = e.exp; game.battle = null; game.state = 'map';
-    saveGame(); var d = JSON.parse(localStorage.getItem('eldrasia_save')); o.savedCycle = d.cycle;
-    var c2 = game.cycle; game.cycle = 1; loadGame(); o.loadedCycle = game.cycle; o.cycleBack = c2;
+    o.slot = game.slot; saveGame(); var d = JSON.parse(localStorage.getItem('eldrasia_save_2')); o.savedCycle = d.cycle;
+    var c2 = game.cycle; game.cycle = 1; loadGame(2); o.loadedCycle = game.cycle; o.loadedSlot = game.slot; o.cycleBack = c2;
+    var src = JSON.parse(localStorage.getItem('eldrasia_save')); o.srcKept = src.flags.demonKingDefeated === true && (src.cycle || 1) === 1;
     return o;
   });
   ok(ng.lv === before.lv && ng.equip === before.equip && ng.ach === before.ach && ng.bestiary === before.bestiary, 'levels, gear, achievements and ずかん carry over', JSON.stringify([before, ng]));
   ok(ng.gold === 100 && ng.flags === 0 && ng.map === 'millhaven' && ng.hpFull, 'gold, story flags and position reset; the party is healed');
   ok(ng.hp === Math.round(32) && ng.exp === Math.round(4 * 1.5), 'enemies are tougher and pay more in cycle 2', JSON.stringify([ng.hp, ng.exp]));
-  ok(ng.savedCycle === 2 && ng.loadedCycle === 2, 'the cycle is saved and loaded');
+  ok(ng.savedCycle === 2 && ng.loadedCycle === 2 && ng.slot === 2 && ng.loadedSlot === 2, 'the cycle is saved and loaded in the chosen slot');
+  ok(ng.srcKept, 'the cleared save in slot 1 is untouched');
+
+  console.log('\n[save slots]');
+  var sl = await ev(function() {
+    var o = {};
+    o.keys = SlotSystem.key(1) === 'eldrasia_save' && SlotSystem.key(2) === 'eldrasia_save_2' && SlotSystem.key(3) === 'eldrasia_save_3';
+    // slot 3 stays empty and unselectable for loading; slot 1 and 2 are valid
+    o.sel = [SlotSystem.selectable('load', 1), SlotSystem.selectable('load', 2), SlotSystem.selectable('load', 3)].join(',');
+    o.ngSrc = [SlotSystem.selectable('ngSrc', 1), SlotSystem.selectable('ngSrc', 2)].join(',');
+    // overwriting an occupied slot needs a second confirm
+    var p = SlotSystem.open('new'); p.index = 0;
+    var r1 = SlotSystem.update(p, 'confirm'), r2 = SlotSystem.update(p, 'confirm');
+    o.overwrite = r1 === null && p.warn === 1 && r2 && r2.slot === 1;
+    var p2 = SlotSystem.open('new'); p2.index = 2; var r3 = SlotSystem.update(p2, 'confirm'); o.emptyDirect = !!(r3 && r3.slot === 3);
+    var p3 = SlotSystem.open('load'); p3.index = 2; o.loadEmptyDenied = SlotSystem.update(p3, 'confirm') === null;
+    // saving goes to the slot the game runs in
+    newGame(3); game.state = 'map'; game.gold = 777; saveGame();
+    o.slot3 = JSON.parse(localStorage.getItem('eldrasia_save_3')).gold === 777 && JSON.parse(localStorage.getItem('eldrasia_save')).gold !== 777;
+    return o;
+  });
+  ok(sl.keys, 'slot 1 is the original save key, slots 2 and 3 have their own');
+  ok(sl.sel === 'true,true,false', 'the load picker only allows slots that hold a save', sl.sel);
+  ok(sl.ngSrc === 'true,false', 'the New Game+ source picker only allows cleared saves', sl.ngSrc);
+  ok(sl.overwrite && sl.emptyDirect && sl.loadEmptyDenied, 'overwriting asks twice, an empty slot does not, an empty slot cannot be loaded');
+  ok(sl.slot3, 'saving writes to the slot the game is running in');
+
 
   var zel = await ev(function() {
     newGame(); game.state = 'map'; game.currentMap = 'abyss'; game.party.forEach(function(c) { c.level = 20; });

@@ -91,7 +91,7 @@ var RecordsSystem = (function() {
     UI.drawWindow(ctx, 20, 20, 250, 440);
     UI.drawText(ctx, 'きろく', 38, 34, '#ffd700');
     var rows = [
-      ['プレイじかん', fmtTime(gameScore.playTime) + (game.cycle > 1 ? '  (' + game.cycle + 'しゅうめ)' : '')],
+      ['プレイじかん', fmtTime(gameScore.playTime) + '  スロット' + (game.slot || 1) + (game.cycle > 1 ? '  (' + game.cycle + 'しゅうめ)' : '')],
       ['あるいた ほすう', game.steps + '歩'],
       ['たおした てき', s.kills + 'たい'],
       ['ずかん', s.seen + '/' + s.total + ' しゅるい'],
