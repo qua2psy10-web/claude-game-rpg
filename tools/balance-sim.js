@@ -6,7 +6,7 @@ var stub = new Proxy(function() {}, { get: function(t, k) { return k === 'getCon
 global.window = global;
 global.document = { getElementById: function() { return stub; }, createElement: function() { return stub; } };
 global.setTimeout = function() {};
-['data', 'ui', 'settings', 'sound', 'music', 'map', 'battle', 'bestiary', 'hints', 'records'].forEach(function(f) {
+['data', 'ui', 'settings', 'sound', 'music', 'map', 'battle', 'bestiary', 'hints', 'records', 'smith'].forEach(function(f) {
   vm.runInThisContext(fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8'), { filename: f });
 });
 Object.keys(SoundSystem).forEach(function(k) { if (typeof SoundSystem[k] === 'function') SoundSystem[k] = function() {}; });
@@ -192,6 +192,7 @@ function playthrough(s) {
   }
   // Boss: 1 attempt per fresh restore at the same state
   inn(g);
+  if (+process.env.ENH) g.party.forEach(function(c) { ['weapon', 'armor'].forEach(function(sl) { SmithSystem.set(c, sl, Math.min(SmithSystem.MAX, +process.env.ENH)); }); c.hp = c.maxHp; });   // ENH=n: free +n on every weapon and armor at the boss (upper bound)
   var wins = 0, N = 30, rsum = 0;
   var snap = JSON.stringify(g);
   for (var k = 0; k < N; k++) {
