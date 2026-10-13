@@ -142,6 +142,13 @@ This file provides guidance for Claude and human developers working on this proj
 - **Balance:** `FULL=1 BOSSLV=12 ENH=n node tools/balance-sim.js 60 1` gives every weapon and armor a free +n at the Demon King (an upper bound; the real cost is gold the party also needs for the next piece of gear): win rate 76% at +0, 82% at +2, 83% at +3, 86% at +5. So the forge is a gentle help before the finale, and mostly a gold sink for the post-game (the abyss gear at +5 costs ~27,000G in total).
 - **Code:** `js/smith.js` (`SmithSystem`: `bonus`, `cost`, `set`, `strip`, `label`, `update`, `render`), loaded after `quests.js`; `main.js` (`equipItem`, dialogue end, state switch), NPC in `data.js`.
 
+### Dice stall (サイコロ屋)
+
+- **Where:** the 賭け屋 NPC in Haruka Waystation (`dice: true` in `data.js`). Talking to them shows a line of dialogue and then opens the dice screen (`state = 'dice'`), like a shop.
+- **Rules:** two dice are rolled. The player picks a bet (50 / 100 / 200 / 500G, limited by gold; no bigger bets so a bad run never costs much) and then 大 (total 8+), 小 (total 6 or less) or 7. 大 and 小 each win 15/36 and pay back 2.2x the bet (net +1.2x); 7 wins 6/36 and pays back 5.5x. The expected return is 91.7% either way, so the stall is a gold sink with the occasional lucky streak, and gold is never created on average. Payouts are rounded down. The result screen shows the dice, the total and the gold won or lost; with less than 50G left the stall says so and closes.
+- **Not saved:** there is no state to keep (the bet resolves at once); the dice use `Math.random`.
+- **Code:** `js/dice.js` (`DiceSystem`: `open`, `update`, `render`, `payout`, `resolve`), loaded after `smith.js`; `main.js` (dialogue end, state switch); the NPC in `data.js`.
+
 ### Requests (いらい)
 
 - **What:** small errands that villagers give. Talking to the giver accepts the request automatically (a toast announces it), and the request is finished by talking to the right NPC once its goal is met. Rewards (gold / items) go straight into the bag with a ★ toast.
@@ -287,12 +294,13 @@ python3 -m http.server 8000
 /js/records.js      # Achievements (rewards) and the records screen
 /js/quests.js       # Villager requests (いらい): accept, progress, rewards, menu screen
 /js/smith.js        # Blacksmith: weapon / armor enhancement (+0 to +5) and its forge screen
+/js/dice.js         # The dice stall (サイコロ屋) in Haruka Waystation
 /js/slots.js        # The three save slots and the title's slot picker
 /js/touch.js        # On-screen D-pad and A/B buttons for touch devices
 /js/main.js         # Game loop, state machine, input handling
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → smith.js → slots.js → touch.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → smith.js → dice.js → slots.js → touch.js → main.js
 
 ---
 
