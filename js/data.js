@@ -597,6 +597,9 @@ var MAPS = {
           { flag: 'visited_castle', lines: ['旅芸人「魔王の城まで 行ったのかい！', '無事で 何よりだ。ゆっくり 休んで いきなよ。」'] },
           { flag: 'visited_forest', lines: ['旅芸人「森から 戻って きたのかい。', '傷は 宿で 癒していきな。」'] },
         ]},
+      { x: 9, y: 7, name: '賭け屋', color: '#bb8833', dir: 'left', dice: true,
+        dialogue: ['賭け屋「旅の人、運だめしは どうだい？', 'サイコロ二つの 出目を 当てるだけさ！」'],
+        talk: [{ flag: 'demonKingDefeated', lines: ['賭け屋「魔王を 倒した 勇者さまの 運だめしか！', 'こいつは 面白い 勝負に なりそうだ！」'] }] },
       { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left', quest: ['antidoteFetch', 'herbFetch'],
         dialogue: ['兵士「ここから 北の 森には', '強い 魔物が 住んでいる。', '装備は ちゃんと 整えたか？」'],
         talk: [

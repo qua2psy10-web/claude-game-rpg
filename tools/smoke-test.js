@@ -328,6 +328,37 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(sm.poor && sm.closed && sm.saved && sm.cost, 'it refuses without gold, closes, saves the level and prices by the item');
   ok(await ev(function() { var n = MAPS.millhaven.npcs.filter(function(x) { return x.smith; }); return n.length === 1 && TILES[MAPS.millhaven.tiles[n[0].y][n[0].x]].passable; }), 'the blacksmith stands in Millhaven');
 
+  console.log('\n[dice stall]');
+  var dc = await ev(function() {
+    newGame(); game.state = 'map'; var o = {}, m = Math.random;
+    // expected return of each pick over many rolls (should be ~91.7%, never above 100%)
+    var ev3 = {};
+    DiceSystem.PICKS.forEach(function(p) { var back = 0, N = 60000; for (var i = 0; i < N; i++) back += DiceSystem.resolve(100, p.id).back; ev3[p.id] = back / (N * 100); });
+    o.ev = ev3;
+    // a scripted round: dice 4 + 5 = 9 beats 大 and loses to 小
+    var seq = [3 / 6 + 0.01, 4 / 6 + 0.01];   // -> 4, 5
+    var i = 0; Math.random = function() { return seq[i++ % 2]; };
+    o.hi = DiceSystem.resolve(100, 'hi'); i = 0; o.lo = DiceSystem.resolve(100, 'lo'); Math.random = m;
+    // the screen with real update calls
+    game.gold = 1000; DiceSystem.open(game); o.opened = game.state === 'dice';
+    DiceSystem.update(game, 'down'); DiceSystem.update(game, 'confirm');   // bet 100
+    i = 0; Math.random = function() { return seq[i++ % 2]; };
+    DiceSystem.update(game, 'confirm');                                    // pick 大
+    Math.random = m;
+    o.taken = game.gold === 900 && game.diceState.phase === 'roll';
+    game.diceState.rollAt -= 2000; DiceSystem.update(game, 'none');       // the roll ends
+    o.won = game.diceState.phase === 'result' && game.gold === 900 + 220;
+    DiceSystem.update(game, 'confirm'); o.again = game.diceState.phase === 'bet';
+    game.gold = 60; game.diceState.betIndex = 3; DiceSystem.update(game, 'confirm'); o.refused = game.diceState.phase === 'bet' && game.gold === 60;
+    DiceSystem.update(game, 'cancel'); o.closed = game.state === 'map';
+    o.npc = MAPS.haruka.npcs.filter(function(n) { return n.dice; }).length === 1;
+    return o;
+  });
+  ok(dc.ev.hi > 0.88 && dc.ev.hi < 0.95 && dc.ev.lo > 0.88 && dc.ev.lo < 0.95 && dc.ev.seven > 0.85 && dc.ev.seven < 0.98, 'every bet pays back about 92% on average (a gold sink, never a source)', JSON.stringify(dc.ev));
+  ok(dc.hi.total === 9 && dc.hi.win && dc.hi.back === 220 && !dc.lo.win && dc.lo.back === 0, 'a scripted roll pays 大 and loses 小', JSON.stringify([dc.hi, dc.lo]));
+  ok(dc.opened && dc.taken && dc.won && dc.again, 'the stall takes the bet, rolls and pays the win');
+  ok(dc.refused && dc.closed && dc.npc, 'it refuses a bet beyond the gold, closes, and the NPC stands in Haruka');
+
   console.log('\n[achievements and the post-game flow]');
   var pg = await ev(function() {
     newGame(); game.state = 'map'; var o = {};
