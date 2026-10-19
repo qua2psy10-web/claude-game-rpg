@@ -4489,7 +4489,7 @@ var BattleSystem = {
       ctx.fillStyle = '#000';
       ctx.beginPath();
       ctx.rect(0, 0, canvasW, canvasH);
-      ctx.arc(canvasW / 2, canvasH * 0.45, maxR * wipeT, 0, Math.PI * 2, true);
+      ctx.arc(canvasW / 2, canvasH * 0.45, maxR * Math.max(0, wipeT), 0, Math.PI * 2, true);   // (never negative, even if the clock steps back)
       ctx.fill('evenodd');
     }
 
@@ -4744,8 +4744,10 @@ var BattleSystem = {
       UI.drawMenu(ctx, 10, canvasH - 200, 200, itemNames, b.itemIndex);
     }
 
-    // Message window
-    if (b.messages.length > 0) {
+    // Message window. While a command menu is open the window would cover its lower rows (ぼうぎょ / にげる), so
+    // there it only shows short-lived feedback (messageTimer > 0), never the previous turn's leftover lines
+    var menuPhase = b.phase === 'command' || b.phase === 'spellSelect' || b.phase === 'itemSelect' || b.phase === 'allyTarget';
+    if (b.messages.length > 0 && !(menuPhase && b.messageTimer <= 0)) {
       UI.drawMessageWindow(ctx, b.messages, canvasW, canvasH);
     }
 

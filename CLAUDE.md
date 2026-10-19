@@ -51,6 +51,13 @@ This file provides guidance for Claude and human developers working on this proj
   - **Magic Boost:** raises the whole party's magic damage x1.5 for 3 turns (the `int` buff: `calcSpellDamage` multiplies by `buffs.int.mult`), shown as a 魔 badge next to 攻 / 防 and in the battle music's "boost" state. Tuned to be an option that roughly breaks even in the sim at Lv12 (it costs a turn and 8 MP) and clearly pays off in longer fights.
   - **Debuffs:** Weaken (ウィークン, Dario Lv4: one enemy ATK x0.7, 3 turns) and Armor Break (ブレイク, Sundar Lv8: all enemies DEF x0.7, 3 turns) reuse the buff system via `getEffectiveStat`/`tickBuffs`.
 
+### Battle screen & error guard
+
+- **Message window vs. command menu:** the bottom message window (80 px) used to stay on screen with the previous turn's lines while the command menu was open, covering its lower rows (ぼうぎょ / にげる) in every battle, including the first turn of a boss fight right after the dialogue. In the menu phases (`command`, `spellSelect`, `itemSelect`, `allyTarget`) it now only shows while `messageTimer > 0` (short feedback such as 「MPが 足りない！」 and the encounter banner); in every other phase it shows as before.
+- **Error guard:** `gameLoop` wraps `update` / `render` in a try / catch. An exception used to end the loop for good (a frozen, half-drawn screen that never advanced). `reportGameError` now logs it, resets the canvas state and shows the state, message and location in a strip at the bottom, while the loop keeps running, so the next frame can recover and the message can be reported. `lastGameError` holds the latest one.
+- **Clock:** the battle-start iris wipe clamps its radius at 0 (a negative `arc` radius throws if the clock ever steps back).
+- **Test:** the smoke test's `[battle screen and error guard]` section checks the message window in each case and that a throwing frame still schedules the next one.
+
 ### Map ambience
 
 - **Animated tiles:** water ripples and glints, lava glow and bubbles, grass/flowers leaning with a travelling wind, dappled light on trees, breathing violet floor in the castle, a glinting throne gem.
@@ -229,7 +236,7 @@ Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~4
 - **Run:** `node tools/smoke-test.js` (about 20 s; exit code 0 = all passed). It serves the repo itself and drives the real game in headless Chromium through Playwright (found in `node_modules`, or in `npm root -g`; set `PW_CHROMIUM` to point at a browser if `/opt/pw-browsers/chromium` is absent). Run it before every PR.
 - **Data checks:** every map is rectangular with events and NPCs on walkable tiles and known targets; enemies have `desc` / `area` (and bosses an `EYE_TABLE` entry); every character spell exists *and has an `EFFECT_KINDS` entry*; shops, chests and achievement rewards reference real items.
 - **Flows with real keys:** title -> new game -> opening -> dialogue -> walking, every menu screen, shop purchase, both inns (the full night scene), winning a battle, the ずかん record.
-- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the requests (accept, count, deliver, fetch, save), the blacksmith (enhance, +5 cap, the level travelling with the item, save), the music (loop lengths, track per map, the new tracks start), the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
+- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the requests (accept, count, deliver, fetch, save), the blacksmith (enhance, +5 cap, the level travelling with the item, save), the music (loop lengths, track per map, the new tracks start), the battle message window and the error guard, the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
 - **Adding to it:** a new screen, map or mechanic should get a line in the matching section; keep it fast and deterministic (it forces random rolls where it must).
 - **History:** its first run found four world-map rows that were one tile short (fixed with it).
 
