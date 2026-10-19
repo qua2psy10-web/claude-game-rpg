@@ -299,6 +299,32 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   });
   ok(played.abyss === 'abyss' && played.waystation === 'waystation', 'the new tracks start playing (and the scheduler runs without errors)', JSON.stringify(played));
 
+  console.log('\n[battle screen and error guard]');
+  var bs = await ev(function() {
+    newGame(); game.state = 'map'; game.dialogue = null; var o = {};
+    BattleSystem.startBattle(game, ['slime', 'goblin']);
+    var calls = 0, orig = UI.drawMessageWindow; UI.drawMessageWindow = function() { calls++; return orig.apply(UI, arguments); };
+    var b = game.battle; b.phase = 'command'; b.messageTimer = 0; b.messages = ['むかしの メッセージ'];
+    BattleSystem.render(ctx, game, 640, 480); o.hidden = calls === 0;          // leftover lines never cover the menu
+    b.messageTimer = 30; b.messages = ['MPが 足りない！']; calls = 0;
+    BattleSystem.render(ctx, game, 640, 480); o.feedback = calls === 1;         // short feedback still shows
+    b.phase = 'execute'; b.messageTimer = 0; calls = 0;
+    BattleSystem.render(ctx, game, 640, 480); o.exec = calls === 1;             // results always show
+    UI.drawMessageWindow = orig;
+    // an exception in a frame must not stop the loop
+    var realRender = window.render, raf = window.requestAnimationFrame, scheduled = 0;
+    window.requestAnimationFrame = function() { scheduled++; };
+    var quiet = console.error; console.error = function() {};
+    window.render = function() { throw new Error('boom'); };
+    gameLoop(1000); gameLoop(1016);
+    window.render = realRender; window.requestAnimationFrame = raf; console.error = quiet;
+    o.loop = scheduled === 2 && lastGameError && lastGameError.msg === 'boom' && lastGameError.count === 2;
+    lastGameError = null; game.state = 'map'; game.battle = null;
+    return o;
+  });
+  ok(bs.hidden && bs.feedback && bs.exec, 'the battle message window no longer covers the command menu', JSON.stringify(bs));
+  ok(bs.loop, 'an exception in one frame is reported but the game loop keeps running');
+
   console.log('\n[blacksmith]');
   var sm = await ev(function() {
     newGame(); game.state = 'map'; var o = {}, sam = game.party[0];

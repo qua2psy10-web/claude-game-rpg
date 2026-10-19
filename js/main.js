@@ -494,11 +494,38 @@ function gameLoop(timestamp) {
 
   if (game.state !== 'title' && game.state !== 'opening') gameScore.playTime += dt / 1000;
 
-  update(dt);
-  render();
+  try {
+    update(dt);
+    render();
+  } catch (err) {
+    reportGameError(err);   // one bad frame must not freeze the whole game
+  }
 
   keysPressed = {};
   requestAnimationFrame(gameLoop);
+}
+
+// An exception in update / render used to stop the loop for good (frozen, half-drawn screen). Now the loop keeps running,
+// the canvas state is reset (a throw can leave save() / transforms behind) and the message is shown at the bottom so it can be reported.
+var lastGameError = null;
+function reportGameError(err) {
+  var msg = (err && err.message ? err.message : String(err));
+  var where = ((err && err.stack ? err.stack : '').split('\n')[1] || '').replace(/^.*\//, '').trim();
+  var first = !lastGameError || lastGameError.msg !== msg;
+  lastGameError = { msg: msg, where: where, at: Date.now(), count: first ? 1 : lastGameError.count + 1 };
+  if (first && typeof console !== 'undefined' && console.error) console.error(err);
+  try {
+    canvas.width = canvas.width;   // resets every piece of context state (and clears the half-drawn frame)
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, CANVAS_H - 70, CANVAS_W, 70);
+    ctx.fillStyle = '#f88';
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('エラーが おきました (' + game.state + (game.battle ? '/' + game.battle.phase : '') + ')', 12, CANVAS_H - 50);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(msg.slice(0, 70), 12, CANVAS_H - 32);
+    ctx.fillText(where.slice(0, 70), 12, CANVAS_H - 14);
+  } catch (e2) {}
 }
 
 // ===== UPDATE =====
