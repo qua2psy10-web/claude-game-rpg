@@ -319,9 +319,18 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
     gameLoop(1000); gameLoop(1016);
     window.render = realRender; window.requestAnimationFrame = raf; console.error = quiet;
     o.loop = scheduled === 2 && lastGameError && lastGameError.msg === 'boom' && lastGameError.count === 2;
-    lastGameError = null; game.state = 'map'; game.battle = null;
+    lastGameError = null;
+    // the item list scrolls: with many kinds the cursor row and the window stay on screen
+    game.inventory = Object.keys(ITEMS).slice(0, 12).map(function(k) { return { id: k, count: 1 }; });
+    var rows = [], origMenu = UI.drawMenu; UI.drawMenu = function(c, x, y, w, items, sel) { rows.push({ n: items.length, sel: sel, bottom: y + items.length * 26 + 20 }); return origMenu.apply(UI, arguments); };
+    b.phase = 'itemSelect'; b.messageTimer = 0;
+    [0, 5, game.inventory.length - 1].forEach(function(i) { b.itemIndex = i; BattleSystem.render(ctx, game, 640, 480); });
+    UI.drawMenu = origMenu;
+    o.items = rows.length === 3 && rows.every(function(r) { return r.n <= 6 && r.bottom <= 480 && r.sel >= 0 && r.sel < r.n; });
+    game.state = 'map'; game.battle = null;
     return o;
   });
+  ok(bs.items, 'the battle item list scrolls instead of running off the screen', JSON.stringify(bs));
   ok(bs.hidden && bs.feedback && bs.exec, 'the battle message window no longer covers the command menu', JSON.stringify(bs));
   ok(bs.loop, 'an exception in one frame is reported but the game loop keeps running');
 
