@@ -4738,10 +4738,17 @@ var BattleSystem = {
 
     // Item selection
     if (b.phase === 'itemSelect') {
+      // The list scrolls: more than ITEM_ROWS kinds used to run off the bottom of the screen
       var itemNames = game.inventory.map(function(inv) {
         return ITEMS[inv.id].name + ' x' + inv.count;
       });
-      UI.drawMenu(ctx, 10, canvasH - 200, 200, itemNames, b.itemIndex);
+      var ITEM_ROWS = 6;
+      var itemTop = Math.max(0, Math.min(b.itemIndex - ITEM_ROWS + 1, itemNames.length - ITEM_ROWS));
+      if (b.itemIndex < itemTop) itemTop = b.itemIndex;
+      var shown = itemNames.slice(itemTop, itemTop + ITEM_ROWS);
+      UI.drawMenu(ctx, 10, canvasH - 200, 230, shown, b.itemIndex - itemTop);
+      if (itemTop > 0) UI.drawText(ctx, '▲', 210, canvasH - 196, '#ffd700', UI.FONT_SMALL);
+      if (itemTop + ITEM_ROWS < itemNames.length) UI.drawText(ctx, '▼', 210, canvasH - 28, '#ffd700', UI.FONT_SMALL);
     }
 
     // Message window. While a command menu is open the window would cover its lower rows (ぼうぎょ / にげる), so
