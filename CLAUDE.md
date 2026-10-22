@@ -84,7 +84,7 @@ This file provides guidance for Claude and human developers working on this proj
 - **Records:** `game.bestiary = { enemyId: { seen, defeated } }`. `seen` goes up once per battle that includes the enemy; `defeated` per enemy killed (counted on a win, not when fleeing or losing). Stored in the save file as `bestiary` without a version bump; saves that lack it load as an empty bestiary (`BestiarySystem.sanitize`).
 - **Unlocks:** seen -> portrait, description, habitat (`desc`/`area` in `data.js`); 1 defeat -> HP / EXP / gold; 3 defeats -> ATK / DEF / SPD, poison chance and skills.
 - **Announcement:** enemies met for the first time are listed in the win messages ("…を ずかんに とうろくした！").
-- **Code:** `js/bestiary.js` (`BestiarySystem`); `battle.js` records on `startBattle`, `main.js` records defeats in `updateScoreAfterBattle` and owns the menu state. New enemies need `desc` and `area`.
+- **Code:** `js/bestiary.js` (`BestiarySystem`); `battle.js` records on `startBattle`, `save.js` records defeats in `updateScoreAfterBattle` and `main.js` / `menu.js` own the menu state. New enemies need `desc` and `area`.
 
 ### Dash & key config
 
@@ -152,7 +152,7 @@ This file provides guidance for Claude and human developers working on this proj
 - **Cycle:** `game.cycle` (1 = normal) is saved (`cycle`, no version bump; old saves load as 1) and shown as 「2周目」 in the map HUD, the records screen and the title's save summary.
 - **Difficulty:** `cycleScale(cycle)` in `data.js`: per cycle after the first, enemy HP / ATK / INT x(1 + 0.6c), DEF x(1 + 0.3c), EXP and gold x(1 + 0.5c) (c = cycles beyond the first). Applied in `BattleSystem.startBattle` to every enemy including bosses; the ずかん keeps showing base stats.
 - **Balance** (`NG=2 NGLV=20 node tools/balance-sim.js 12 1 ng`: the party arrives at that level with the best gear 6000G buys, 10 fights per area): at Lv20 cycle 2 is trivial in the grassland and forest (the carried levels), ~15% HP lost in the castle, the Demon King ~83% wipe and the abyss ~40% wipe; at Lv24 the Demon King is ~8% wipe, so the party levels up (EXP x1.5) before the climax. Cycle 3 at Lv20: castle 28% wipe, Demon King and abyss out of reach until higher levels.
-- **Code:** `main.js` (`titleItems`, `newGamePlus`, `updateTitle`), `data.js` (`cycleScale`), `battle.js` (`startBattle`), `tools/balance-sim.js` (`ng` mode), smoke test section `[New Game+]`.
+- **Code:** `title.js` (`titleItems`, `newGamePlus`, `updateTitle`), `data.js` (`cycleScale`), `battle.js` (`startBattle`), `tools/balance-sim.js` (`ng` mode), smoke test section `[New Game+]`.
 
 ### Blacksmith (鍛冶屋)
 
@@ -162,7 +162,7 @@ This file provides guidance for Claude and human developers working on this proj
 - **State:** the level is stored per item. An equipped item keeps it in `char.weaponPlus` / `char.armorPlus`; unequipping puts `{ id, type, plus }` back into the equipment bag and equipping restores it, so swapping never loses it. Both fields are saved with the party / bag (no version bump; missing = +0), and New Game+ carries them with the gear. Stats are applied to the character directly (like gear stats), so battle code is untouched.
 - **Display:** the equipment and stats screens show 「鉄の剣 +2」.
 - **Balance:** `FULL=1 BOSSLV=12 ENH=n node tools/balance-sim.js 60 1` gives every weapon and armor a free +n at the Demon King (an upper bound; the real cost is gold the party also needs for the next piece of gear): win rate 76% at +0, 82% at +2, 83% at +3, 86% at +5. So the forge is a gentle help before the finale, and mostly a gold sink for the post-game (the abyss gear at +5 costs ~27,000G in total).
-- **Code:** `js/smith.js` (`SmithSystem`: `bonus`, `cost`, `set`, `strip`, `label`, `update`, `render`), loaded after `quests.js`; `main.js` (`equipItem`, dialogue end, state switch), NPC in `data.js`.
+- **Code:** `js/smith.js` (`SmithSystem`: `bonus`, `cost`, `set`, `strip`, `label`, `update`, `render`), loaded after `quests.js`; `menu.js` (`equipItem`), `main.js` (dialogue end, state switch), NPC in `data.js`.
 
 ### Dice stall (サイコロ屋)
 
@@ -196,20 +196,20 @@ This file provides guidance for Claude and human developers working on this proj
 - **Help screen:** the in-game menu's ヘルプ (between ずかん and セーブ) shows three pages (そうさ / たたかい / ヒント), switched with Left/Right, closed with cancel. Key names follow the player's bindings (`SettingsSystem.keyName`) and switch to ボタン wording in touch mode.
 - **First-time hints:** small toasts (top-left under the area name, ~6.5 s, non-blocking) shown once per situation: `move` (first map frame of a new game), `dash` (40 steps), `rest` (a member at <= 50% HP), `battle`, `poison`, `bestiary` (first new entry), `enter_forest` / `enter_castle` / `enter_abyss`. The toast's clock only runs while the map, a dialogue or a battle is on screen (menus and shops pause it), and a queue shows them one at a time.
 - **Storage:** `game.hints = { id: true }` in the save file (no version bump). A save without it (from before this feature) is treated as a veteran: every hint counts as seen (`HintSystem.sanitize`). A new game starts empty.
-- **Menu:** `MENU_ITEMS` in `main.js` is the single list; selection works by label, so items can be inserted without renumbering.
+- **Menu:** `MENU_ITEMS` in `menu.js` is the single list; selection works by label, so items can be inserted without renumbering.
 - **Code:** `js/hints.js` (`HintSystem`), loaded after `bestiary.js`; triggers call `HintSystem.show(game, id)` from `updateMap`, `BattleSystem.startBattle` / win / poison, and `MapSystem.handleEvent`. New hints need an entry in `TEXT` and `IDS`.
 
 ### Shops & Inn presentation
 
 - **Shop:** entering plays a door bell and fades in from black. A shopkeeper message window (greeting, price confirmation, "まいどあり！", "おかねが たりないようだ…") and a comparison window sit at the bottom: for equipment, each party member's stat before -> after (green up / red down arrow, "そうび できない" if the class cannot wear it) plus how many the party owns; for consumables, the description and owned count. Buying plays a coin SFX, flies coins from the gold counter to the row, floats "-NG", and counts the gold down. Unaffordable items cannot be selected (denied buzz + shake of the gold counter) and are drawn dim.
 - **Inn:** the confirm window shows the current gold and says so when gold is short (denied buzz). Accepting starts a ~8 s night scene (`TownSystem.renderNight`): the heroes sleep while the moon sets and dawn rises (lullaby, dawn chime, birdsong), then the status panel's HP/MP gauges refill (revived members show 復活！) before the morning dialogue. Z skips to the waking moment. The heal is applied and saved when the stay is paid, the animation only replays it.
-- **Code:** `js/town.js` (`TownSystem`) draws the info windows, buy effects and the night scene; `main.js` holds the state (`updateShop`, `updateInn`).
+- **Code:** `js/town.js` (`TownSystem`) draws the info windows, buy effects and the night scene; `shop.js` holds the state (`updateShop`, `updateInn`).
 
 ### Title & Opening
 
 - **Title:** a night landscape (moon, shooting star, village lights, the Demon King's castle smouldering on a far peak, occasional lightning) with the logo dropping in letter by letter; subtitles and the menu fade in at 2.6 s. Z during that intro skips to the finished title. Choosing はじめから / つづきから plays a start SFX and fades out before `newGame()` / `loadGame()` runs.
 - **Opening (new game only):** `state = 'opening'`, ~22 s, Z/X skips (fades out). Four narrated scenes (peaceful village -> the Demon King awakens with storm and thunder -> darkness spreads -> the three heroes rise at dawn), then the village chief's dialogue starts as before. BGM: title theme in scenes 1 and 4, silence plus SFX (rumble/thunder) in between. Loading a save never plays it.
-- **Code:** `js/opening.js` (`OpeningSystem`) holds the shared scenery, logo, narration text, sound cues and scene timeline; `main.js` owns the state machine (`updateTitle`, `updateOpening`, `renderOpening`).
+- **Code:** `js/opening.js` (`OpeningSystem`) holds the shared scenery, logo, narration text, sound cues and scene timeline; `title.js` owns the title / opening screens (`updateTitle`, `updateOpening`, `renderOpening`) and `main.js` the state machine.
 
 ### Save / Load
 
@@ -306,7 +306,9 @@ python3 -m http.server 8000
 /js/data.js         # All game data (characters, enemies, items, maps)
 /js/ui.js           # UI rendering (DQ-style windows, menus, text)
 /js/map.js          # World map rendering & movement
-/js/battle.js       # Turn-based battle system
+/js/battle.js       # Turn-based battle system: state, commands, turn execution, damage, win / lose (BattleSystem)
+/js/battle-fx.js    # Battle effect drawing: casts, hits, pops, boss intro, escape, victory, level-up, every spell / item / attack effect
+/js/battle-render.js # The battle scene: backdrop, enemies, status panel, menus, message window, effect layering
 /js/opening.js      # Title scenery/logo and the new-game opening cinematic
 /js/town.js         # Shop info/buy effects and the inn's night scene
 /js/ambience.js     # Animated tiles, area atmosphere, wandering NPCs, area banner
@@ -319,10 +321,17 @@ python3 -m http.server 8000
 /js/dice.js         # The dice stall (サイコロ屋) in Haruka Waystation
 /js/slots.js        # The three save slots and the title's slot picker
 /js/touch.js        # On-screen D-pad and A/B buttons for touch devices
-/js/main.js         # Game loop, state machine, input handling
+/js/save.js         # Save / load (three slots), score record, the "saved" overlay
+/js/title.js        # Title screen, New Game+, opening glue
+/js/menu.js         # In-game party menu and equipping
+/js/shop.js         # Shop and inn screens
+/js/endings.js      # Game-over and ending screens
+/js/main.js         # Globals, input, BGM choice, the game loop, the state machine's update / render, map and dialogue
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → smith.js → dice.js → slots.js → touch.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → battle-fx.js → battle-render.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → smith.js → dice.js → slots.js → touch.js → save.js → title.js → menu.js → shop.js → endings.js → main.js
+
+The battle files extend one object: `battle.js` defines `var BattleSystem = {...}` and the two `battle-*.js` files add their methods with `Object.assign(BattleSystem, {...})`, so they must load right after it. The files split out of `main.js` hold plain global functions that are only called at run time (`window.onload` in `main.js` starts everything), so they only need to load before it. `tools/balance-sim.js` keeps its own module list and must include the `battle-*` files.
 
 ---
 
