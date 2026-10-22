@@ -540,6 +540,48 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(await ev(function() { return game.flags.crystalGuardianDefeated === true && game.state !== 'ending'; }), 'the guardian ends without the ending screen');
   ok(await ev(function() { return Object.keys(ENEMIES).filter(function(k) { return !ENEMIES[k].boss || true; }).length === 17 && RecordsSystem.stats(game).chests === 20; }), 'the ずかん has 17 entries and the きろく counts 20 chests');
 
+  console.log('\n[arena]');
+  var ar = await ev(function() {
+    newGame(); game.state = 'map'; var o = {};
+    var npc = MAPS.haruka.npcs.filter(function(n) { return n.arena; })[0];
+    o.npc = !!npc && TILES[MAPS.haruka.tiles[npc.y][npc.x]].passable;
+    function win() { game.battle.enemies.forEach(function(e) { e.hp = 0; e.alive = false; }); BattleSystem.checkWin(game); BattleSystem.handleWin(game); }
+    ArenaSystem.open(game); o.open = game.state === 'arena';
+    game.gold = 500; game.arenaState.index = 1; ArenaSystem.update(game, 'confirm');            // veteran: locked until the castle has been visited
+    o.locked = game.state === 'arena' && game.gold === 500 && !game.arena;
+    game.arenaState.index = 0; game.gold = 50; ArenaSystem.update(game, 'confirm');             // not enough gold
+    o.poor = game.state === 'arena' && game.gold === 50 && !game.arena;
+    game.gold = 300; var exp0 = game.party[0].exp; ArenaSystem.update(game, 'confirm');
+    o.begin = game.state === 'battle' && game.gold === 200 && game.arena.round === 0 && game.battle.enemies.length === 2;
+    // no fleeing
+    var b = game.battle; b.phase = 'execute'; b.turnQueue = [{ action: 'run', actor: 0, actorType: 'party' }]; b.currentAction = 0;
+    BattleSystem.executeNextAction(game); o.noRun = b.phase !== 'run' && /にげられない|逃げられない/.test((b.messages || []).join(''));
+    b.phase = 'command'; b.messages = []; b.messageTimer = 0;
+    // round 1 -> 2: nothing is paid out, the living recover a bit
+    game.party[0].hp = 1; var maxHp = game.party[0].maxHp; win();
+    o.round2 = game.state === 'battle' && game.arena.round === 1 && game.battle.enemies.length === 3 && game.gold === 200 && game.party[0].exp === exp0;
+    o.recover = game.party[0].hp === Math.min(maxHp, 1 + Math.ceil(maxHp * ArenaSystem.RECOVER));
+    win(); o.round3 = game.arena.round === 2; win();
+    o.prize = game.state === 'dialogue' && !game.arena && game.gold === 400 && game.flags.arena_clear_novice === true;
+    o.first = game.inventory.some(function(i) { return i.id === 'highHerb' && i.count >= 3; });
+    // a second win pays the prize but not the first-time reward again
+    game.state = 'map'; game.gold = 100; ArenaSystem.begin(game, 'novice'); win(); win(); win();
+    o.again = game.gold === 200 && game.inventory.filter(function(i) { return i.id === 'highHerb'; })[0].count === 3;
+    // a wipe: no game over, the arena heals everyone and the fee stays paid
+    game.state = 'map'; game.gold = 100; ArenaSystem.begin(game, 'novice');
+    game.party.forEach(function(p) { p.hp = 0; p.alive = false; }); BattleSystem.checkLose(game); game.battle.messageTimer = 0; BattleSystem.handleInput(game, 'confirm');
+    o.lose = game.state === 'dialogue' && !game.arena && game.gold === 0 && game.party.every(function(p) { return p.alive && p.hp === p.maxHp; });
+    // the battle shows its round banner without errors
+    game.state = 'map'; game.gold = 100; ArenaSystem.begin(game, 'novice'); game.battle.phase = 'command'; BattleSystem.render(ctx, game, 640, 480);
+    game.arena = null; game.battle = null; game.state = 'map';
+    return o;
+  });
+  ok(ar.npc && ar.open && ar.locked && ar.poor, 'the arena opens from its receptionist; locked or unaffordable courses are refused', JSON.stringify(ar));
+  ok(ar.begin && ar.round2 && ar.recover && ar.round3, 'a run takes the fee, chains three battles, pays no EXP / gold and lets the living recover between rounds', JSON.stringify(ar));
+  ok(ar.prize && ar.first && ar.again, 'winning all three pays the prize, and the first win gives its one-off reward once', JSON.stringify(ar));
+  ok(ar.noRun, 'there is no fleeing from the arena', JSON.stringify(ar));
+  ok(ar.lose, 'a wipe in the arena patches the party up instead of a game over', JSON.stringify(ar));
+
   console.log('\n[touch mode]');
   var tp = await browser.newPage({ viewport: { width: 420, height: 800 }, hasTouch: true, isMobile: true });
   tp.on('pageerror', function(e) { errors.push('touch: ' + e.message); });

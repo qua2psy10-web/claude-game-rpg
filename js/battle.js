@@ -276,7 +276,8 @@ var BattleSystem = {
         break;
       case 'lose':
         if (key === 'confirm') {
-          game.state = 'gameover';
+          if (game.arena) ArenaSystem.afterLose(game);   // the arena patches the party up instead of a game over
+          else game.state = 'gameover';
         }
         break;
     }
@@ -681,9 +682,9 @@ var BattleSystem = {
     // Handle run
     if (cmd.action === 'run') {
       b.escapeAttempts++;
-      var anyBoss = b.enemies.some(function(e) { return e.boss && e.alive; });
+      var anyBoss = b.enemies.some(function(e) { return e.boss && e.alive; }) || !!game.arena;   // no fleeing from the arena
       if (anyBoss) {
-        b.messages = ['しかし 逃げられない！'];
+        b.messages = [game.arena ? 'とうぎじょうでは 逃げられない！' : 'しかし 逃げられない！'];
         b.messageTimer = 40;
         this.alertEnemies(game);
         this.escapeFailFx(game, true);
@@ -1214,6 +1215,7 @@ var BattleSystem = {
         totalExp += b.enemies[i].exp;
         totalGold += b.enemies[i].gold;
       }
+      if (game.arena) { totalExp = 0; totalGold = 0; }   // arena battles pay no EXP or gold (the prize comes at the end)
       b.totalExp = totalExp;
       b.totalGold = totalGold;
       b.messages = ['戦闘に 勝利した！', totalExp + 'の 経験値を 獲得！', totalGold + 'ゴールド 手に入れた！'];
@@ -1222,6 +1224,7 @@ var BattleSystem = {
       var bossWin = b.enemies.some(function(e) { return e.finale; });   // only the Demon King ends the game
       if (bossWin) b.messages = ['魔王ヴァルザードを たおした！', '世界に 光が もどっていく…'];
       else if (game.pendingBoss) b.messages.unshift(b.enemies[0].name + 'を たおした！');
+      if (game.arena) b.messages = [ArenaSystem.roundMessage(game)];
       game.gold += totalGold;
       b.phase = 'win';
       b.winStart = Date.now();
@@ -1272,6 +1275,7 @@ var BattleSystem = {
   // other bosses (ending: false) show their closing lines and play goes on.
   afterWin: function(game) {
     RecordsSystem.check(game);
+    if (game.arena) { ArenaSystem.afterRound(game); return; }   // a run goes on to the next round or pays out
     var pb = game.pendingBoss;
     game.state = 'map';
     game.battle = null;

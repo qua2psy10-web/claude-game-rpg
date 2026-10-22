@@ -675,6 +675,12 @@ var MAPS = {
           { flag: 'visited_castle', lines: ['旅芸人「魔王の城まで 行ったのかい！', '無事で 何よりだ。ゆっくり 休んで いきなよ。」'] },
           { flag: 'visited_forest', lines: ['旅芸人「森から 戻って きたのかい。', '傷は 宿で 癒していきな。」'] },
         ]},
+      { x: 2, y: 6, name: '闘技場の受付', color: '#cc5533', dir: 'right', arena: true,
+        dialogue: ['受付「ハルカ闘技場へ ようこそ！', '3れんせんを 勝ち抜けば しょうきんが 出るぞ。', '力に 自信は あるか？」'],
+        talk: [
+          { flag: 'abyssBossDefeated', lines: ['受付「深淵の魔神を 倒した 勇者さまか！', '「でんせつの ぶ」は あなたの ための 舞台だ！」'] },
+          { flag: 'demonKingDefeated', lines: ['受付「魔王を 倒した 勇者さまの 参戦とは！', '「でんせつの ぶ」が 解禁だ。どうだ？」'] },
+        ]},
       { x: 9, y: 7, name: '賭け屋', color: '#bb8833', dir: 'left', dice: true,
         dialogue: ['賭け屋「旅の人、運だめしは どうだい？', 'サイコロ二つの 出目を 当てるだけさ！」'],
         talk: [{ flag: 'demonKingDefeated', lines: ['賭け屋「魔王を 倒した 勇者さまの 運だめしか！', 'こいつは 面白い 勝負に なりそうだ！」'] }] },
@@ -688,6 +694,22 @@ var MAPS = {
     encounters: {},
     encounterRate: 0,
   },
+};
+
+// ===== ARENA (ハルカ闘技場) =====
+// Three battles in a row per course; fee up front, prize for winning all three, a one-off reward for the first win.
+var ARENA = {
+  courses: [
+    { id: 'novice', name: 'ひよっこの ぶ', fee: 100, prize: 200,
+      rounds: [['wolf', 'wolf'], ['giantBat', 'goblin', 'goblin'], ['skeleton', 'skeleton']],
+      first: { item: 'highHerb', count: 3 } },
+    { id: 'veteran', name: 'つわものの ぶ', fee: 300, prize: 600, needs: 'visited_castle', lockHint: '魔王の城へ 行った 者だけが 出られる',
+      rounds: [['darkKnight', 'demonSoldier'], ['darkMage', 'demonSoldier', 'darkMage'], ['crystalGolem', 'darkKnight']],
+      first: { item: 'bigBomb', count: 2 } },
+    { id: 'legend', name: 'でんせつの ぶ', fee: 800, prize: 1600, needs: 'demonKingDefeated', lockHint: '魔王を たおした 者だけが 出られる',
+      rounds: [['abyssWraith', 'voidMage'], ['chaosKnight', 'abyssWraith'], ['chaosKnight', 'voidMage']],
+      first: { item: 'phoenix', count: 3 } },
+  ],
 };
 
 // ===== SHOP DATA =====
