@@ -5,6 +5,7 @@
 var UI = {
   TILE_SIZE: 32,
   FONT: '16px monospace',
+  MSG_MAX_LINES: 6,
   FONT_SMALL: '13px monospace',
   WINDOW_BG: 'rgba(0, 0, 80, 0.92)',
   WINDOW_BORDER: '#ffffff',
@@ -51,11 +52,24 @@ var UI = {
 
   // Draw message window at bottom of screen
   drawMessageWindow: function(ctx, lines, canvasW, canvasH) {
-    var h = 80;
+    // Long lines wrap at the window edge and the window grows (up to MSG_MAX_LINES) so no line is dropped
+    var maxW = canvasW - 40;
+    ctx.font = this.FONT;
+    var rows = [];
+    for (var i = 0; i < lines.length; i++) {
+      var s = String(lines[i]), cur = '';
+      for (var c = 0; c < s.length; c++) {
+        if (cur && ctx.measureText(cur + s.charAt(c)).width > maxW) { rows.push(cur); cur = ''; }
+        cur += s.charAt(c);
+      }
+      rows.push(cur);
+    }
+    if (rows.length > this.MSG_MAX_LINES) rows = rows.slice(0, this.MSG_MAX_LINES);
+    var h = Math.max(80, 22 + rows.length * 22);
     var y = canvasH - h;
     this.drawWindow(ctx, 0, y, canvasW, h);
-    for (var i = 0; i < lines.length && i < 3; i++) {
-      this.drawText(ctx, lines[i], 18, y + 14 + i * 22);
+    for (var r = 0; r < rows.length; r++) {
+      this.drawText(ctx, rows[r], 18, y + 14 + r * 22);
     }
   },
 
