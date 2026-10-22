@@ -997,11 +997,14 @@ Object.assign(BattleSystem, {
         ctx.strokeRect(canvasW - 216, py - 5, 207, 35);
       }
 
+      // Limit gauge label: ひっさつ when full, れんけい when this member and a combo partner are both past COMBO_GAUGE
+      var comboOk = p.alive && p.limit >= COMBO_GAUGE && game.party.some(function(o) { return o !== p && o.alive && o.limit >= COMBO_GAUGE && COMBOS.some(function(cb) { return cb.pair.indexOf(p.classId) >= 0 && cb.pair.indexOf(o.classId) >= 0; }); });
+      var lblShown = p.alive && p.limit !== undefined && (p.limit >= 100 || comboOk);
       var shownHp = Math.round(p.hpShown), shownMp = Math.round(p.mpShown);
       UI.drawText(ctx, p.name, px, py, nameColor, UI.FONT_SMALL);
       UI.drawText(ctx, 'HP ' + shownHp + '/' + p.maxHp, px + 72, py, low ? '#f66' : '#fff', UI.FONT_SMALL);
       if (p.alive) UI.drawText(ctx, 'MP ' + shownMp + '/' + p.maxMp, px + 72, py + 17, '#aaf', UI.FONT_SMALL);
-      if (p.alive && p.poisoned) UI.drawText(ctx, '毒', (p.limit || 0) >= 100 ? px + 54 : px, py + 17, '#d08aff', UI.FONT_SMALL);   // beside the ひっさつ label when that shows
+      if (p.alive && p.poisoned) UI.drawText(ctx, '毒', lblShown ? px + 54 : px, py + 17, '#d08aff', UI.FONT_SMALL);   // beside the ひっさつ / れんけい label when one shows
 
       // HP gauge (track, ghost, main, heal sweep)
       var gx = px + 72, gw = 122, gy = py + 14;
@@ -1024,7 +1027,10 @@ Object.assign(BattleSystem, {
         ctx.fillRect(px, py + 30, 62, 3);                                  // under the name, clear of the buff badges
         ctx.fillStyle = full ? 'rgba(255,' + Math.round(200 + 55 * Math.sin(now / 110)) + ',60,1)' : '#c9a020';
         ctx.fillRect(px, py + 30, 62 * lr, 3);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillRect(px + 62 * COMBO_GAUGE / 100, py + 29, 1, 5);                // the mark above which a combo is possible
         if (full) UI.drawText(ctx, 'ひっさつ', px, py + 17, '#ffd700', UI.FONT_SMALL);
+        else if (comboOk) UI.drawText(ctx, 'れんけい', px, py + 17, '#8ef', UI.FONT_SMALL);
       }
       // MP gauge
       var gy2 = py + 31;

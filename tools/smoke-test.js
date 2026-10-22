@@ -593,6 +593,10 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
     BattleSystem.startBattle(game, ['darkKnight', 'darkKnight']); var b = game.battle; b.phase = 'command'; b.messageTimer = 0;
     var ids = function(i) { return BattleSystem.getAvailableSpells(game.party[i], game).map(function(s) { return s.id; }); };
     o.none = ids(0).indexOf('comboFlame') < 0;
+    game.party[0].limit = COMBO_GAUGE - 1; game.party[1].limit = 100;
+    o.below = ids(0).indexOf('comboFlame') < 0;                                    // one gauge just under the threshold: no combo
+    game.party[0].limit = COMBO_GAUGE; game.party[1].limit = COMBO_GAUGE;
+    o.atGauge = ids(0)[0] === 'comboFlame' && ids(0).indexOf('limitSam') < 0;       // enough for the combo, not for the single skill
     game.party[0].limit = 100; game.party[1].limit = 100;
     o.offer = ids(0)[0] === 'comboFlame' && ids(0)[1] === 'limitSam' && ids(1).indexOf('comboFlame') < 0;   // only the first of the pair is offered it, above the single skill
     o.noGuard = ids(0).indexOf('comboGuard') < 0 && ids(1).indexOf('comboHoly') < 0;                       // Sundar's gauge is empty
@@ -629,7 +633,7 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
     game.battle = null; game.state = 'map';
     return o;
   });
-  ok(cb.none && cb.offer && cb.noGuard, 'a combo is offered only with two full gauges, to the first of the pair, above the single skill', JSON.stringify(cb));
+  ok(cb.none && cb.below && cb.atGauge && cb.offer && cb.noGuard, 'a combo is offered once both gauges reach COMBO_GAUGE (before the single skill), to the first of the pair, above the single skill', JSON.stringify(cb));
   ok(cb.partner && cb.label && cb.reset, 'a combo uses up the partner turn (defend, skipped in the command order) and shows its ★★ label', JSON.stringify(cb));
   ok(cb.flame && cb.holy && cb.guard, 'the three combos hit, heal and buff as designed and spend both gauges', JSON.stringify(cb));
   ok(cb.fizzle, 'a combo fizzles without spending anything when the partner has fallen', JSON.stringify(cb));

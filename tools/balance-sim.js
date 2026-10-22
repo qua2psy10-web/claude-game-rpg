@@ -88,7 +88,7 @@ function planRound(g) {
   // Combos (NOCOMBO=1 switches them off): two full gauges at once; the first member casts, the partner just defends
   var comboPlan = null;
   if (!process.env.NOLIMIT && !process.env.NOCOMBO && !storing) {
-    var pm = g.party, rdy = function(m) { return m.alive && (m.limit || 0) >= 100; };
+    var pm = g.party, rdy = function(m) { return m.alive && (m.limit || 0) >= COMBO_GAUGE; };
     var bossUp2 = b.enemies.some(function(e) { return e.alive && e.boss; });
     var hurt = pm.some(function(m) { return !m.alive || m.hp / m.maxHp < 0.5; });
     if (rdy(pm[0]) && rdy(pm[1])) comboPlan = { spell: 'comboFlame', a: 0, b: 1, tt: 'enemy' };
@@ -98,6 +98,18 @@ function planRound(g) {
   g.party.forEach(function(c, i) {
     if (!c.alive) return;
     var P = function(o) { o.actor = i; o.actorType = 'party'; cmds.push(o); };
+    // Holding: a full gauge waits (up to 4 rounds) while a combo partner is at least half full and nobody is in trouble (NOHOLD=1 turns it off)
+    var holdOn = !process.env.NOHOLD && !process.env.NOCOMBO && !process.env.NOLIMIT && !storing && !g.party.some(function(m) { return !m.alive || m.hp / m.maxHp < 0.5; });
+    var holding = false;
+    if (holdOn && (c.limit || 0) >= 100) {
+      g.holdTurns = g.holdTurns || {};
+      COMBOS.forEach(function(cb2) {
+        if (cb2.pair.indexOf(c.classId) < 0) return;
+        var oth = g.party.filter(function(m) { return m.classId === (cb2.pair[0] === c.classId ? cb2.pair[1] : cb2.pair[0]); })[0];
+        if (oth && oth.alive && (oth.limit || 0) >= 50 && (oth.limit || 0) < COMBO_GAUGE && (g.holdTurns[c.classId] || 0) < 4) holding = true;
+      });
+      if (holding) g.holdTurns[c.classId] = (g.holdTurns[c.classId] || 0) + 1;
+    }
     if (comboPlan && i === comboPlan.b) return P({ action: 'defend' });
     if (comboPlan && i === comboPlan.a) { COMBOUSES[comboPlan.spell] = (COMBOUSES[comboPlan.spell] || 0) + 1; return P({ action: 'spell', spellId: comboPlan.spell, partner: comboPlan.b, target: comboPlan.tt === 'enemy' ? strongest(b) : -1, targetType: comboPlan.tt }); }
     if (storing && c.classId !== 'sundar') return P({ action: 'defend' });   // brace for the boss's stored attack
@@ -113,10 +125,12 @@ function planRound(g) {
     var tgt = strongest(b);
     if (!process.env.NOLIMIT && (c.limit || 0) >= 100 && (!process.env.LIMITONLY || process.env.LIMITONLY === c.classId)) {   // LIMITONLY=sam|dario|sundar: only that member's skill is used                          // NOLIMIT=1 switches the limit skills off (the pre-limit baseline)
       var bossUp = b.enemies.some(function(e) { return e.alive && e.boss; });
+      if (holding) { /* wait for the partner's gauge: fall through to a normal action */ } else {
       LIMITUSES[c.classId] = (LIMITUSES[c.classId] || 0) + 1;
       if (c.classId === 'sam') return P({ action: 'spell', spellId: 'limitSam', target: tgt, targetType: 'enemy' });
       if (c.classId === 'dario' && (ne >= 2 || bossUp)) return P({ action: 'spell', spellId: 'limitDario', target: -1, targetType: 'allEnemy' });
       if (c.classId === 'sundar' && (dead >= 0 || lr < 0.5)) return P({ action: 'spell', spellId: 'limitSundar', target: -1, targetType: 'party' });
+      }
     }
     if (c.classId === 'sundar') {
       if (low >= 0 && lr < 0.5 && has('heal')) return P({ action: 'spell', spellId: 'heal', target: low, targetType: 'ally' });
@@ -147,6 +161,7 @@ var DMG = {}, LIMITUSES = {}, COMBOUSES = {};
 function fight(g, ids) {
   BattleSystem.startBattle(g, ids);
   var b = g.battle, rounds = 0;
+  g.holdTurns = {};
   g.party.forEach(function(c) { c.defending = false; });
   while (rounds < 60) {
     rounds++;
