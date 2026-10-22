@@ -540,6 +540,52 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(await ev(function() { return game.flags.crystalGuardianDefeated === true && game.state !== 'ending'; }), 'the guardian ends without the ending screen');
   ok(await ev(function() { return Object.keys(ENEMIES).filter(function(k) { return !ENEMIES[k].boss || true; }).length === 17 && RecordsSystem.stats(game).chests === 20; }), 'the ずかん has 17 entries and the きろく counts 20 chests');
 
+  console.log('\n[limit skills]');
+  var lm = await ev(function() {
+    newGame(); game.state = 'map'; game.hints = {}; HintSystem.reset(); var o = {};
+    game.party.forEach(function(c) { c.level = 12; c.hp = c.maxHp = 200; c.mp = c.maxMp = 60; c.atk = 80; c.int = 80; });
+    BattleSystem.startBattle(game, ['darkKnight', 'darkKnight']); var b = game.battle;
+    o.start = game.party.every(function(c) { return c.limit === 0 && c.hpMark === c.hp; });
+    // the gauge fills at the end of a round from HP lost (+ a base amount) and is capped at 100
+    game.party[0].hp = 100;                                                    // lost 100 of 200 = 50%
+    BattleSystem.chargeLimit(game);
+    o.charge = Math.abs(game.party[0].limit - (2 + 0.4 * 50)) < 0.01 && Math.abs(game.party[1].limit - 2) < 0.01 && game.party[0].hpMark === 100;
+    game.party[1].limit = 99; BattleSystem.chargeLimit(game);
+    o.full = game.party[1].limit === 100 && /ひっさつ/.test(b.messages.join('')) && game.hints.limit === true;
+    o.listNo = BattleSystem.getAvailableSpells(game.party[0]).every(function(s) { return !SPELLS[s.id].limit; });
+    o.listYes = BattleSystem.getAvailableSpells(game.party[1])[0].id === 'limitDario';   // tops the list once full
+    // Sam: one big hit, the gauge empties
+    var e0 = b.enemies[0], hp0 = e0.hp, slashHp; game.party[0].limit = 100;
+    var d1 = BattleSystem.calcSpellDamage(game.party[0], e0, SPELLS.powerSlash);
+    BattleSystem.executeSpell(game, { actor: 0, actorType: 'party', action: 'spell', spellId: 'limitSam', target: 0, targetType: 'enemy' });
+    var dSam = hp0 - e0.hp; o.sam = dSam > 2 * Math.floor(game.party[0].atk * 2 / 2 - e0.def * 0.5 / 4) && game.party[0].limit === 0 && b.limitCut && b.limitCut.name === 'ブレイブエッジ';
+    // Dario: every enemy is hit
+    var hpA = b.enemies.map(function(e) { return e.hp; }); game.party[1].limit = 100;
+    BattleSystem.executeSpell(game, { actor: 1, actorType: 'party', action: 'spell', spellId: 'limitDario', target: -1, targetType: 'allEnemy' });
+    o.dario = b.enemies.every(function(e, i) { return e.hp < hpA[i]; }) && game.party[1].limit === 0;
+    // Sundar: heals everyone, raises the fallen and cures poison
+    game.party[0].hp = 10; game.party[1].hp = 0; game.party[1].alive = false; game.party[2].poisoned = true; game.party[2].limit = 100; game.party[2].hp = 50;
+    BattleSystem.executeSpell(game, { actor: 2, actorType: 'party', action: 'spell', spellId: 'limitSundar', target: -1, targetType: 'party' });
+    o.sundar = game.party[1].alive && game.party[1].hp === Math.ceil(200 * 0.25) && game.party[0].hp === 10 + Math.ceil(200 * 0.3) && !game.party[2].poisoned && game.party[2].limit === 0;
+    // the gauge is not saved
+    saveGame(); o.noSave = JSON.parse(localStorage.getItem('eldrasia_save')).party.every(function(c) { return c.limit === undefined && c.hpMark === undefined; });
+    // the spell list scrolls: seven entries (six spells + the limit skill) never run off the screen
+    game.party[1].limit = 100; b.phase = 'spellSelect'; b.currentChar = 1; b.messageTimer = 0;
+    var rows = [], origMenu = UI.drawMenu; UI.drawMenu = function(c, x, y, w, items, sel) { rows.push({ n: items.length, sel: sel, bottom: y + items.length * 26 + 20, first: items[0] }); return origMenu.apply(UI, arguments); };
+    [0, 6].forEach(function(i) { b.spellIndex = i; BattleSystem.render(ctx, game, 640, 480); });
+    UI.drawMenu = origMenu;
+    var sp = BattleSystem.getAvailableSpells(game.party[1]); o.seven = sp.length === 7;
+    o.scroll = rows.length === 2 && rows.every(function(r) { return r.n <= 6 && r.bottom <= 480 && r.sel >= 0 && r.sel < r.n; }) && /メテオフォール/.test(rows[0].first);
+    // the cut-in and the gauge draw without errors
+    b.limitCut = { name: 'ブレイブエッジ', who: 'サム', t0: Date.now() - 300, dur: 1200 }; b.phase = 'command'; BattleSystem.render(ctx, game, 640, 480);
+    game.battle = null; game.state = 'map';
+    return o;
+  });
+  ok(lm.start && lm.charge && lm.full, 'the limit gauge starts empty, fills from HP lost each round and announces a full gauge', JSON.stringify(lm));
+  ok(lm.listNo && lm.listYes && lm.seven && lm.scroll, 'the limit skill tops the spell list only when ready, and the list scrolls', JSON.stringify(lm));
+  ok(lm.sam && lm.dario && lm.sundar, 'Sam hits hard, Dario hits every enemy, Sundar heals everyone and raises the fallen; the gauge empties', JSON.stringify(lm));
+  ok(lm.noSave, 'the limit gauge is battle-only and never saved', JSON.stringify(lm));
+
   console.log('\n[arena]');
   var ar = await ev(function() {
     newGame(); game.state = 'map'; var o = {};

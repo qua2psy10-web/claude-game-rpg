@@ -99,6 +99,13 @@ function planRound(g) {
     var has = function(id) { return avail.indexOf(id) >= 0; };
     var low = -1, lr = 1; g.party.forEach(function(m, j) { if (m.alive && m.hp / m.maxHp < lr) { lr = m.hp / m.maxHp; low = j; } });
     var tgt = strongest(b);
+    if (!process.env.NOLIMIT && (c.limit || 0) >= 100 && (!process.env.LIMITONLY || process.env.LIMITONLY === c.classId)) {   // LIMITONLY=sam|dario|sundar: only that member's skill is used                          // NOLIMIT=1 switches the limit skills off (the pre-limit baseline)
+      var bossUp = b.enemies.some(function(e) { return e.alive && e.boss; });
+      LIMITUSES[c.classId] = (LIMITUSES[c.classId] || 0) + 1;
+      if (c.classId === 'sam') return P({ action: 'spell', spellId: 'limitSam', target: tgt, targetType: 'enemy' });
+      if (c.classId === 'dario' && (ne >= 2 || bossUp)) return P({ action: 'spell', spellId: 'limitDario', target: -1, targetType: 'allEnemy' });
+      if (c.classId === 'sundar' && (dead >= 0 || lr < 0.5)) return P({ action: 'spell', spellId: 'limitSundar', target: -1, targetType: 'party' });
+    }
     if (c.classId === 'sundar') {
       if (low >= 0 && lr < 0.5 && has('heal')) return P({ action: 'spell', spellId: 'heal', target: low, targetType: 'ally' });
       var pz = -1; g.party.forEach(function(m, j) { if (m.alive && m.poisoned && m.hp / m.maxHp < 0.7) pz = j; });
@@ -123,7 +130,7 @@ function planRound(g) {
   return cmds;
 }
 
-var DMG = {};
+var DMG = {}, LIMITUSES = {};
 // Fights one battle. Returns { won, rounds }
 function fight(g, ids) {
   BattleSystem.startBattle(g, ids);
@@ -309,3 +316,4 @@ Object.keys(byLv).sort(function(a, b) { return a - b; }).forEach(function(l) { v
 console.log('damage share (party attack damage): ' + ['sam', 'dario', 'sundar'].map(function(k) { var t = (DMG.sam || 0) + (DMG.dario || 0) + (DMG.sundar || 0); return k + ' ' + ((DMG[k] || 0) / t * 100).toFixed(0) + '%'; }).join('  '));
 console.log('boss win rate: ' + (bossWin / runs * 100).toFixed(0) + '%  avg rounds: ' + (bossRounds / runs).toFixed(1));
 console.log('sample end state: Lv ' + last.boss.lv + '  gear ' + last.boss.gear);
+if (process.env.LIMITLOG) console.log('limit skill casts (all runs): ' + JSON.stringify(LIMITUSES));

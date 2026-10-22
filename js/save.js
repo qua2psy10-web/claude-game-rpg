@@ -50,7 +50,7 @@ function updateScoreAfterBattle(b) {
 
 // Battle-only / animation fields that must not leak into the save file
 var SAVE_TRANSIENT = ['buffs', 'defending', 'poisoned', 'poisonAt', 'stunAt', 'debuffAt', 'debuffStat',
-                      'hpShown', 'hpGhost', 'mpShown', 'hpLast', 'healAt', 'hpBarUntil'];
+                      'hpShown', 'hpGhost', 'mpShown', 'hpLast', 'healAt', 'hpBarUntil', 'limit', 'hpMark', 'limitFullAt'];
 var SAVE_VERSION = 2;
 
 function saveGame(manual) {

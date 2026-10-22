@@ -41,6 +41,7 @@ var CHARACTERS = {
       { id: 'warCry', learnLevel: 10 },
     ],
     color: '#4488cc',
+    limit: 'limitSam',
   },
   dario: {
     name: 'ダリオ', nameEn: 'Dario', class: '魔法使い',
@@ -55,6 +56,7 @@ var CHARACTERS = {
       { id: 'thunder', learnLevel: 12 },
     ],
     color: '#cc4488',
+    limit: 'limitDario',
   },
   sundar: {
     name: 'スンダー', nameEn: 'Sundar', class: '僧侶',
@@ -69,6 +71,7 @@ var CHARACTERS = {
       { id: 'holyLight', learnLevel: 10 },
     ],
     color: '#44cc88',
+    limit: 'limitSundar',
   },
 };
 
@@ -90,6 +93,10 @@ var SPELLS = {
   cure:        { name: 'キュア', mp: 3, type: 'cure', target: 'ally', desc: '味方一人の毒を治す' },
   protect:     { name: 'プロテクト', mp: 6, type: 'buff', target: 'party', stat: 'def', mult: 1.25, turns: 3, desc: '味方全体の防御力UP' },
   holyLight:   { name: 'ホーリーライト', mp: 10, type: 'magic', target: 'allEnemy', power: 42, desc: '聖なる光で敵全体を攻撃' },
+  // limit skills (one per member, usable when the limit gauge is full; see CHARACTERS[id].limit)
+  limitSam:    { name: 'ブレイブエッジ', mp: 0, limit: true, type: 'physical', target: 'enemy', power: 4.0, pierce: 0.8, desc: '渾身の一撃(必殺技)' },
+  limitDario:  { name: 'メテオフォール', mp: 0, limit: true, type: 'magic', target: 'allEnemy', power: 100, desc: '流星を降らせる(必殺技)' },
+  limitSundar: { name: 'いのりのひかり', mp: 0, limit: true, type: 'limitHeal', target: 'party', heal: 0.3, revive: 0.25, desc: '味方全員を癒し、倒れた仲間を起こす(必殺技)' },
   enemyFire:   { name: '火炎', mp: 0, type: 'magic', target: 'ally', power: 20, desc: '' },
   enemyDark:   { name: '暗黒の波動', mp: 0, type: 'magic', target: 'partyAll', power: 40, desc: '' },
   enemyDoom:   { name: '終焉の波動', mp: 0, type: 'magic', target: 'partyAll', power: 62, desc: '' },
@@ -108,16 +115,16 @@ var ENEMIES = {
   crystalSlime: { name: 'クリスタルスライム', hp: 150, atk: 62, def: 22, spd: 5, int: 6, exp: 30, gold: 26, color: '#8fe3ff', shape: 'slime', skills: [], desc: ['水晶を のみこんで かたくなった スライム。', '剣は はじかれるが 魔法には よわい。'], area: '水晶の洞窟' },
   crystalBat:   { name: 'クリスタルバット', hp: 120, atk: 68, def: 8, spd: 16, int: 4, exp: 32, gold: 28, color: '#b9a8ff', shape: 'bat', skills: [], desc: ['水晶の かがやきに あつまる コウモリ。', '羽ばたきが きらきらと 光る。'], area: '水晶の洞窟' },
   crystalGolem: { name: 'クリスタルゴーレム', hp: 320, atk: 88, def: 34, spd: 4, int: 2, exp: 62, gold: 44, color: '#7ab8e8', shape: 'golem', skills: [], desc: ['水晶の かたまりに 命が やどった もの。', '動きは のろいが 一撃が おもい。'], area: '水晶の洞窟' },
-  crystalGuardian: { name: 'クリスタルガーディアン', hp: 560, atk: 92, def: 30, spd: 10, int: 20, exp: 320, gold: 420, color: '#58a0ff', shape: 'golem', boss: true, skills: ['enemyCrystal', 'enemyHeal'], bigSkill: 'enemyCrystal', desc: ['洞窟の おくで 宝を まもる 水晶の 番人。', 'まばゆい 閃光を はなって せまる。'], area: '水晶の洞窟の おく' },
+  crystalGuardian: { name: 'クリスタルガーディアン', hp: 700, atk: 92, def: 30, spd: 10, int: 20, exp: 320, gold: 420, color: '#58a0ff', shape: 'golem', boss: true, skills: ['enemyCrystal', 'enemyHeal'], bigSkill: 'enemyCrystal', desc: ['洞窟の おくで 宝を まもる 水晶の 番人。', 'まばゆい 閃光を はなって せまる。'], area: '水晶の洞窟の おく' },
   darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [], desc: ['魔王に 忠誠を ちかった 騎士。', '重い よろいで 身を かためている。'], area: '魔王の城' },
   demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'], desc: ['魔界から よびだされた 兵士。', '炎の 魔法も つかいこなす。'], area: '魔王の城' },
   darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'], desc: ['闇の 魔術を きわめた 魔道士。', '魔力は 高いが 体は もろい。'], area: '魔王の城' },
-  demonKing:    { name: '魔王ヴァルザード', hp: 1300, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, finale: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
+  demonKing:    { name: '魔王ヴァルザード', hp: 1550, atk: 158, def: 28, spd: 16, int: 25, exp: 0, gold: 0, color: '#880022', shape: 'demonKing', boss: true, finale: true, skills: ['enemyDark', 'enemyHeal'], desc: ['ふたたび めざめた 闇の 王。', 'すべてを 闇に とざそうとする。'], area: '魔王の城の おく' },
   // ----- post-game (深淵の迷宮) -----
   abyssWraith:  { name: '深淵の亡霊', hp: 480, atk: 130, def: 24, spd: 15, int: 20, exp: 140, gold: 110, color: '#66e0d0', shape: 'skeleton', skills: [], desc: ['深淵に とらわれた 戦士の 魂。', '冷たい 刃が 音もなく せまる。'], area: '深淵の迷宮' },
   chaosKnight:  { name: '混沌の騎士', hp: 620, atk: 155, def: 36, spd: 10, int: 6, exp: 180, gold: 140, color: '#a04020', shape: 'knight', skills: [], desc: ['魔王すら 従えなかった 狂える 騎士。', '鎧は 魔王軍より はるかに 厚い。'], area: '深淵の迷宮' },
   voidMage:     { name: '虚空の魔導師', hp: 420, atk: 80, def: 20, spd: 16, int: 85, exp: 160, gold: 130, color: '#2a7ab0', shape: 'mage', skills: ['enemyFire'], desc: ['虚空から 力を 引き出す 魔導師。', '炎の 魔法が 恐ろしく 強い。'], area: '深淵の迷宮' },
-  zelgios:      { name: '終焉の魔神ゼルギオス', hp: 2400, atk: 170, def: 34, spd: 18, int: 30, exp: 2500, gold: 3000, color: '#2a8aa8', shape: 'abyssLord', boss: true, skills: ['enemyDoom', 'enemyHeal'], bigSkill: 'enemyDoom', desc: ['魔王が 生まれる はるか前から', '深淵に ねむる 終焉の 魔神。'], area: '深淵の迷宮の おく' },
+  zelgios:      { name: '終焉の魔神ゼルギオス', hp: 3000, atk: 170, def: 34, spd: 18, int: 30, exp: 2500, gold: 3000, color: '#2a8aa8', shape: 'abyssLord', boss: true, skills: ['enemyDoom', 'enemyHeal'], bigSkill: 'enemyDoom', desc: ['魔王が 生まれる はるか前から', '深淵に ねむる 終焉の 魔神。'], area: '深淵の迷宮の おく' },
 };
 
 // ===== ITEM DEFINITIONS =====

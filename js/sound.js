@@ -389,6 +389,22 @@ var SoundSystem = (function() {
       if (kind === 'ice') osc(1760, 'sine', 0.05, t + 0.1, 0.3, 2640);
     },
 
+    limitReady: function() {             // ひっさつゲージが満タン: 上がっていくきらめき
+      resume();
+      var t = ctx.currentTime;
+      [659, 880, 1175, 1568].forEach(function(f, i) { osc(f, 'triangle', 0.13, t + i * 0.07, 0.3); });
+      osc(2093, 'sine', 0.06, t + 0.3, 0.5);
+    },
+
+    limitCut: function() {               // ひっさつわざの発動: 低い地鳴りと光の立ち上がり
+      resume();
+      var t = ctx.currentTime;
+      osc(70, 'sawtooth', 0.3, t, 0.7, 35);
+      noise(0.5, t, 0.3, 700);
+      osc(220, 'triangle', 0.16, t + 0.05, 0.9, 880);
+      osc(330, 'sine', 0.1, t + 0.15, 0.8, 1320);
+    },
+
     sweep: function() {                  // なぎはらい: 大きな風切り音と刃の響き
       resume();
       var t = ctx.currentTime;
