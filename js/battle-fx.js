@@ -1086,6 +1086,7 @@ Object.assign(BattleSystem, {
   // Draw the active spell effect over its target(s)
   renderEffect: function(ctx, game, w, h, now) {
     var b = game.battle;
+    if (b && b.limitCut) { if (now - b.limitCut.t0 >= b.limitCut.dur) b.limitCut = null; else this.renderLimitCut(ctx, b.limitCut, w, h, now); }
     if (b && b.partyCast) this.renderPartyCast(ctx, game, w, h, now);
     if (b && b.pAtk) this.renderPartyAttack(ctx, game, w, h, now);
     if (b && b.itemFx) this.renderItemFx(ctx, game, w, h, now);
@@ -1128,6 +1129,40 @@ Object.assign(BattleSystem, {
       ctx.fillStyle = 'rgba(' + tint + ',' + flash + ')';
       ctx.fillRect(-10, -10, w + 20, h + 20);
     }
+  },
+
+  // Limit skill cut-in: the screen dims, a dark band sweeps across with the member's name and the skill's name
+  renderLimitCut: function(ctx, lc, w, h, now) {
+    var t = (now - lc.t0) / lc.dur;
+    if (t < 0 || t >= 1) return;
+    var inT = Math.min(1, t / 0.22), outT = t > 0.82 ? (t - 0.82) / 0.18 : 0;
+    var ease = 1 - Math.pow(1 - inT, 3);
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,20,' + (0.5 * Math.min(1, t * 6) * (1 - outT)) + ')';
+    ctx.fillRect(0, 0, w, h);
+    var cy = 112, bh = 70, off = (1 - ease) * -w + outT * w;
+    var g = ctx.createLinearGradient(0, cy - bh / 2, 0, cy + bh / 2);
+    g.addColorStop(0, 'rgba(10,20,70,0.95)'); g.addColorStop(0.5, 'rgba(30,60,140,0.95)'); g.addColorStop(1, 'rgba(10,20,70,0.95)');
+    ctx.fillStyle = g;
+    ctx.fillRect(off, cy - bh / 2, w, bh);
+    ctx.fillStyle = '#ffd84a';
+    ctx.fillRect(off, cy - bh / 2 - 3, w, 3);
+    ctx.fillRect(off, cy + bh / 2, w, 3);
+    for (var i = 0; i < 9; i++) {                       // speed lines streaking through the band
+      var lx = ((now / 3 + i * 97) % (w + 120)) - 60, ly = cy - bh / 2 + 6 + (i * 13) % (bh - 12);
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.fillRect(lx + off, ly, 60 + (i % 3) * 30, 2);
+    }
+    ctx.textBaseline = 'middle';
+    ctx.font = '14px monospace';
+    ctx.fillStyle = '#9bd';
+    ctx.fillText(lc.who + 'の ひっさつわざ', 40 + off, cy - 20);
+    ctx.font = 'bold 34px monospace';
+    ctx.lineWidth = 5; ctx.strokeStyle = '#1a2a6a';
+    ctx.strokeText(lc.name, 40 + off, cy + 8);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(lc.name, 40 + off, cy + 8);
+    ctx.restore();
   },
 
   // Party casting: rune circle at the caster's feet, motes spiralling in, then an orb/bolt flies to the target

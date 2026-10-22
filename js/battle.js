@@ -11,6 +11,8 @@ var BattleSystem = {
       game.party[pi].poisoned = false;   // poison only lasts within a battle
       game.party[pi].hpShown = 0; game.party[pi].hpGhost = 0; game.party[pi].mpShown = 0;   // gauges fill up as the panel slides in
       game.party[pi].hpLast = game.party[pi].hp;
+      game.party[pi].hpMark = game.party[pi].hp;   // for the limit gauge: HP lost since the round began
+      if (!(game.arena && game.arena.round > 0)) game.party[pi].limit = 0;   // the gauge starts empty (an arena run carries it between rounds)
     }
     var cs = cycleScale(game.cycle);
     for (var i = 0; i < enemyIds.length; i++) {
@@ -90,11 +92,12 @@ var BattleSystem = {
     fire: 'fire', enemyFire: 'fire', iceStorm: 'ice', thunder: 'thunder',
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark', enemyDoom: 'dark', enemyCrystal: 'ice',
     weaken: 'debuffAtk', armorBreak: 'debuffDef', cure: 'cure', sleep: 'sleep', magicBoost: 'buffInt',
+    limitSam: 'slash', limitDario: 'fire', limitSundar: 'holy',
   },
 
   // Party spells: ms of casting (rune circle + travelling orb) before the effect lands, and element colour
   PARTY_CAST_DELAY: { sleep: 420, buffInt: 340, light: 380, fire: 480, ice: 480, thunder: 520, heal: 380, holy: 560, buffAtk: 340, buffDef: 340, debuffAtk: 440, debuffDef: 440, cure: 360 },
-  PARTY_CAST_TINT: { sleep: '150,130,255', buffInt: '120,230,255', light: '255,250,200', fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
+  PARTY_CAST_TINT: { slash: '255,235,170', sleep: '150,130,255', buffInt: '120,230,255', light: '255,250,200', fire: '255,150,50', ice: '140,210,255', thunder: '200,215,255', heal: '120,255,170',
                      holy: '255,240,170', buffAtk: '255,120,60', buffDef: '90,170,255',
                      debuffAtk: '200,60,120', debuffDef: '120,90,220', cure: '170,255,210' },
 
@@ -515,9 +518,30 @@ var BattleSystem = {
     return lowest;
   },
 
+  // Limit gauge: at the end of every round each living member gains 2 + 0.4 x (HP lost this round, in % of max HP)
+  chargeLimit: function(game) {
+    var b = game.battle, ready = [];
+    for (var i = 0; i < game.party.length; i++) {
+      var m = game.party[i];
+      if (!m.alive) { m.hpMark = m.hp; continue; }
+      var lost = Math.max(0, (m.hpMark === undefined ? m.hp : m.hpMark) - m.hp);
+      var was = m.limit || 0;
+      m.limit = Math.min(100, was + 2 + 0.4 * (lost / m.maxHp * 100));
+      m.hpMark = m.hp;
+      if (was < 100 && m.limit >= 100) { m.limitFullAt = Date.now(); ready.push(m.name); }
+    }
+    if (ready.length) {
+      b.messages = [ready.join('・') + 'の ひっさつ ゲージが たまった！'];
+      b.messageTimer = 50;
+      SoundSystem.limitReady();
+      HintSystem.show(game, 'limit');
+    }
+  },
+
   getAvailableSpells: function(char) {
     var charDef = CHARACTERS[char.classId];
     var available = [];
+    if (char.alive && (char.limit || 0) >= 100 && charDef.limit) available.push({ id: charDef.limit, learnLevel: 0 });   // the limit skill tops the list
     for (var i = 0; i < charDef.spells.length; i++) {
       if (char.level >= charDef.spells[i].learnLevel) {
         available.push(charDef.spells[i]);
@@ -642,6 +666,7 @@ var BattleSystem = {
       if (this.checkLose(game)) return;
       // Decrease buff durations
       this.tickBuffs(game);
+      this.chargeLimit(game);
       b.phase = 'command';
       b.currentChar = 0;
       b.commandIndex = 0;
@@ -871,6 +896,12 @@ var BattleSystem = {
     }
 
     b.messages = [caster.name + 'は ' + spell.name + 'を となえた！'];
+    if (spell.limit && cmd.actorType === 'party') {
+      caster.limit = 0;
+      b.messages = [caster.name + 'の ひっさつわざ！', spell.name + '！'];
+      b.limitCut = { name: spell.name, who: caster.name, t0: Date.now(), dur: 1200 };
+      SoundSystem.limitCut();
+    }
     if (cmd.charged) {
       caster.charging = false;
       b.messages = ['ためていた 力が 解き放たれた！', caster.name + 'の 全力の ' + spell.name + '！'];
@@ -882,13 +913,14 @@ var BattleSystem = {
     var tint = this.ENEMY_CAST_TINT[cmd.spellId] || '200,200,255';
     var pKind = cmd.actorType === 'party' ? this.EFFECT_KINDS[cmd.spellId] : null;
     var pd = pKind ? (this.PARTY_CAST_DELAY[pKind] || 0) : 0;   // party casting time (effect, numbers, shake wait for it)
+    if (spell.limit && cmd.actorType === 'party') pd += 650;     // a limit skill takes longer: its cut-in plays first
     var fd = ed || pd;
     if (ed) b.enemyCast = { idx: cmd.actor, t0: Date.now(), dur: ed + 350, tint: tint, spellId: cmd.spellId, ed: ed, boss: !!caster.boss };
 
     // 呪文のビジュアルエフェクト
     var fxSide = 'enemy', fxIdx = -1;
     if (cmd.actorType === 'party') {
-      if (spell.type === 'buff') { fxSide = 'party'; fxIdx = -1; }
+      if (spell.type === 'buff' || spell.type === 'limitHeal') { fxSide = 'party'; fxIdx = -1; }
       else if (spell.type === 'heal') { fxSide = 'party'; fxIdx = (cmd.target >= 0 ? cmd.target : this.findHealTarget(game)); }
       else if (spell.target === 'allEnemy') { fxSide = 'enemy'; fxIdx = -1; }
       else { fxSide = 'enemy'; fxIdx = cmd.target; }
@@ -1018,6 +1050,24 @@ var BattleSystem = {
         if (fd) healTarget.hpBarUntil = Date.now() + fd + 2000;
         b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
       }
+    } else if (spell.type === 'limitHeal') {
+      // Everyone is healed, the fallen are raised and poison is gone
+      for (var lh = 0; lh < game.party.length; lh++) {
+        var lm = game.party[lh];
+        if (!lm.alive) {
+          lm.alive = true; lm.hp = Math.max(1, Math.ceil(lm.maxHp * spell.revive));
+          this.pop(game, lm, lm.hp, 'heal', fd);
+          b.messages.push(lm.name + 'が ふっかつした！');
+        } else {
+          var lheal = Math.min(lm.maxHp - lm.hp, Math.ceil(lm.maxHp * spell.heal));
+          lm.hp += lheal;
+          if (lheal > 0) this.pop(game, lm, lheal, 'heal', fd);
+        }
+        lm.poisoned = false;
+        lm.hpMark = lm.hp;
+        lm.hpBarUntil = Date.now() + fd + 2000;
+      }
+      b.messages.push('みんなの きずが いえていく…');
     } else if (spell.type === 'cure') {
       var cTarget = game.party[cmd.target] || game.party[0];
       if (cTarget && cTarget.alive && cTarget.poisoned) {

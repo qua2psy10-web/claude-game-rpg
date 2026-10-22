@@ -7,7 +7,7 @@
 var HintSystem = (function() {
   var TOAST_MS = 6500;
   var queue = [], cur = null;
-  var IDS = ['move', 'dash', 'rest', 'battle', 'poison', 'bestiary', 'enter_forest', 'enter_castle', 'enter_abyss', 'enter_crystalCave'];
+  var IDS = ['move', 'dash', 'rest', 'battle', 'poison', 'bestiary', 'enter_forest', 'enter_castle', 'enter_abyss', 'enter_crystalCave', 'limit'];
 
   function touch() { return typeof document !== 'undefined' && document.body && document.body.classList.contains('touch'); }
   function K(action) { return touch() ? (action === 'confirm' ? 'Aボタン' : action === 'cancel' ? 'Bボタン' : 'ダッシュ') : SettingsSystem.keyName(SettingsSystem.key(action)); }
@@ -23,10 +23,11 @@ var HintSystem = (function() {
     enter_forest: function() { return ['もりの てきは そうげんより つよい', 'きずついたら むりせず もどろう']; },
     enter_castle: function() { return ['まおうのしろの てきは かなり つよい', 'Lv11〜13と そうび・どうぐを ととのえよう']; },
     enter_crystalCave: function() { return ['すいしょうの どうくつ。てきは もりより つよい', 'さいしんぶには ばんにんが まっている']; },
+    limit:        function() { return ['ひっさつゲージが たまった！じゅもんの いちばん うえに', 'ひっさつわざが でる。MPは いらない']; },
     enter_abyss:  function() { return ['しんえんの めいきゅう。てきは さらに つよい', 'たからばこと うらボスが まっている']; }
   };
 
-  var BATTLE_HINTS = ['battle', 'poison', 'bestiary'];
+  var BATTLE_HINTS = ['battle', 'poison', 'bestiary', 'limit'];
 
   function sanitize(raw) {
     var out = {};
@@ -106,7 +107,8 @@ var HintSystem = (function() {
         '・たたかう / じゅもん(MPを つかう) / どうぐ / ぼうぎょ / にげる',
         '・ぼうぎょ: うけるダメージが はんぶん',
         '・ボスの「よちょう」が でたら ぼうぎょで そなえよう',
-        '',
+        '・ひっさつゲージ: ダメージで たまり まんたんで じゅもんの',
+        '　いちばん うえに ひっさつわざ(MPは いらない)',
         'サム: パワースラッシュ・なぎはらい(てき全体)・',
         '　　　シールドバッシュ(きぜつ)・ウォークライ',
         'ダリオ: ファイア・スリープ(てき全体を ねむらせる)・',
