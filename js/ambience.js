@@ -110,11 +110,15 @@ var AmbienceSystem = {
   update: function(game, now) {
     this.updateNPCs(game, now);
     var a = game.ambience;
-    if (!a || a.map !== game.currentMap) { a = game.ambience = { map: game.currentMap, nextBird: now + 6000 + Math.random() * 8000, nextBolt: now + 9000 + Math.random() * 12000, boltAt: 0 }; }
+    if (!a || a.map !== game.currentMap) { a = game.ambience = { map: game.currentMap, nextBird: now + 6000 + Math.random() * 8000, nextBolt: now + 9000 + Math.random() * 12000, boltAt: 0, nextDrip: now + 3000 + Math.random() * 5000 }; }
     var id = game.currentMap === 'haruka' ? 'millhaven' : game.currentMap;   // the waystation shares the village's sunlit atmosphere
     if ((id === 'world' || id === 'millhaven' || id === 'forest') && now >= a.nextBird) {
       a.nextBird = now + 11000 + Math.random() * 16000;
       if (typeof SoundSystem !== 'undefined' && SoundSystem.birdsFar) SoundSystem.birdsFar(id === 'forest');
+    }
+    if (id === 'crystalCave' && now >= a.nextDrip) {          // water dripping somewhere in the dark
+      a.nextDrip = now + 4000 + Math.random() * 9000;
+      if (typeof SoundSystem !== 'undefined' && SoundSystem.drip) SoundSystem.drip();
     }
     if (id === 'castle' && now >= a.nextBolt) {
       a.nextBolt = now + 16000 + Math.random() * 18000;

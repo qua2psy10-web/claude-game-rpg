@@ -155,6 +155,14 @@ var SoundSystem = (function() {
       [0, 0.16, 0.34].forEach(function(d, i) { osc(2700 + i * 380, 'sine', 0.025, t + d, 0.09, 3400); });
       mul = false;
     },
+    drip: function() {                    // 水晶の洞窟: ぽちゃんと落ちる 水のしずく
+      resume();
+      var t = ctx.currentTime, f = 1500 + Math.random() * 900;
+      mul = true;
+      osc(f, 'sine', 0.05, t, 0.12, f * 0.55);
+      osc(f * 1.5, 'sine', 0.02, t + 0.04, 0.2, f * 0.9);
+      mul = false;
+    },
     distantThunder: function() {          // 魔王城: 壁越しの遠雷
       resume();
       var t = ctx.currentTime;

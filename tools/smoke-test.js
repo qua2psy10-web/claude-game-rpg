@@ -273,6 +273,20 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
     RecordsSystem.check(game); o.helper = game.achieved.helper === true && game.equipInventory.some(function(e) { return e.id === 'kindRing'; });
     return o;
   });
+  var q3 = await ev(function() {
+    newGame(); game.state = 'map'; var o = {};
+    var so = MAPS.haruka.npcs.filter(function(n) { return n.name === '兵士'; })[0];
+    game.quests.antidoteFetch = { state: 'done', n: 0 };
+    o.closed = QuestSystem.talk(game, so) === null;                                   // nothing to give before the cave is visited
+    game.flags.visited_crystalCave = true;
+    o.offer = QuestSystem.talk(game, so) === QUESTS.crystalHunt.lines.offer && game.quests.crystalHunt.state === 'active';
+    QuestSystem.onDefeated(game, ['crystalGolem', 'crystalSlime', 'crystalGolem']);
+    var herbs = (game.inventory.filter(function(i) { return i.id === 'highHerb'; })[0] || { count: 0 }).count, g0 = game.gold;
+    o.done = QuestSystem.talk(game, so) === QUESTS.crystalHunt.lines.done && game.gold === g0 + 150 && game.inventory.filter(function(i) { return i.id === 'highHerb'; })[0].count === herbs + 5;
+    o.total = Object.keys(QUESTS).length === 9;
+    return o;
+  });
+  ok(q3.closed && q3.offer && q3.done && q3.total, 'the soldier gives the Crystal Caverns request once the cave has been visited', JSON.stringify(q3));
   ok(q2.gated && q2.first && q2.second, 'requests unlock with the story and an NPC hands out the next one after the first', JSON.stringify(q2));
   ok(q2.helper, 'finishing every request grants the みんなの指輪');
   await ev(function() { game.state = 'menu'; game.menuState = { index: MENU_ITEMS.indexOf('いらい'), subState: null }; });

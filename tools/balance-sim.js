@@ -63,7 +63,8 @@ var CHESTS = {
 };
 function giveItem(g, id, n) { var e = g.inventory.filter(function(i) { return i.id === id; })[0]; if (e) e.count += n; else g.inventory.push({ id: id, count: n }); }
 function openChests(g, stage) {
-  (CHESTS[stage] || []).forEach(function(ch) {
+  var only = stage === '水晶' ? process.env.CAVE : '1';   // CAVE=gear / CAVE=items opens only that part of the cave's chests
+  (CHESTS[stage] || []).filter(function(ch) { return only === '1' || (only === 'items') === (ch[1] === 'item'); }).forEach(function(ch) {
     if (ch[1] === 'item') giveItem(g, ch[0], ch[2]);
     else if (ch[1] === 'armor') { var c3 = g.party.filter(function(m) { return m.classId === ch[2]; })[0]; equip(c3, 'armor', ARMORS, ch[0]); }
     else if (ch[1] === 'ring') { var c = g.party.filter(function(m) { return m.classId === ch[2]; })[0]; equip(c, 'accessory', ACCESSORIES, ch[0]); }
