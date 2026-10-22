@@ -414,6 +414,7 @@ function getMapBgm(mapId) {
   // 村・ショップ系 → タウン曲、ハルカ宿場と深淵は専用曲、それ以外 → フィールド曲
   if (mapId === 'haruka') return 'waystation';
   if (mapId === 'abyss') return 'abyss';
+  if (mapId === 'crystalCave') return 'crystal';
   var townMaps = ['millhaven', 'itemShop', 'weaponShop', 'armorShop'];
   return (townMaps.indexOf(mapId) >= 0) ? 'town' : 'field';
 }

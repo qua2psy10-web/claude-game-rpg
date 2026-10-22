@@ -489,6 +489,43 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   for (var w2 = 0; w2 < 80 && (await state()) === 'battle'; w2++) { await press('z', 60); }
   ok(await ev(function() { return game.flags.abyssBossDefeated === true && game.state !== 'ending'; }), 'the secret boss ends without the ending screen');
 
+  console.log('\n[crystal caverns]');
+  var cc = await ev(function() {
+    newGame(); game.state = 'map'; game.hints = {}; HintSystem.reset(); var o = {};
+    // the world marker leads in, and the exit leads back out
+    game.currentMap = 'world'; game.playerX = 21; game.playerY = 12; game.facing = 'down';
+    MapSystem.movePlayer(game, 0, 1);
+    o.enter = game.currentMap === 'crystalCave' && game.flags.visited_crystalCave === true && game.hints.enter_crystalCave === true;
+    // every chest and both boss tiles can be walked to from the entrance
+    var m = MAPS.crystalCave, seen = {}, q = [[m.playerStart.x, m.playerStart.y]]; seen[q[0][0] + ',' + q[0][1]] = 1;
+    while (q.length) { var c = q.shift(); [[1,0],[-1,0],[0,1],[0,-1]].forEach(function(d) { var x = c[0] + d[0], y = c[1] + d[1], k = x + ',' + y;
+      if (y >= 0 && y < m.height && x >= 0 && x < m.width && !seen[k] && TILES[m.tiles[y][x]].passable) { seen[k] = 1; q.push([x, y]); } }); }
+    var evs = Object.keys(m.events), chests = evs.filter(function(k) { return m.events[k].type === 'chest'; });
+    o.reach = chests.length === 6 && chests.every(function(k) { return seen[k]; }) && seen['8,3'] && seen['9,3'];
+    o.rows = m.tiles.every(function(r) { return r.length === m.width; }) && m.tiles.length === m.height;
+    // the treasure room is only reachable through the guardian
+    var behind = chests.filter(function(k) { return +k.split(',')[1] <= 2; });
+    o.guarded = behind.length === 2;
+    // encounters on crystal floor use the cave's table
+    o.table = !!m.encounters.crystal && TILES.Y.encounter === true;
+    // every cave enemy fights and draws (the golem sprite included) without errors
+    ['crystalSlime', 'crystalBat', 'crystalGolem', 'crystalGuardian'].forEach(function(id) {
+      BattleSystem.startBattle(game, [id]); game.state = 'battle'; game.battle.phase = 'command';
+      BattleSystem.render(ctx, game, 640, 480); game.battle = null;
+    });
+    o.bgm = getMapBgm('crystalCave') === 'crystal';
+    // guardian: a win sets its flag, shows its closing lines and does not start the ending
+    game.currentMap = 'crystalCave'; game.pendingBoss = m.events['8,3']; game.state = 'battle'; BattleSystem.startBattle(game, ['crystalGuardian']);
+    game.battle.enemies[0].hp = 0; game.battle.enemies[0].alive = false; BattleSystem.handleWin(game);
+    return o;
+  });
+  for (var w3 = 0; w3 < 80 && (await state()) === 'battle'; w3++) { await press('z', 60); }
+  ok(cc.enter, 'the world marker leads into the caverns (visited flag and hint set)', JSON.stringify(cc));
+  ok(cc.reach && cc.rows && cc.guarded, 'every chest and both guardian tiles are reachable; the treasure room lies behind the guardian', JSON.stringify(cc));
+  ok(cc.table && cc.bgm, 'the cave has its own encounter table and BGM', JSON.stringify(cc));
+  ok(await ev(function() { return game.flags.crystalGuardianDefeated === true && game.state !== 'ending'; }), 'the guardian ends without the ending screen');
+  ok(await ev(function() { return Object.keys(ENEMIES).filter(function(k) { return !ENEMIES[k].boss || true; }).length === 17 && RecordsSystem.stats(game).chests === 20; }), 'the ずかん has 17 entries and the きろく counts 20 chests');
+
   console.log('\n[touch mode]');
   var tp = await browser.newPage({ viewport: { width: 420, height: 800 }, hasTouch: true, isMobile: true });
   tp.on('pageerror', function(e) { errors.push('touch: ' + e.message); });

@@ -58,11 +58,14 @@ function shop(g, reserveHerbs) {
 var CHESTS = {
   '森':     [['elixir', 'item', 3], ['guardRing', 'ring', 'sundar'], ['herb', 'item', 3], ['ironSword', 'weapon', 'sam']],
   '魔王城': [['highHerb', 'item', 3], ['phoenix', 'item', 2], ['heroRing', 'ring', 'sam'], ['bigBomb', 'item', 2]],
+  // CAVE=1 (with FULL=1): the Crystal Caverns' six chests, opened on the way to the castle
+  '水晶':   [['elixir', 'item', 2], ['highHerb', 'item', 3], ['crystalRing', 'ring', 'dario'], ['crystalRobe', 'armor', 'dario'], ['crystalBlade', 'weapon', 'sam'], ['crystalMail', 'armor', 'sam']],
 };
 function giveItem(g, id, n) { var e = g.inventory.filter(function(i) { return i.id === id; })[0]; if (e) e.count += n; else g.inventory.push({ id: id, count: n }); }
 function openChests(g, stage) {
   (CHESTS[stage] || []).forEach(function(ch) {
     if (ch[1] === 'item') giveItem(g, ch[0], ch[2]);
+    else if (ch[1] === 'armor') { var c3 = g.party.filter(function(m) { return m.classId === ch[2]; })[0]; equip(c3, 'armor', ARMORS, ch[0]); }
     else if (ch[1] === 'ring') { var c = g.party.filter(function(m) { return m.classId === ch[2]; })[0]; equip(c, 'accessory', ACCESSORIES, ch[0]); }
     else { var c2 = g.party.filter(function(m) { return m.classId === ch[2]; })[0]; if (!c2.weapon || slotScore(WEAPONS[ch[0]], 'sam') > slotScore(WEAPONS[c2.weapon], 'sam')) equip(c2, 'weapon', WEAPONS, ch[0]); }
   });
@@ -172,6 +175,7 @@ function playthrough(s) {
     var st = ROUTE[si], rec = { name: st.name, battles: 0, wipes: 0, rests: 0, gold0: g.gold, goldGain: 0, rounds: 0, lvStart: minLv(g), cap: false };
     var goldBefore = g.gold, spent = 0;
     if (FULL) openChests(g, st.name);
+    if (FULL && process.env.CAVE && st.name === '魔王城') openChests(g, '水晶');
     while (minLv(g) < st.until && rec.battles < 600) {
       if (needRest(g)) { inn(g); g.gold = Math.max(0, g.gold - 30); rec.rests++; }
       var hp0 = g.party.reduce(function(a, c) { return a + c.hp; }, 0), mx0 = g.party.reduce(function(a, c) { return a + c.maxHp; }, 0), lv0 = minLv(g);
@@ -242,7 +246,7 @@ if (process.argv[4] === 'ng') {
   return;
 }
 if (process.argv[4] === 'matrix') {
-  var areas = [['草原', MAPS.world.encounters.grass], ['森', MAPS.forest.encounters.forest], ['魔王城', MAPS.castle.encounters.dark], ['魔王', [{ enemies: ['demonKing'], weight: 1 }]], ['深淵', MAPS.abyss.encounters.dark], ['ゼル', [{ enemies: ['zelgios'], weight: 1 }]]];
+  var areas = [['草原', MAPS.world.encounters.grass], ['森', MAPS.forest.encounters.forest], ['水晶', MAPS.crystalCave.encounters.crystal], ['番人', [{ enemies: ['crystalGuardian'], weight: 1 }]], ['魔王城', MAPS.castle.encounters.dark], ['魔王', [{ enemies: ['demonKing'], weight: 1 }]], ['深淵', MAPS.abyss.encounters.dark], ['ゼル', [{ enemies: ['zelgios'], weight: 1 }]]];
   var snapAgg = {};
   for (var mi = 0; mi < Math.min(runs, 12); mi++) {
     var rr = playthrough(base + mi);
@@ -253,7 +257,7 @@ if (process.argv[4] === 'matrix') {
     var cols = areas.map(function(a) {
       var n = 0, wipes = 0, loss = 0, rds = 0;
       snapAgg[L].forEach(function(sn, si2) {
-        for (var f = 0; f < ((a[0] === '魔王' || a[0] === 'ゼル') ? 8 : 25); f++) {
+        for (var f = 0; f < ((a[0] === '魔王' || a[0] === 'ゼル' || a[0] === '番人') ? 8 : 25); f++) {
           seedRng(1000 + si2 * 97 + f);
           var gg = JSON.parse(sn); gg.battle = null; inn(gg);
           var mx = gg.party.reduce(function(x, c) { return x + c.maxHp; }, 0);

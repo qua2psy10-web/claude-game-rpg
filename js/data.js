@@ -23,6 +23,9 @@ var TILES = {
   'I': { name: '看板', color: '#9a7b4f', passable: false },
   '.': { name: '草花', color: '#6b9b4e', passable: true, encounter: false },
   'r': { name: '赤絨毯', color: '#8b3030', passable: true, encounter: false },
+  'Y': { name: '水晶の床', color: '#3f5f8f', passable: true, encounter: true },
+  'Z': { name: '水晶の壁', color: '#1f2c52', passable: false },
+  'K': { name: '水晶', color: '#2b4a80', passable: false },
 };
 
 // ===== CHARACTER DEFINITIONS =====
@@ -90,6 +93,7 @@ var SPELLS = {
   enemyFire:   { name: '火炎', mp: 0, type: 'magic', target: 'ally', power: 20, desc: '' },
   enemyDark:   { name: '暗黒の波動', mp: 0, type: 'magic', target: 'partyAll', power: 40, desc: '' },
   enemyDoom:   { name: '終焉の波動', mp: 0, type: 'magic', target: 'partyAll', power: 62, desc: '' },
+  enemyCrystal:{ name: '水晶の閃光', mp: 0, type: 'magic', target: 'partyAll', power: 30, desc: '' },
   enemyHeal:   { name: '回復', mp: 0, type: 'heal', target: 'self', power: 60, desc: '' },
 };
 
@@ -100,6 +104,11 @@ var ENEMIES = {
   wolf:         { name: 'ウルフ', hp: 110, atk: 58, def: 4, spd: 12, int: 2, exp: 14, gold: 20, color: '#888899', shape: 'wolf', skills: [], desc: ['森を かける 灰色の 狼。', 'すばやく 鋭い きばで かみつく。'], area: '暗黒の森' },
   giantBat:     { name: 'ジャイアントバット', hp: 90, atk: 50, def: 6, spd: 14, int: 3, exp: 18, gold: 22, color: '#774455', shape: 'bat', skills: [], poison: 0.3, desc: ['ねぐらを 荒らされると 怒る。', 'きばに 毒が ひそむことも。'], area: '暗黒の森' },
   skeleton:     { name: 'スケルトン', hp: 170, atk: 70, def: 12, spd: 6, int: 3, exp: 34, gold: 28, color: '#ccccbb', shape: 'skeleton', skills: [], desc: ['さまよう 戦士の なれのはて。', 'かたい ほねは なかなか くだけない。'], area: '暗黒の森の おく' },
+  // ----- 水晶の洞窟 (Lv 7-10) -----
+  crystalSlime: { name: 'クリスタルスライム', hp: 150, atk: 62, def: 22, spd: 5, int: 6, exp: 30, gold: 26, color: '#8fe3ff', shape: 'slime', skills: [], desc: ['水晶を のみこんで かたくなった スライム。', '剣は はじかれるが 魔法には よわい。'], area: '水晶の洞窟' },
+  crystalBat:   { name: 'クリスタルバット', hp: 120, atk: 68, def: 8, spd: 16, int: 4, exp: 32, gold: 28, color: '#b9a8ff', shape: 'bat', skills: [], desc: ['水晶の かがやきに あつまる コウモリ。', '羽ばたきが きらきらと 光る。'], area: '水晶の洞窟' },
+  crystalGolem: { name: 'クリスタルゴーレム', hp: 320, atk: 88, def: 34, spd: 4, int: 2, exp: 62, gold: 44, color: '#7ab8e8', shape: 'golem', skills: [], desc: ['水晶の かたまりに 命が やどった もの。', '動きは のろいが 一撃が おもい。'], area: '水晶の洞窟' },
+  crystalGuardian: { name: 'クリスタルガーディアン', hp: 560, atk: 92, def: 30, spd: 10, int: 20, exp: 320, gold: 420, color: '#58a0ff', shape: 'golem', boss: true, skills: ['enemyCrystal', 'enemyHeal'], bigSkill: 'enemyCrystal', desc: ['洞窟の おくで 宝を まもる 水晶の 番人。', 'まばゆい 閃光を はなって せまる。'], area: '水晶の洞窟の おく' },
   darkKnight:   { name: 'ダークナイト', hp: 240, atk: 86, def: 20, spd: 9, int: 5, exp: 60, gold: 40, color: '#334', shape: 'knight', skills: [], desc: ['魔王に 忠誠を ちかった 騎士。', '重い よろいで 身を かためている。'], area: '魔王の城' },
   demonSoldier: { name: 'デーモンソルジャー', hp: 310, atk: 104, def: 22, spd: 11, int: 8, exp: 80, gold: 50, color: '#aa3333', shape: 'knight', skills: ['enemyFire'], desc: ['魔界から よびだされた 兵士。', '炎の 魔法も つかいこなす。'], area: '魔王の城' },
   darkMage:     { name: 'ダークメイジ', hp: 210, atk: 56, def: 12, spd: 13, int: 48, exp: 70, gold: 45, color: '#663388', shape: 'mage', skills: ['enemyFire'], desc: ['闇の 魔術を きわめた 魔道士。', '魔力は 高いが 体は もろい。'], area: '魔王の城' },
@@ -138,6 +147,7 @@ var WEAPONS = {
   healingRod:   { name: '癒しの杖', atk: 5, int: 10, price: 500, equip: ['sundar'] },
   abyssBlade:   { name: 'ドラゴンスレイヤー', atk: 62, price: 9999, equip: ['sam'] },
   abyssStaff:   { name: '終焉の杖', atk: 12, int: 40, price: 9999, equip: ['dario', 'sundar'] },
+  crystalBlade: { name: '水晶の剣', atk: 30, price: 2000, equip: ['sam'] },
   sacredRod:    { name: '聖なる杖', atk: 10, int: 22, price: 2200, equip: ['sundar'] },
 };
 
@@ -152,6 +162,8 @@ var ARMORS = {
   mysticRobe:   { name: '魔法のローブ', def: 10, int: 12, price: 800, equip: ['dario', 'sundar'] },
   abyssRobe:    { name: '深淵のローブ', def: 26, int: 26, price: 9999, equip: ['dario', 'sundar'] },
   abyssMail:    { name: '深淵の鎧', def: 52, price: 9999, equip: ['sam'] },
+  crystalMail:  { name: '水晶の鎧', def: 27, price: 1600, equip: ['sam'] },
+  crystalRobe:  { name: '水晶のローブ', def: 12, int: 12, price: 1200, equip: ['dario', 'sundar'] },
   holyRobe:     { name: '聖なるローブ', def: 18, int: 20, price: 3000, equip: ['dario', 'sundar'] },
 };
 
@@ -164,6 +176,7 @@ var ACCESSORIES = {
   lifeRing:  { name: '命の指輪', hp: 25, price: 600 },
   guardRing: { name: '守りの指輪', def: 8, price: 600 },
   sageRing:  { name: '賢者の指輪', int: 12, price: 1400 },
+  crystalRing: { name: '水晶の指輪', def: 3, int: 6, hp: 15, price: 1000 },
   heroRing:  { name: '勇者の指輪', atk: 9, def: 5, price: 1500 },
 };
 
@@ -306,6 +319,7 @@ var MAPS = {
       '13,7':  { type: 'mapTransfer', map: 'forest', desc: '暗黒の森' },
       '12,4':  { type: 'mapTransfer', map: 'castle', desc: '魔王の城' },
       '18,12': { type: 'mapTransfer', map: 'haruka', desc: 'ハルカ宿場' },
+      '21,13': { type: 'mapTransfer', map: 'crystalCave', desc: '水晶の洞窟' },
       '4,13':  { type: 'mapTransfer', map: 'abyss', requires: 'demonKingDefeated', desc: '深淵の迷宮' },
     },
     encounters: {
@@ -396,6 +410,8 @@ var MAPS = {
           { flag: 'abyssBossDefeated', lines: ['旅人「あの深淵の魔神を 倒したのか！', '俺は 長く 旅をしてきたが', 'こんな 話は 初めて 聞いたぞ。」'] },
           { flag: 'demonKingDefeated', lines: ['旅人「魔王を 倒すとは 大したもんだ！', '噂じゃ 大陸の南西に 新しい 門が', 'できたらしい。力試しに ちょうどいいぞ。」'] },
           { flag: 'visited_castle', lines: ['旅人「城まで 行ったのか！', '中の 魔物は 森とは 桁違いだろう。', 'レベルを 上げてから 行った方が いいぞ。」'] },
+          { flag: 'crystalGuardianDefeated', lines: ['旅人「水晶の洞窟の 番人を 倒したのか！', '奥の 宝は 見事だったろう。', '城へ 挑む 準備は 万端だな。」'] },
+          { flag: 'visited_forest', lines: ['旅人「ハルカ宿場の すぐ東に', '水晶の洞窟が あるそうだ。', 'レベル7〜10くらいで 挑むのが いいらしいぞ。」'] },
         ]},
       { x: 2, y: 12, name: '老婆', color: '#aa88aa', dir: 'up', quest: 'herbDelivery',
         dialogue: ['老婆「森の 奥には 昔の 旅人が', '残した 宝箱が あるそうじゃ。', '鉄の剣が 眠って おるとか…」'],
@@ -560,6 +576,58 @@ var MAPS = {
     encounterRate: 0.14,
   },
 
+  crystalCave: {
+    name: '水晶の洞窟',
+    nameEn: "THE CRYSTAL CAVERNS",
+    width: 18, height: 16,
+    tiles: [
+      'ZZZZZZZZZZZZZZZZZZ',
+      'ZZZZZYYYYYYYYZZZZZ',
+      'ZZZZZKYYYYYYKZZZZZ',
+      'ZZZZZZZZYYZZZZZZZZ',
+      'ZZYYYYYYYYYYYYYYZZ',
+      'ZZYKYYYYYYYYYYKYZZ',
+      'ZZYYZZYYYYYYZZYYZZ',
+      'ZZYYZZYYKKYYZZYYZZ',
+      'ZZYYYYYYYYYYYYYYZZ',
+      'ZZYKYYZZYYZZYYKYZZ',
+      'ZZYYYYZZYYZZYYYYZZ',
+      'ZZZZYYYYYYYYYYZZZZ',
+      'ZZZZYYKYYYYKYYZZZZ',
+      'ZZZZZZZYYYYZZZZZZZ',
+      'ZZZZZZZZYYZZZZZZZZ',
+      'ZZZZZZZZEEZZZZZZZZ',
+    ],
+    playerStart: { x: 8, y: 14 },
+    events: {
+      '8,15':  { type: 'mapTransfer', map: 'world', targetX: 21, targetY: 14, desc: 'フィールドへ' },
+      '9,15':  { type: 'mapTransfer', map: 'world', targetX: 21, targetY: 14, desc: 'フィールドへ' },
+      '3,10':  { type: 'chest', item: 'elixir', itemType: 'item', count: 2, flag: 'crystal_chest1', msg: '宝箱から 魔法の聖水x2 を手に入れた！' },
+      '14,10': { type: 'chest', item: 'highHerb', itemType: 'item', count: 3, flag: 'crystal_chest2', msg: '宝箱から 上薬草x3 を手に入れた！' },
+      '2,6':   { type: 'chest', item: 'crystalRing', itemType: 'accessory', flag: 'crystal_chest3', msg: '宝箱から 水晶の指輪 を手に入れた！' },
+      '15,6':  { type: 'chest', item: 'crystalRobe', itemType: 'armor', flag: 'crystal_chest4', msg: '宝箱から 水晶のローブ を手に入れた！' },
+      '6,1':   { type: 'chest', item: 'crystalBlade', itemType: 'weapon', flag: 'crystal_chest5', msg: '宝箱から 水晶の剣 を手に入れた！' },
+      '11,1':  { type: 'chest', item: 'crystalMail', itemType: 'armor', flag: 'crystal_chest6', msg: '宝箱から 水晶の鎧 を手に入れた！' },
+      '8,3':   { type: 'boss', enemy: 'crystalGuardian', flag: 'crystalGuardianDefeated', ending: false,
+                 preBattle: ['水晶の番人「…ここから先は 通さぬ。', '洞窟の 宝は 我が まもる。', '力を 示してみせよ！」'],
+                 postBattle: ['クリスタルガーディアンは 光の粒と なって くだけ散った…', '奥の 宝箱が かがやいている！'] },
+      '9,3':   { type: 'boss', enemy: 'crystalGuardian', flag: 'crystalGuardianDefeated', ending: false,
+                 preBattle: ['水晶の番人「…ここから先は 通さぬ。', '洞窟の 宝は 我が まもる。', '力を 示してみせよ！」'],
+                 postBattle: ['クリスタルガーディアンは 光の粒と なって くだけ散った…', '奥の 宝箱が かがやいている！'] },
+    },
+    npcs: [],
+    encounters: {
+      crystal: [
+        { enemies: ['crystalSlime'], weight: 25 },
+        { enemies: ['crystalBat'], weight: 25 },
+        { enemies: ['crystalSlime', 'crystalBat'], weight: 20 },
+        { enemies: ['crystalGolem'], weight: 20 },
+        { enemies: ['crystalBat', 'crystalBat'], weight: 10 },
+      ],
+    },
+    encounterRate: 0.13,
+  },
+
   haruka: {
     name: 'ハルカ宿場',
     nameEn: "HARUKA WAYSIDE",
@@ -601,7 +669,7 @@ var MAPS = {
         dialogue: ['賭け屋「旅の人、運だめしは どうだい？', 'サイコロ二つの 出目を 当てるだけさ！」'],
         talk: [{ flag: 'demonKingDefeated', lines: ['賭け屋「魔王を 倒した 勇者さまの 運だめしか！', 'こいつは 面白い 勝負に なりそうだ！」'] }] },
       { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left', quest: ['antidoteFetch', 'herbFetch'],
-        dialogue: ['兵士「ここから 北の 森には', '強い 魔物が 住んでいる。', '装備は ちゃんと 整えたか？」'],
+        dialogue: ['兵士「ここから 北の 森には', '強い 魔物が 住んでいる。', 'この 東には 水晶の 洞窟も ある。', '装備は ちゃんと 整えたか？」'],
         talk: [
           { flag: 'demonKingDefeated', lines: ['兵士「魔王が 倒されて 街道も', '平和に なったな。', '私も 仕事が 楽に なったよ。」'] },
           { flag: 'visited_castle', lines: ['兵士「城へ 入ったのか。', '無事に 戻ってきて 何よりだ。」'] },

@@ -2,7 +2,7 @@
 // music.js — Procedural chiptune BGM engine (Web Audio API)
 // All music generated from oscillators — no audio files needed.
 //
-// Tracks: 'title' / 'town' / 'waystation' / 'field' / 'abyss' / 'boss' / 'battle' / 'victory' / 'defeat'
+// Tracks: 'title' / 'town' / 'waystation' / 'field' / 'crystal' / 'abyss' / 'boss' / 'battle' / 'victory' / 'defeat'
 // Usage:  MusicSystem.init(audioCtx);
 //         MusicSystem.changeTo('battle');
 //         MusicSystem.stop();
@@ -180,6 +180,34 @@ var MusicSystem = (function() {
         [N.G3,2],[N.D3,2],
         [N.D3,2],[N.A3,2],
         [N.G3,4],
+      ],
+    },
+
+    // ── 水晶の洞窟 (76 BPM, C major / A minor, a clear arpeggiated tune on a chiming triangle lead) ── //
+    crystal: {
+      bpm: 76,
+      lead: 'triangle',
+      leadVol: 0.17,
+      harmony: 0.5,
+      melody: [
+        [N.E5,1],[N.G5,1],[N.E5,1],[N.C5,1],      // bar 1
+        [N.D5,2],[N.R,1],[N.E5,1],                // bar 2
+        [N.G5,1],[N.A5,1],[N.G5,1],[N.E5,1],      // bar 3
+        [N.D5,3],[N.R,1],                         // bar 4
+        [N.C5,1],[N.E5,1],[N.G5,1],[N.E5,1],      // bar 5
+        [N.A4,2],[N.B4,1],[N.C5,1],               // bar 6
+        [N.D5,1],[N.E5,1],[N.D5,1],[N.B4,1],      // bar 7
+        [N.C5,3],[N.R,1],                         // bar 8
+      ],
+      bass: [
+        [N.C3,2],[N.G3,2],
+        [N.A3,2],[N.E3,2],
+        [N.F3,2],[N.C3,2],
+        [N.G3,2],[N.D3,2],
+        [N.C3,2],[N.G3,2],
+        [N.F3,2],[N.A3,2],
+        [N.G3,2],[N.D3,2],
+        [N.C3,4],
       ],
     },
 

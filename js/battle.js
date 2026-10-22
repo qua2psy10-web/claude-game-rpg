@@ -88,7 +88,7 @@ var BattleSystem = {
   EFFECT_KINDS: {
     powerSlash: 'slash', sweep: 'sweep', light: 'light', shieldBash: 'bash', warCry: 'buffAtk', protect: 'buffDef',
     fire: 'fire', enemyFire: 'fire', iceStorm: 'ice', thunder: 'thunder',
-    heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark', enemyDoom: 'dark',
+    heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark', enemyDoom: 'dark', enemyCrystal: 'ice',
     weaken: 'debuffAtk', armorBreak: 'debuffDef', cure: 'cure', sleep: 'sleep', magicBoost: 'buffInt',
   },
 
@@ -135,16 +135,16 @@ var BattleSystem = {
 
   STAT_WORDS: { atk: 'こうげき力', def: 'しゅび力', int: 'まりょく' },
   ENEMY_CAST_DELAY: 650,  // ms an enemy charges a spell before it lands
-  ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyDoom: '60,200,230', enemyHeal: '80,230,130' },
+  ENEMY_CAST_TINT: { enemyFire: '255,120,30', enemyDark: '150,60,220', enemyDoom: '60,200,230', enemyCrystal: '120,210,255', enemyHeal: '80,230,130' },
   // How each species attacks (drives the motion and the impact effect)
-  ATTACK_STYLES: { slime: 'hop', wolf: 'pounce', bat: 'dive', knight: 'heavy', demonKing: 'heavy', abyssLord: 'heavy',
+  ATTACK_STYLES: { slime: 'hop', wolf: 'pounce', bat: 'dive', knight: 'heavy', golem: 'heavy', demonKing: 'heavy', abyssLord: 'heavy',
                    skeleton: 'slash', goblin: 'slash', mage: 'slash' },
   ATTACK_TINTS: { hop: '90,190,255', pounce: '255,60,60', dive: '200,30,60', heavy: '255,140,40', slash: '255,60,60' },
   // Eye positions per species (unscaled offsets from the sprite origin) for the stance glint
   EYE_TABLE: {
     slime: [[-5, 6], [6, 6]], goblin: [[-3.5, -13.5], [4.5, -13.5]], wolf: [[-26, -10]],
     bat: [[-3.5, -2.5], [4.5, -2.5]], skeleton: [[-3, -17.5], [3, -17.5]],
-    knight: [[-2.5, -20.5], [3.5, -20.5]], mage: [[-2.5, -20.5], [3.5, -20.5]],
+    knight: [[-2.5, -20.5], [3.5, -20.5]], golem: [[-4.5, -16], [5.5, -16]], mage: [[-2.5, -20.5], [3.5, -20.5]],
     demonKing: [[-8, -25], [8, -25]], abyssLord: [[-9, -27], [9, -27]]
   },
   ENEMY_HIT_DELAY: 260,   // ms between an enemy starting its lunge and the hit landing (peak of the charge)
@@ -4146,7 +4146,7 @@ var BattleSystem = {
           ctx.fillRect(ex - ar * 2, ey - ar * 2, ar * 4, ar * 4);
           ctx.fillStyle = 'rgba(' + castFx.tint + ',' + (0.9 * (1 - ct * 0.4)) + ')';
           // Rune glyphs orbit the caster (fire / dark / heal)
-          var runeCh = { enemyFire: '炎', enemyDark: '闇', enemyDoom: '終', enemyHeal: '癒' }[castFx.spellId];
+          var runeCh = { enemyFire: '炎', enemyDark: '闇', enemyDoom: '終', enemyCrystal: '晶', enemyHeal: '癒' }[castFx.spellId];
           if (runeCh) {
             ctx.save();
             ctx.font = 'bold 18px monospace';

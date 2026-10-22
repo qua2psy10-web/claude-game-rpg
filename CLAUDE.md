@@ -19,7 +19,7 @@ This file provides guidance for Claude and human developers working on this proj
 ### World & Setting
 
 - **World name:** Eldrasia (エルドラシア)
-- **Regions:** Millhaven Village (starting town), Haruka Waystation (a small town on the east road), Dark Forest, Demon King's Castle, the Abyss (post-game). A "Crystal Caverns" region was once planned but has no map and is not part of the game
+- **Regions:** Millhaven Village (starting town), Haruka Waystation (a small town on the east road), Dark Forest, Crystal Caverns (optional mid-game dungeon), Demon King's Castle, the Abyss (post-game)
 - **Lore:** The Demon King has awoken and threatens the land. Three heroes must journey north to defeat him.
 
 ### Character System
@@ -80,7 +80,7 @@ This file provides guidance for Claude and human developers working on this proj
 
 ### Bestiary (ずかん)
 
-- **Where:** the in-game menu's ずかん: a list of all enemies (13 entries; the post-game ones come after the Demon King) and a detail panel with a portrait. Unmet enemies show as ？？？？.
+- **Where:** the in-game menu's ずかん: a list of all enemies (17 entries; the post-game ones come after the Demon King) and a detail panel with a portrait. Unmet enemies show as ？？？？.
 - **Records:** `game.bestiary = { enemyId: { seen, defeated } }`. `seen` goes up once per battle that includes the enemy; `defeated` per enemy killed (counted on a win, not when fleeing or losing). Stored in the save file as `bestiary` without a version bump; saves that lack it load as an empty bestiary (`BestiarySystem.sanitize`).
 - **Unlocks:** seen -> portrait, description, habitat (`desc`/`area` in `data.js`); 1 defeat -> HP / EXP / gold; 3 defeats -> ATK / DEF / SPD, poison chance and skills.
 - **Announcement:** enemies met for the first time are listed in the win messages ("…を ずかんに とうろくした！").
@@ -107,7 +107,7 @@ This file provides guidance for Claude and human developers working on this proj
 - **Flow:** beating the Demon King sets `demonKingDefeated`, moves the party to the field just outside the castle and **saves** before the ending screen, so 「つづきから」 resumes the post-game world. The ending's Enter still returns to the title.
 - **Unlocked:** a new gate on the continent's south-west grass (a gold marker, hidden and inert until the flag is set) leads to the **深淵の迷宮** (`abyss`, 16x16, dark floor and lava). Its encounters are three stronger enemies (亡霊 / 混沌の騎士 / 虚空の魔導師); four chests hold new gear (ドラゴンスレイヤー, 終焉の杖, 深淵のローブ, 深淵の鎧) and revival feathers; at the far end waits the secret boss **終焉の魔神ゼルギオス** (`abyssBossDefeated`).
 - **Secret boss:** a `boss` with the Demon King's mechanics (forms at 66% / 33%, telegraphed big attack that Defend halves, self-heal) but its own big skill `終焉の波動` (`bigSkill` on the enemy; default is `enemyDark`) and no ending: the victory gives big EXP / gold, a closing line, and play continues. Boss events may set `ending: false` and `postBattle` lines; `finale: true` (Demon King only) triggers the white fade and the ending.
-- **Bestiary:** the new enemies are appended after the Demon King, so the ずかん grows to 13 entries.
+- **Bestiary:** the new enemies are appended after the Demon King, so the ずかん ends at 17 entries (the post-game ones come last).
 - **Balance:** the 深淵 enemies are meant for Lv 14+ (sim policy with shop gear only: wipe ~18% at Lv14, ~5% at Lv18; HP lost per battle 24% -> 12%); the secret boss is ~75% wipe at Lv20 and ~40% at Lv21 *without* the abyss chests (their gear makes it noticeably easier). `UNTIL=24 node tools/balance-sim.js 12 1 matrix` shows the 深淵 / ゼル columns up to Lv24.
 - **Code:** data in `js/data.js` (`MAPS.abyss`, enemies, `SPELLS.enemyDoom`, gear); `map.js` `handleEvent` honours `requires`; `battle.js` `afterBossWin` is shared by both win paths; `main.js` stores the cleared state.
 
@@ -119,12 +119,24 @@ This file provides guidance for Claude and human developers working on this proj
 
 ### Map music
 
-- **Tracks** (`js/music.js`, all generated from oscillators): `title`, `town` (Millhaven and its shops), `waystation` (Haruka), `field` (world, forest, castle), `abyss`, `boss`, `battle`, and the one-shot `victory` / `defeat`. `getMapBgm` in `main.js` maps a map id to its track.
+- **Tracks** (`js/music.js`, all generated from oscillators): `title`, `town` (Millhaven and its shops), `waystation` (Haruka), `field` (world, forest, castle), `crystal` (Crystal Caverns), `abyss`, `boss`, `battle`, and the one-shot `victory` / `defeat`. `getMapBgm` in `main.js` maps a map id to its track.
 - **ハルカ宿場** (`waystation`): 84 BPM, G major, an easy travelling tune on the square lead with a plain bass, no drums, so it sits between the village's tune and the field's.
+- **水晶の洞窟** (`crystal`): 76 BPM, C major / A minor, a clear arpeggiated tune on a triangle lead (`lead: 'triangle'`) with a soft octave-below doubling and a plain bass, no drums. Like the other tunes it has not been heard by anyone.
 - **深淵の迷宮** (`abyss`): 70 BPM, D minor with a flat fifth (A♭), a slow low lead on a sawtooth (`lead: 'sawtooth'`, `leadVol`) doubled a fourth below, a bass pedal on D, and a kick on every beat as a heartbeat (`drums: 'kick'`).
 - **Track fields:** `bpm`, `melody`, `bass` (lists of `[freq, beats]`, equal total beats so the loop is seamless), optional `harmony` (ratio of a second voice), `drums` (`kick` / `rock` / `boss`), `arp` (danger layer), `lead` / `leadVol` (melody waveform and volume, default square / 0.14), `once`.
 - **Not verified by ear:** the tunes were written and checked as data (loop lengths, the scheduler running, the right track chosen per map) but nobody has listened to them; tempo, volume balance and taste are open to feedback.
 - **Test:** the smoke test's `[music]` section checks that every looping track has equal melody / bass beats (`MusicSystem.trackInfo`), the map-to-track choice, and that the new tracks start.
+
+### Crystal Caverns (水晶の洞窟)
+
+- **What:** an optional mid-game dungeon between the forest and the castle (intended party Lv 7-10) with its own enemies, a mini-boss and gear that helps before the Demon King. Nothing gates it; the party can skip it entirely.
+- **Where:** `MAPS.crystalCave` (18x16), entered from the marker at world (21,13) (east of the road to Haruka); the exit returns to (21,14). New tiles: `Y` crystal floor (walkable, random encounters, table `crystal`), `Z` crystal wall and `K` crystal cluster (both solid). Glints on `Y` / `K` come from `AmbienceSystem.tileAnim`.
+- **Enemies** (all in the ずかん, listed between スケルトン and ダークナイト): クリスタルスライム (high DEF, magic is the answer), クリスタルバット, クリスタルゴーレム (slow, hard-hitting, very high DEF; a new `golem` sprite) and the mini-boss **クリスタルガーディアン** (`boss` with the Demon King's mechanics: forms at 66% / 33%, a telegraphed big attack `enemyCrystal` that Defend halves, self-heal; no ending, `ending: false`; flag `crystalGuardianDefeated`).
+- **Treasure:** four chests on the way (魔法の聖水x2, 上薬草x3, 水晶の指輪, 水晶のローブ) and two in the room behind the guardian (水晶の剣, 水晶の鎧). The gear (水晶の剣 ATK+30, 水晶の鎧 DEF+27, 水晶のローブ DEF+12 INT+12, 水晶の指輪 DEF+3 INT+6 HP+15) is not sold, so it never changes the gold economy, but it is a clear help (see Balance).
+- **Presentation:** its own BGM `crystal` (a bright, slow arpeggiated tune with a chiming lead), a blue vignette with drifting sparkles, no ambient bed (the cave is quiet apart from the music). A first-visit hint `enter_crystalCave`; the village chief, the traveller and Haruka's soldier mention the cave.
+- **Balance** (`UNTIL=12 node tools/balance-sim.js 12 1 matrix`, the 水晶 / 番人 columns; shop gear only, the policy uses no chests): the regular enemies cost ~29% HP at Lv5, ~18% at Lv7 and ~7% at Lv10 (wipe 11% at Lv5, ~0% from Lv7), so Lv7 is comfortable and it sits between the forest and the castle. The guardian wipes the party ~95% at Lv6, ~61% at Lv7, ~24% at Lv8, ~2% at Lv9 and ~0% from Lv10 (15-17 rounds at Lv7-8). Items and the cave's earlier chests make it easier than the sim's policy.
+- **Effect on the finale:** `FULL=1 BOSSLV=12 CAVE=1 node tools/balance-sim.js 40 1` also opens the six chests: the Demon King's win rate at Lv12 goes from 75% to 92% (and the castle fights get shorter). So the cave is a real boost for players who do it; the finale stays winnable without it. New Game+ scaling applies to the cave enemies like any other.
+- **Records:** the きろく chest count grows from 14 to 20 (an existing save that already earned the 「every chest opened」 achievement keeps it); the ずかん grows from 13 to 17 entries.
 
 ### Haruka Waystation (ハルカ宿場)
 
@@ -173,7 +185,7 @@ This file provides guidance for Claude and human developers working on this proj
 
 ### Records & achievements (きろく)
 
-- **きろく screen:** the in-game menu's きろく (after ずかん) shows per-save stats on the left (play time, steps, enemies defeated, ずかん species, chests opened of all 14, highest gold, whether the Demon King and Zelgios are down) and the achievement checklist on the right (7 entries; ★ done, ☆ with progress such as 6/9, and each reward).
+- **きろく screen:** the in-game menu's きろく (after ずかん) shows per-save stats on the left (play time, steps, enemies defeated, ずかん species, chests opened of all 20, highest gold, whether the Demon King and Zelgios are down) and the achievement checklist on the right (7 entries; ★ done, ☆ with progress such as 6/9, and each reward).
 - **Achievements** (`ACHIEVEMENTS` in `data.js`, granted automatically the first time the condition holds): 5 / 9 species met (上薬草x3 / フェニックスの羽x2), all species met (魔法の聖水x5), 100 enemies defeated (爆裂石x3), every chest opened (フェニックスの羽x3), every non-boss enemy defeated 3 times (達人の指輪: ATK+8 DEF+8 INT+12 SPD+4 HP+30, not sold), all eight requests done (みんなの指輪: ATK+4 DEF+6 INT+6 SPD+4 HP+40, not sold). Rewards go straight into the bag and a ★ toast announces them (`HintSystem.notice`). All conditions use per-save data (bestiary, chest flags), not the global `gameScore`.
 - **Storage:** `game.achieved = { id: true }` in the save (no version bump). A save without it earns whatever it already qualifies for when it is loaded (`RecordsSystem.check` in `loadGame`).
 - **When it runs:** after a battle (`BattleSystem.afterWin`), after opening a chest, and on load.
@@ -239,7 +251,7 @@ Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~4
 - **Run:** `node tools/smoke-test.js` (about 20 s; exit code 0 = all passed). It serves the repo itself and drives the real game in headless Chromium through Playwright (found in `node_modules`, or in `npm root -g`; set `PW_CHROMIUM` to point at a browser if `/opt/pw-browsers/chromium` is absent). Run it before every PR.
 - **Data checks:** every map is rectangular with events and NPCs on walkable tiles and known targets; enemies have `desc` / `area` (and bosses an `EYE_TABLE` entry); every character spell exists *and has an `EFFECT_KINDS` entry*; shops, chests and achievement rewards reference real items.
 - **Flows with real keys:** title -> new game -> opening -> dialogue -> walking, every menu screen, shop purchase, both inns (the full night scene), winning a battle, the ずかん record.
-- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the requests (accept, count, deliver, fetch, save), the blacksmith (enhance, +5 cap, the level travelling with the item, save), the music (loop lengths, track per map, the new tracks start), the battle message window and the error guard, the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
+- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the requests (accept, count, deliver, fetch, save), the blacksmith (enhance, +5 cap, the level travelling with the item, save), the music (loop lengths, track per map, the new tracks start), the Crystal Caverns (entry, reachability, the guardian, its sprites), the battle message window and the error guard, the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
 - **Adding to it:** a new screen, map or mechanic should get a line in the matching section; keep it fast and deterministic (it forces random rolls where it must).
 - **History:** its first run found four world-map rows that were one tile short (fixed with it).
 
@@ -251,7 +263,7 @@ Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~4
 - **Inn:** Full HP/MP restore for gold
 - **Items:** 薬草 (HP35) / 上薬草 (HP100, 45G) / 魔法の水 (MP20) / 魔法の聖水 (MP60, 90G) / 毒消し草 / フェニックスの羽 / 爆弾石 (35 dmg) / 爆裂石 (90 dmg, 150G). An item may set `fx` to borrow another item's battle visuals and sound (上薬草 -> herb, 魔法の聖水 -> magicWater, 爆裂石 -> bomb), so new items of the existing types (`heal`, `healMp`, `cure`, `revive`, `damage`) are data-only.
 - **Accessories:** the 防具屋 sells 力 / 魔力 / 素早さ / 命 plus 守り (DEF+8, 600G) / 賢者 (INT+12, 1400G) / 勇者 (ATK+9 DEF+5, 1500G) rings. Chests may give accessories (`itemType: 'accessory'`).
-- **Chests:** besides the forest's two: the north dark area of the continent (魔法の聖水x3, 守りの指輪) the castle (上薬草x3, フェニックスの羽x2, 勇者の指輪, 爆裂石x2), Haruka Waystation (上薬草x2, 素早さの指輪) and the abyss (4 chests of post-game gear and feathers); 14 in all. Opened by stepping on them; the flag is saved.
+- **Chests:** besides the forest's two: the north dark area of the continent (魔法の聖水x3, 守りの指輪) the castle (上薬草x3, フェニックスの羽x2, 勇者の指輪, 爆裂石x2), Haruka Waystation (上薬草x2, 素早さの指輪), the Crystal Caverns (6 chests: 魔法の聖水x2, 上薬草x3, 水晶の指輪, 水晶のローブ, and behind the guardian 水晶の剣 and 水晶の鎧) and the abyss (4 chests of post-game gear and feathers); 20 in all. Opened by stepping on them; the flag is saved.
 
 ---
 

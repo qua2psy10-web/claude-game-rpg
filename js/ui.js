@@ -175,6 +175,33 @@ var UI = {
       ctx.fillStyle = 'rgba(255,100,0,0.5)';
       ctx.fillRect(px + 4, py + 8, 10, 6);
       ctx.fillRect(px + 18, py + 18, 8, 6);
+    } else if (tileChar === 'Y') {
+      // crystal floor: pale facets
+      ctx.fillStyle = 'rgba(190,230,255,0.14)';
+      ctx.fillRect(px + 3, py + 4, 12, 7);
+      ctx.fillRect(px + 17, py + 17, 11, 8);
+      ctx.fillStyle = 'rgba(10,20,60,0.25)';
+      ctx.fillRect(px + 16, py + 6, 2, 12);
+    } else if (tileChar === 'Z') {
+      ctx.fillStyle = 'rgba(80,110,190,0.28)';
+      ctx.fillRect(px + 2, py + 2, 28, 12);
+      ctx.fillStyle = 'rgba(0,0,30,0.3)';
+      ctx.fillRect(px, py + 22, 32, 10);
+    } else if (tileChar === 'K') {
+      // a cluster of crystal spires on dark rock
+      ctx.fillStyle = '#1f2c52';
+      ctx.fillRect(px, py, size, size);
+      var spires = [[8, 28, 6, 18, '#6fd0ff'], [16, 28, 7, 24, '#a8ecff'], [24, 28, 6, 14, '#58b4f0']];
+      for (var si = 0; si < spires.length; si++) {
+        var sp = spires[si];
+        ctx.fillStyle = sp[4];
+        ctx.beginPath();
+        ctx.moveTo(px + sp[0] - sp[2] / 2, py + sp[1]);
+        ctx.lineTo(px + sp[0], py + sp[1] - sp[3]);
+        ctx.lineTo(px + sp[0] + sp[2] / 2, py + sp[1]);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
   },
 
@@ -333,6 +360,27 @@ var UI = {
         ctx.fillStyle = c;
         ctx.fillRect(s(-8), s(22), s(6), s(10));
         ctx.fillRect(s(2), s(22), s(6), s(10));
+        break;
+      case 'golem':
+        // a hulking body of crystal blocks with glowing eyes and spires on the shoulders
+        ctx.fillStyle = c;
+        ctx.fillRect(s(-18), s(-8), s(36), s(32));
+        ctx.fillRect(s(-12), s(-26), s(24), s(20));
+        ctx.fillRect(s(-28), s(-4), s(10), s(24));
+        ctx.fillRect(s(18), s(-4), s(10), s(24));
+        ctx.fillRect(s(-14), s(24), s(10), s(8));
+        ctx.fillRect(s(4), s(24), s(10), s(8));
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(s(-16), s(-6), s(10), s(14));
+        ctx.fillRect(s(-10), s(-24), s(8), s(8));
+        ctx.fillStyle = '#d8f4ff';
+        ctx.beginPath();
+        ctx.moveTo(s(-20), s(-8)); ctx.lineTo(s(-16), s(-26)); ctx.lineTo(s(-10), s(-8));
+        ctx.moveTo(s(10), s(-8)); ctx.lineTo(s(16), s(-28)); ctx.lineTo(s(20), s(-8));
+        ctx.fill();
+        ctx.fillStyle = '#fffbb0';
+        ctx.fillRect(s(-7), s(-18), s(5), s(4));
+        ctx.fillRect(s(3), s(-18), s(5), s(4));
         break;
       case 'mage':
         ctx.fillStyle = c;
