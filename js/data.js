@@ -147,7 +147,7 @@ var WEAPONS = {
   healingRod:   { name: '癒しの杖', atk: 5, int: 10, price: 500, equip: ['sundar'] },
   abyssBlade:   { name: 'ドラゴンスレイヤー', atk: 62, price: 9999, equip: ['sam'] },
   abyssStaff:   { name: '終焉の杖', atk: 12, int: 40, price: 9999, equip: ['dario', 'sundar'] },
-  crystalBlade: { name: '水晶の剣', atk: 30, price: 2000, equip: ['sam'] },
+  crystalBlade: { name: '水晶の剣', atk: 25, price: 1800, equip: ['sam'] },
   sacredRod:    { name: '聖なる杖', atk: 10, int: 22, price: 2200, equip: ['sundar'] },
 };
 
@@ -162,8 +162,8 @@ var ARMORS = {
   mysticRobe:   { name: '魔法のローブ', def: 10, int: 12, price: 800, equip: ['dario', 'sundar'] },
   abyssRobe:    { name: '深淵のローブ', def: 26, int: 26, price: 9999, equip: ['dario', 'sundar'] },
   abyssMail:    { name: '深淵の鎧', def: 52, price: 9999, equip: ['sam'] },
-  crystalMail:  { name: '水晶の鎧', def: 27, price: 1600, equip: ['sam'] },
-  crystalRobe:  { name: '水晶のローブ', def: 12, int: 12, price: 1200, equip: ['dario', 'sundar'] },
+  crystalMail:  { name: '水晶の鎧', def: 21, price: 1400, equip: ['sam'] },
+  crystalRobe:  { name: '水晶のローブ', def: 8, int: 8, price: 1000, equip: ['dario', 'sundar'] },
   holyRobe:     { name: '聖なるローブ', def: 18, int: 20, price: 3000, equip: ['dario', 'sundar'] },
 };
 
@@ -176,7 +176,7 @@ var ACCESSORIES = {
   lifeRing:  { name: '命の指輪', hp: 25, price: 600 },
   guardRing: { name: '守りの指輪', def: 8, price: 600 },
   sageRing:  { name: '賢者の指輪', int: 12, price: 1400 },
-  crystalRing: { name: '水晶の指輪', def: 3, int: 6, hp: 15, price: 1000 },
+  crystalRing: { name: '水晶の指輪', def: 3, int: 5, hp: 10, price: 800 },
   heroRing:  { name: '勇者の指輪', atk: 9, def: 5, price: 1500 },
 };
 
@@ -265,6 +265,16 @@ var QUESTS = {
       offer:  ['兵士「城へ 向かう 仲間に 持たせたい。', '上薬草を 3つ 譲って もらえないか。', 'もちろん 礼は 弾むぞ。」'],
       active: ['兵士「上薬草は 3つ 集まったか？', '道具屋か 宝箱で 手に入るぞ。」'],
       done:   ['兵士「ありがたい！ これで 仲間も 心強い。', '礼に 爆裂石を 受け取ってくれ。」'],
+    },
+  },
+  crystalHunt: {
+    name: 'ゴーレムたいじ', kind: 'kill', enemy: 'crystalGolem', n: 2, needs: 'visited_crystalCave',
+    desc: 'すいしょうの どうくつの ゴーレムを 2たい たおす',
+    reward: { gold: 150, item: 'highHerb', count: 5 },
+    lines: {
+      offer:  ['兵士「洞窟へ 入ったのか。奥に 水晶の ゴーレムが', 'いるだろう。街道の 見張りに 邪魔でな。', '2体 倒して くれないか。」'],
+      active: ['兵士「ゴーレムは 動きは 遅いが 硬いぞ。', '剣より 魔法が 効くはずだ。」'],
+      done:   ['兵士「助かった！ これで 街道も 静かに なる。', '礼に 上薬草を 受け取ってくれ。」'],
     },
   },
   abyssHunt: {
@@ -668,7 +678,7 @@ var MAPS = {
       { x: 9, y: 7, name: '賭け屋', color: '#bb8833', dir: 'left', dice: true,
         dialogue: ['賭け屋「旅の人、運だめしは どうだい？', 'サイコロ二つの 出目を 当てるだけさ！」'],
         talk: [{ flag: 'demonKingDefeated', lines: ['賭け屋「魔王を 倒した 勇者さまの 運だめしか！', 'こいつは 面白い 勝負に なりそうだ！」'] }] },
-      { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left', quest: ['antidoteFetch', 'herbFetch'],
+      { x: 12, y: 7, name: '兵士', color: '#8899aa', dir: 'left', quest: ['antidoteFetch', 'crystalHunt', 'herbFetch'],
         dialogue: ['兵士「ここから 北の 森には', '強い 魔物が 住んでいる。', 'この 東には 水晶の 洞窟も ある。', '装備は ちゃんと 整えたか？」'],
         talk: [
           { flag: 'demonKingDefeated', lines: ['兵士「魔王が 倒されて 街道も', '平和に なったな。', '私も 仕事が 楽に なったよ。」'] },
