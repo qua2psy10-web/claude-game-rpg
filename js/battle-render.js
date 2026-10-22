@@ -1131,6 +1131,11 @@ Object.assign(BattleSystem, {
       }
       this.renderLevelUp(ctx, b.levelUps[b.levelUpIndex], canvasW, canvasH, Date.now() - b.luStart, luChar && luChar.color);
     }
+    if (game.arena) {                                                   // which round of the arena run this is
+      var ac = ArenaSystem.course(game.arena.id);
+      UI.drawWindow(ctx, canvasW / 2 - 130, 6, 260, 30);
+      UI.drawText(ctx, '闘技場  ' + ac.name + '  ' + Math.min(game.arena.round + 1, ArenaSystem.ROUNDS) + '/' + ArenaSystem.ROUNDS, canvasW / 2 - 116, 12, '#ffd700', UI.FONT_SMALL);
+    }
     this.renderBossVictory(ctx, game, canvasW, canvasH, Date.now());
   },
 });

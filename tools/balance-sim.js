@@ -6,7 +6,7 @@ var stub = new Proxy(function() {}, { get: function(t, k) { return k === 'getCon
 global.window = global;
 global.document = { getElementById: function() { return stub; }, createElement: function() { return stub; } };
 global.setTimeout = function() {};
-['data', 'ui', 'settings', 'sound', 'music', 'map', 'battle', 'battle-fx', 'battle-render', 'bestiary', 'hints', 'records', 'smith'].forEach(function(f) {
+['data', 'ui', 'settings', 'sound', 'music', 'map', 'battle', 'battle-fx', 'battle-render', 'bestiary', 'hints', 'records', 'smith', 'arena'].forEach(function(f) {
   vm.runInThisContext(fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8'), { filename: f });
 });
 Object.keys(SoundSystem).forEach(function(k) { if (typeof SoundSystem[k] === 'function') SoundSystem[k] = function() {}; });
@@ -244,6 +244,32 @@ if (process.argv[4] === 'ng') {
   }
   tables.forEach(function(t, ti) { var r3 = res[ti]; console.log((t[0] + '    ').slice(0, 5) + ' wipe ' + (r3.wipes / r3.n * 100).toFixed(0).padStart(3) + '%  hpLost ' + (r3.loss / r3.n * 100).toFixed(0).padStart(3) + '%  rounds ' + (r3.rounds / r3.n).toFixed(1)); });
   var lastp = JSON.parse(snap0); console.log('sample party: ' + lastp.party.map(function(c) { return c.name + ' Lv' + c.level + ' ATK' + c.atk + ' DEF' + c.def + ' HP' + c.maxHp; }).join(' | '));
+  return;
+}
+if (process.argv[4] === 'arena') {
+  // Arena courses: chance to win all three rounds in a row (HP / MP carried over, ArenaSystem.recover between rounds, no items bought)
+  var snapAr = {};
+  for (var ai = 0; ai < Math.min(runs, 12); ai++) {
+    var ar = playthrough(base + ai);
+    Object.keys(ar.snaps).forEach(function(L) { (snapAr[L] = snapAr[L] || []).push(ar.snaps[L]); });
+  }
+  console.log('Lv   ' + ARENA.courses.map(function(c) { return (c.id + '          ').slice(0, 9) + ' clear%/hpLeft%'; }).join('   |   '));
+  Object.keys(snapAr).sort(function(a, b) { return a - b; }).forEach(function(L) {
+    var cols = ARENA.courses.map(function(c) {
+      var n = 0, clears = 0, left = 0;
+      snapAr[L].forEach(function(sn, si3) {
+        for (var f = 0; f < 8; f++) {
+          seedRng(5000 + si3 * 131 + f);
+          var gg = JSON.parse(sn); gg.battle = null; inn(gg);
+          var mx = gg.party.reduce(function(x, m) { return x + m.maxHp; }, 0), won = true;
+          for (var r = 0; r < ArenaSystem.ROUNDS && won; r++) { won = fight(gg, c.rounds[r]).won; if (won) ArenaSystem.recover(gg.party); }
+          n++; if (won) { clears++; left += gg.party.reduce(function(x, m) { return x + m.hp; }, 0) / mx; }
+        }
+      });
+      return (clears / n * 100).toFixed(0).padStart(5) + (clears ? (left / clears * 100).toFixed(0) : '-').padStart(9) + '          ';
+    });
+    console.log(String(L).padStart(2) + '   ' + cols.join('   |   '));
+  });
   return;
 }
 if (process.argv[4] === 'matrix') {
