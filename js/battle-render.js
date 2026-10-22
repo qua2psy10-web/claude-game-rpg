@@ -1079,10 +1079,10 @@ Object.assign(BattleSystem, {
 
     // Spell selection
     if (b.phase === 'spellSelect' && b.currentChar < game.party.length) {
-      var spells = this.getAvailableSpells(game.party[b.currentChar]);
+      var spells = this.getAvailableSpells(game.party[b.currentChar], game);
       var spellNames = spells.map(function(s) {
         var sp = SPELLS[s.id];
-        return sp.limit ? '★ ' + sp.name : sp.name + ' ' + sp.mp + 'MP';
+        return sp.combo ? '★★ ' + sp.name : sp.limit ? '★ ' + sp.name : sp.name + ' ' + sp.mp + 'MP';
       });
       // The list scrolls (6 rows): Dario's six spells plus the limit skill would run off the screen
       var SPELL_ROWS = 6;

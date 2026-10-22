@@ -97,12 +97,23 @@ var SPELLS = {
   limitSam:    { name: 'ブレイブエッジ', mp: 0, limit: true, type: 'physical', target: 'enemy', power: 4.0, pierce: 0.8, desc: '渾身の一撃(必殺技)' },
   limitDario:  { name: 'メテオフォール', mp: 0, limit: true, type: 'magic', target: 'allEnemy', power: 100, desc: '流星を降らせる(必殺技)' },
   limitSundar: { name: 'いのりのひかり', mp: 0, limit: true, type: 'limitHeal', target: 'party', heal: 0.3, revive: 0.25, desc: '味方全員を癒し、倒れた仲間を起こす(必殺技)' },
+  // combo skills: need both members' limit gauges (see COMBOS); the caster is the first of the pair in party order
+  comboFlame:  { name: 'ほのおのつるぎ', mp: 0, combo: true, type: 'comboAttack', target: 'enemy', power: 200, k: 3.0, desc: '剣と魔法を合わせた一撃(れんけい)' },
+  comboHoly:   { name: 'せいなるりゅうせい', mp: 0, combo: true, type: 'comboAttack', target: 'allEnemy', power: 150, k: 1.5, heal: 0.2, desc: '聖なる流星が敵全体に降る(れんけい)' },
+  comboGuard:  { name: 'まもりのちかい', mp: 0, combo: true, type: 'comboGuard', target: 'party', heal: 0.4, revive: 0.35, desc: '全員を癒し、守りと攻めを高める(れんけい)' },
   enemyFire:   { name: '火炎', mp: 0, type: 'magic', target: 'ally', power: 20, desc: '' },
   enemyDark:   { name: '暗黒の波動', mp: 0, type: 'magic', target: 'partyAll', power: 40, desc: '' },
   enemyDoom:   { name: '終焉の波動', mp: 0, type: 'magic', target: 'partyAll', power: 62, desc: '' },
   enemyCrystal:{ name: '水晶の閃光', mp: 0, type: 'magic', target: 'partyAll', power: 30, desc: '' },
   enemyHeal:   { name: '回復', mp: 0, type: 'heal', target: 'self', power: 60, desc: '' },
 };
+
+// Which two members make which combo (needs both limit gauges full); `stats` = the stat each class contributes to the damage
+var COMBOS = [
+  { pair: ['sam', 'dario'],    spell: 'comboFlame', stats: { sam: 'atk', dario: 'int' } },
+  { pair: ['dario', 'sundar'], spell: 'comboHoly',  stats: { dario: 'int', sundar: 'int' } },
+  { pair: ['sam', 'sundar'],   spell: 'comboGuard', stats: {} },
+];
 
 // ===== ENEMY DEFINITIONS =====
 var ENEMIES = {

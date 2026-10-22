@@ -1156,7 +1156,7 @@ Object.assign(BattleSystem, {
     ctx.textBaseline = 'middle';
     ctx.font = '14px monospace';
     ctx.fillStyle = '#9bd';
-    ctx.fillText(lc.who + 'の ひっさつわざ', 40 + off, cy - 20);
+    ctx.fillText(lc.who + 'の ' + (lc.label || 'ひっさつわざ'), 40 + off, cy - 20);
     ctx.font = 'bold 34px monospace';
     ctx.lineWidth = 5; ctx.strokeStyle = '#1a2a6a';
     ctx.strokeText(lc.name, 40 + off, cy + 8);
