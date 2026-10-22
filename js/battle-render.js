@@ -1001,7 +1001,7 @@ Object.assign(BattleSystem, {
       UI.drawText(ctx, p.name, px, py, nameColor, UI.FONT_SMALL);
       UI.drawText(ctx, 'HP ' + shownHp + '/' + p.maxHp, px + 72, py, low ? '#f66' : '#fff', UI.FONT_SMALL);
       if (p.alive) UI.drawText(ctx, 'MP ' + shownMp + '/' + p.maxMp, px + 72, py + 17, '#aaf', UI.FONT_SMALL);
-      if (p.alive && p.poisoned && !((p.limit || 0) >= 100)) UI.drawText(ctx, '毒', px, py + 17, '#d08aff', UI.FONT_SMALL);
+      if (p.alive && p.poisoned) UI.drawText(ctx, '毒', (p.limit || 0) >= 100 ? px + 54 : px, py + 17, '#d08aff', UI.FONT_SMALL);   // beside the ひっさつ label when that shows
 
       // HP gauge (track, ghost, main, heal sweep)
       var gx = px + 72, gw = 122, gy = py + 14;
@@ -1021,9 +1021,9 @@ Object.assign(BattleSystem, {
       if (p.alive && p.limit !== undefined) {
         var lr = Math.max(0, Math.min(1, p.limit / 100)), full = lr >= 1;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.fillRect(gx, py + 25, gw, 3);
+        ctx.fillRect(px, py + 30, 62, 3);                                  // under the name, clear of the buff badges
         ctx.fillStyle = full ? 'rgba(255,' + Math.round(200 + 55 * Math.sin(now / 110)) + ',60,1)' : '#c9a020';
-        ctx.fillRect(gx, py + 25, gw * lr, 3);
+        ctx.fillRect(px, py + 30, 62 * lr, 3);
         if (full) UI.drawText(ctx, 'ひっさつ', px, py + 17, '#ffd700', UI.FONT_SMALL);
       }
       // MP gauge
