@@ -46,6 +46,15 @@ var AmbienceSystem = {
     } else if (ch === 'D') {                                 // dark floor: faint violet veins breathe
       ctx.fillStyle = 'rgba(140,60,190,' + (0.04 + 0.06 * Math.sin(now / 900 + ph)) + ')';
       ctx.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+    } else if (ch === 'Y' || ch === 'K') {                   // crystal: facets catch the light and wink
+      var gk = Math.sin(now / 420 + ph * 2.1 + (ch === 'K' ? 1.3 : 0));
+      if (gk > (ch === 'K' ? 0.55 : 0.82)) {
+        ctx.fillStyle = 'rgba(220,245,255,' + (gk - 0.5) * (ch === 'K' ? 1.4 : 1.8) + ')';
+        var gx = px + 6 + this.rnd(mx * 17 + my * 5) * 18, gy = py + 5 + this.rnd(mx * 3 + my * 11) * 18;
+        ctx.fillRect(gx, gy, 3, 3);
+        ctx.fillRect(gx - 2, gy + 1, 7, 1);
+        ctx.fillRect(gx + 1, gy - 2, 1, 7);
+      }
     } else if (ch === 'T') {                                 // throne: the gem glints
       ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + 0.3 * Math.sin(now / 250)) + ')';
       ctx.fillRect(px + 14, py + 7, 3, 2);
@@ -168,6 +177,17 @@ var AmbienceSystem = {
         fg.addColorStop(0, 'rgba(230,255,140,' + fa + ')'); fg.addColorStop(1, 'rgba(230,255,140,0)');
         ctx.fillStyle = fg; ctx.fillRect(fx - 9, fy - 9, 18, 18);
       }
+    } else if (id === 'crystalCave') {
+      vig(4, 14, 40, 0.1, 0.58);
+      ctx.fillStyle = 'rgba(60,120,220,' + (0.05 + 0.03 * Math.sin(now / 1100)) + ')'; ctx.fillRect(0, 0, w, h);
+      for (i = 0; i < 3; i++) {                              // slow beams of cold light
+        var bx = 90 + i * 230 + Math.sin(now / 3000 + i * 2) * 30, ba = 0.05 + 0.03 * Math.sin(now / 1700 + i);
+        var bg = ctx.createLinearGradient(bx, 0, bx + 120, h);
+        bg.addColorStop(0, 'rgba(170,230,255,' + ba * 1.6 + ')'); bg.addColorStop(1, 'rgba(170,230,255,0)');
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.moveTo(bx, 0); ctx.lineTo(bx + 40, 0); ctx.lineTo(bx + 200, h); ctx.lineTo(bx + 90, h); ctx.closePath(); ctx.fill();
+      }
+      this.motes(ctx, now, w, h, 'rgba(190,235,255,', 28);
     } else if (id === 'abyss') {
       vig(0, 12, 22, 0.12, 0.66);
       ctx.fillStyle = 'rgba(0,60,90,' + (0.06 + 0.04 * Math.sin(now / 900)) + ')'; ctx.fillRect(0, 0, w, h);

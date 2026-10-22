@@ -324,7 +324,7 @@ var SoundSystem = (function() {
     step: function(tile) {               // マップの足音: 地形ごとの小さな音
       if (!ctx || muted) return;
       var t = ctx.currentTime;
-      var soft = { G: 1400, F: 1100, S: 2200, R: 1800, D: 700 }[tile] || 900;
+      var soft = { G: 1400, F: 1100, S: 2200, R: 1800, D: 700, Y: 2600 }[tile] || 900;
       noise(0.06, t, 0.04, soft);
       if (tile === 'f' || tile === 'd' || tile === 'T') osc(110, 'square', 0.025, t, 0.03, 80);   // 床/ドア: 乾いたコツ
     },
@@ -529,6 +529,11 @@ var SoundSystem = (function() {
           osc(900, 'square', 0.2, t, 0.06, 600);
           noise(0.35, t, 0.12, 4000);
           osc(150, 'sine', 0.3, t, 0.2, 60);
+          break;
+        case 'golem':                                  // 水晶の塊が ずしりと着地する
+          osc(70, 'sawtooth', 0.28, t, 0.3, 40);
+          noise(0.25, t + 0.05, 0.2, 900);
+          for (i = 0; i < 3; i++) osc(1800 + i * 500, 'sine', 0.05, t + 0.12 + i * 0.07, 0.18, 2600 + i * 400);
           break;
         case 'mage':                                   // 転移のきらめき
           for (i = 0; i < 6; i++) osc(600 + i * 140, 'sine', 0.12, t + i * 0.05, 0.25);

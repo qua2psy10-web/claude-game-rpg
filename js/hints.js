@@ -7,7 +7,7 @@
 var HintSystem = (function() {
   var TOAST_MS = 6500;
   var queue = [], cur = null;
-  var IDS = ['move', 'dash', 'rest', 'battle', 'poison', 'bestiary', 'enter_forest', 'enter_castle', 'enter_abyss'];
+  var IDS = ['move', 'dash', 'rest', 'battle', 'poison', 'bestiary', 'enter_forest', 'enter_castle', 'enter_abyss', 'enter_crystalCave'];
 
   function touch() { return typeof document !== 'undefined' && document.body && document.body.classList.contains('touch'); }
   function K(action) { return touch() ? (action === 'confirm' ? 'Aボタン' : action === 'cancel' ? 'Bボタン' : 'ダッシュ') : SettingsSystem.keyName(SettingsSystem.key(action)); }
@@ -22,6 +22,7 @@ var HintSystem = (function() {
     bestiary:     function() { return ['あたらしい てきを ずかんに とうろくした', 'メニューの「ずかん」で みられる']; },
     enter_forest: function() { return ['もりの てきは そうげんより つよい', 'きずついたら むりせず もどろう']; },
     enter_castle: function() { return ['まおうのしろの てきは かなり つよい', 'Lv11〜13と そうび・どうぐを ととのえよう']; },
+    enter_crystalCave: function() { return ['すいしょうの どうくつ。てきは もりより つよい', 'さいしんぶには ばんにんが まっている']; },
     enter_abyss:  function() { return ['しんえんの めいきゅう。てきは さらに つよい', 'たからばこと うらボスが まっている']; }
   };
 
