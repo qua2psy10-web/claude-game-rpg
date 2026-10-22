@@ -327,9 +327,25 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
     [0, 5, game.inventory.length - 1].forEach(function(i) { b.itemIndex = i; BattleSystem.render(ctx, game, 640, 480); });
     UI.drawMenu = origMenu;
     o.items = rows.length === 3 && rows.every(function(r) { return r.n <= 6 && r.bottom <= 480 && r.sel >= 0 && r.sel < r.n; });
+    // message window: nothing is dropped (more than 3 lines) and long lines wrap inside the window
+    var drawn = [], origText = UI.drawText; UI.drawText = function(c, s) { drawn.push(s); return origText.apply(UI, arguments); };
+    var long = '一二三四五六七八九十'.repeat(4);
+    UI.drawMessageWindow(ctx, ['a1', 'a2', 'a3', 'a4', long], 640, 480);
+    UI.drawText = origText;
+    o.wrap = drawn.length === 6 && drawn[3] === 'a4' && drawn.slice(4).join('') === long;
+    // a hint about walking never sits over a battle; a fighting hint still does
+    var wins = 0, origWin = UI.drawWindow; UI.drawWindow = function() { wins++; return origWin.apply(UI, arguments); };
+    HintSystem.reset(); game.hints = {}; HintSystem.show(game, 'dash'); game.state = 'battle'; game.battle = { phase: 'command' };
+    HintSystem.renderToast(ctx, game); o.hintHidden = wins === 0;
+    HintSystem.reset(); game.hints = {}; HintSystem.show(game, 'battle'); wins = 0;
+    HintSystem.renderToast(ctx, game); o.hintShown = wins === 1;
+    game.battle.phase = 'win'; wins = 0; HintSystem.renderToast(ctx, game); o.hintWin = wins === 0;
+    UI.drawWindow = origWin; HintSystem.reset();
     game.state = 'map'; game.battle = null;
     return o;
   });
+  ok(bs.wrap, 'the message window keeps every line and wraps long ones', JSON.stringify(bs));
+  ok(bs.hintHidden && bs.hintShown && bs.hintWin, 'walking hints stay out of battle and no hint covers the victory banner', JSON.stringify(bs));
   ok(bs.items, 'the battle item list scrolls instead of running off the screen', JSON.stringify(bs));
   ok(bs.hidden && bs.feedback && bs.exec, 'the battle message window no longer covers the command menu', JSON.stringify(bs));
   ok(bs.loop, 'an exception in one frame is reported but the game loop keeps running');

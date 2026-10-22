@@ -25,6 +25,8 @@ var HintSystem = (function() {
     enter_abyss:  function() { return ['しんえんの めいきゅう。てきは さらに つよい', 'たからばこと うらボスが まっている']; }
   };
 
+  var BATTLE_HINTS = ['battle', 'poison', 'bestiary'];
+
   function sanitize(raw) {
     var out = {};
     var veteran = !raw || typeof raw !== 'object';
@@ -50,6 +52,11 @@ var HintSystem = (function() {
   function renderToast(ctx, game) {
     var st = game.state, now = Date.now();
     var okState = st === 'map' || st === 'battle' || st === 'dialogue';
+    // A battle only shows the hints about fighting; others (movement, dash ...) wait for the map instead of sitting over the fight
+    var head = cur || (queue.length ? (queue[0].lines ? { lines: true } : { id: queue[0] }) : null);
+    var bph = game.battle && game.battle.phase;
+    if (st === 'battle' && (bph === 'win' || bph === 'levelup' || bph === 'lose')) okState = false;   // never over the victory banner
+    if (st === 'battle' && head && !head.lines && BATTLE_HINTS.indexOf(head.id) < 0) okState = false;
     if (!cur) {
       if (!okState || !queue.length) return;
       var nx = queue.shift();
