@@ -85,9 +85,21 @@ function tgt0(b) { var best = -1; b.enemies.forEach(function(e, i) { if (e.alive
 function planRound(g) {
   var b = g.battle, cmds = [], ne = aliveEnemies(b).length;
   var storing = b.enemies.some(function(e) { return e.alive && e.charging; });
+  // Combos (NOCOMBO=1 switches them off): two full gauges at once; the first member casts, the partner just defends
+  var comboPlan = null;
+  if (!process.env.NOLIMIT && !process.env.NOCOMBO && !storing) {
+    var pm = g.party, rdy = function(m) { return m.alive && (m.limit || 0) >= 100; };
+    var bossUp2 = b.enemies.some(function(e) { return e.alive && e.boss; });
+    var hurt = pm.some(function(m) { return !m.alive || m.hp / m.maxHp < 0.5; });
+    if (rdy(pm[0]) && rdy(pm[1])) comboPlan = { spell: 'comboFlame', a: 0, b: 1, tt: 'enemy' };
+    else if (rdy(pm[1]) && rdy(pm[2]) && (ne >= 2 || bossUp2)) comboPlan = { spell: 'comboHoly', a: 1, b: 2, tt: 'allEnemy' };
+    else if (rdy(pm[0]) && rdy(pm[2]) && hurt) comboPlan = { spell: 'comboGuard', a: 0, b: 2, tt: 'party' };
+  }
   g.party.forEach(function(c, i) {
     if (!c.alive) return;
     var P = function(o) { o.actor = i; o.actorType = 'party'; cmds.push(o); };
+    if (comboPlan && i === comboPlan.b) return P({ action: 'defend' });
+    if (comboPlan && i === comboPlan.a) { COMBOUSES[comboPlan.spell] = (COMBOUSES[comboPlan.spell] || 0) + 1; return P({ action: 'spell', spellId: comboPlan.spell, partner: comboPlan.b, target: comboPlan.tt === 'enemy' ? strongest(b) : -1, targetType: comboPlan.tt }); }
     if (storing && c.classId !== 'sundar') return P({ action: 'defend' });   // brace for the boss's stored attack
     var hpr = c.hp / c.maxHp;
     var inv = function(id) { return g.inventory.filter(function(x) { return x.id === id && x.count > 0; })[0]; };
@@ -130,7 +142,7 @@ function planRound(g) {
   return cmds;
 }
 
-var DMG = {}, LIMITUSES = {};
+var DMG = {}, LIMITUSES = {}, COMBOUSES = {};
 // Fights one battle. Returns { won, rounds }
 function fight(g, ids) {
   BattleSystem.startBattle(g, ids);
@@ -316,4 +328,4 @@ Object.keys(byLv).sort(function(a, b) { return a - b; }).forEach(function(l) { v
 console.log('damage share (party attack damage): ' + ['sam', 'dario', 'sundar'].map(function(k) { var t = (DMG.sam || 0) + (DMG.dario || 0) + (DMG.sundar || 0); return k + ' ' + ((DMG[k] || 0) / t * 100).toFixed(0) + '%'; }).join('  '));
 console.log('boss win rate: ' + (bossWin / runs * 100).toFixed(0) + '%  avg rounds: ' + (bossRounds / runs).toFixed(1));
 console.log('sample end state: Lv ' + last.boss.lv + '  gear ' + last.boss.gear);
-if (process.env.LIMITLOG) console.log('limit skill casts (all runs): ' + JSON.stringify(LIMITUSES));
+if (process.env.LIMITLOG) console.log('limit skill casts (all runs): ' + JSON.stringify(LIMITUSES) + '  combo casts: ' + JSON.stringify(COMBOUSES));

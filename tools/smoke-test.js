@@ -586,6 +586,54 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(lm.sam && lm.dario && lm.sundar, 'Sam hits hard, Dario hits every enemy, Sundar heals everyone and raises the fallen; the gauge empties', JSON.stringify(lm));
   ok(lm.noSave, 'the limit gauge is battle-only and never saved', JSON.stringify(lm));
 
+  console.log('\n[combo skills]');
+  var cb = await ev(function() {
+    newGame(); game.state = 'map'; game.hints = {}; HintSystem.reset(); var o = {};
+    game.party.forEach(function(c) { c.level = 12; c.hp = c.maxHp = 200; c.mp = c.maxMp = 60; c.atk = 80; c.int = 80; });
+    BattleSystem.startBattle(game, ['darkKnight', 'darkKnight']); var b = game.battle; b.phase = 'command'; b.messageTimer = 0;
+    var ids = function(i) { return BattleSystem.getAvailableSpells(game.party[i], game).map(function(s) { return s.id; }); };
+    o.none = ids(0).indexOf('comboFlame') < 0;
+    game.party[0].limit = 100; game.party[1].limit = 100;
+    o.offer = ids(0)[0] === 'comboFlame' && ids(0)[1] === 'limitSam' && ids(1).indexOf('comboFlame') < 0;   // only the first of the pair is offered it, above the single skill
+    o.noGuard = ids(0).indexOf('comboGuard') < 0 && ids(1).indexOf('comboHoly') < 0;                       // Sundar's gauge is empty
+    // choosing it uses up the partner's turn
+    b.currentChar = 0; b.commands = [{ actor: 0, actorType: 'party', action: 'spell', spellId: 'comboFlame', target: 0, targetType: 'enemy' }];
+    BattleSystem.nextCharCommand(game);
+    o.partner = b.commands.length === 2 && b.commands[1].actor === 1 && b.commands[1].action === 'defend' && b.commands[0].partner === 1 && b.comboSkip[1] === true && b.currentChar === 2;
+    // it hits harder than the two single skills together, and spends both gauges
+    var e0 = b.enemies[0]; e0.hp = e0.maxHp = 5000; var hp0 = e0.hp;
+    BattleSystem.executeSpell(game, b.commands[0]);
+    var dmg = hp0 - e0.hp;
+    o.flame = dmg > 2 * (Math.floor(80 * 4 / 2 - e0.def * 0.2 / 4)) && game.party[0].limit === 0 && game.party[1].limit === 0 && /＆/.test(b.limitCut.who);
+    // holy meteor: every enemy, plus a little healing
+    b.enemies.forEach(function(e) { e.hp = e.maxHp; e.alive = true; });
+    game.party[1].limit = 100; game.party[2].limit = 100; game.party[0].hp = 100;
+    BattleSystem.executeSpell(game, { actor: 1, actorType: 'party', action: 'spell', spellId: 'comboHoly', partner: 2, target: -1, targetType: 'allEnemy' });
+    o.holy = b.enemies.every(function(e) { return e.hp < e.maxHp; }) && game.party[0].hp === 100 + Math.ceil(200 * 0.2) && game.party[1].limit === 0 && game.party[2].limit === 0;
+    // guard: heal, raise the fallen, cure poison, buffs
+    game.party[0].limit = 100; game.party[2].limit = 100; game.party[1].hp = 0; game.party[1].alive = false; game.party[2].poisoned = true; game.party[0].hp = 20;
+    BattleSystem.executeSpell(game, { actor: 0, actorType: 'party', action: 'spell', spellId: 'comboGuard', partner: 2, target: -1, targetType: 'party' });
+    o.guard = game.party[1].alive && game.party[1].hp === Math.ceil(200 * 0.35) && game.party[0].hp === 20 + Math.ceil(200 * 0.4) && !game.party[2].poisoned && game.party[0].buffs.def.mult === 1.4 && game.party[2].buffs.atk.mult === 1.25;
+    // a partner who has fallen makes it fizzle without spending anything
+    game.party[0].limit = 100; game.party[1].limit = 100; game.party[1].alive = false;
+    var hpF = b.enemies[0].hp;
+    BattleSystem.executeSpell(game, { actor: 0, actorType: 'party', action: 'spell', spellId: 'comboFlame', partner: 1, target: 0, targetType: 'enemy' });
+    o.fizzle = game.party[0].limit === 100 && game.party[1].limit === 100 && b.enemies[0].hp === hpF && /しっぱい/.test(b.messages.join(''));
+    // the list labels and the round banner draw without errors; the skip list resets with the next round
+    game.party[1].alive = true; game.party[0].limit = 100; game.party[1].limit = 100; b.comboSkip = {}; b.phase = 'spellSelect'; b.currentChar = 0; b.spellIndex = 0; b.messageTimer = 0;
+    var labels = [], origMenu = UI.drawMenu; UI.drawMenu = function(c, x, y, w, items) { labels = items; return origMenu.apply(UI, arguments); };
+    BattleSystem.render(ctx, game, 640, 480); UI.drawMenu = origMenu;
+    o.label = /^★★ ほのおのつるぎ/.test(labels[0]);
+    b.comboSkip = { 1: true }; b.currentAction = b.turnQueue.length; b.phase = 'execute'; b.enemies.forEach(function(e) { e.alive = true; });
+    BattleSystem.executeNextAction(game); o.reset = Object.keys(b.comboSkip).length === 0;
+    game.battle = null; game.state = 'map';
+    return o;
+  });
+  ok(cb.none && cb.offer && cb.noGuard, 'a combo is offered only with two full gauges, to the first of the pair, above the single skill', JSON.stringify(cb));
+  ok(cb.partner && cb.label && cb.reset, 'a combo uses up the partner turn (defend, skipped in the command order) and shows its ★★ label', JSON.stringify(cb));
+  ok(cb.flame && cb.holy && cb.guard, 'the three combos hit, heal and buff as designed and spend both gauges', JSON.stringify(cb));
+  ok(cb.fizzle, 'a combo fizzles without spending anything when the partner has fallen', JSON.stringify(cb));
+
   console.log('\n[arena]');
   var ar = await ev(function() {
     newGame(); game.state = 'map'; var o = {};

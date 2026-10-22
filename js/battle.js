@@ -93,6 +93,7 @@ var BattleSystem = {
     heal: 'heal', enemyHeal: 'heal', holyLight: 'holy', enemyDark: 'dark', enemyDoom: 'dark', enemyCrystal: 'ice',
     weaken: 'debuffAtk', armorBreak: 'debuffDef', cure: 'cure', sleep: 'sleep', magicBoost: 'buffInt',
     limitSam: 'slash', limitDario: 'fire', limitSundar: 'holy',
+    comboFlame: 'fire', comboHoly: 'holy', comboGuard: 'holy',
   },
 
   // Party spells: ms of casting (rune circle + travelling orb) before the effect lands, and element colour
@@ -304,7 +305,7 @@ var BattleSystem = {
           b.pendingAction = 'attack';
           break;
         case 1: // Magic
-          var spells = this.getAvailableSpells(game.party[b.currentChar]);
+          var spells = this.getAvailableSpells(game.party[b.currentChar], game);
           if (spells.length === 0) {
             b.messages = ['じゅもんを おぼえていない！'];
             b.messageTimer = 30;
@@ -405,7 +406,7 @@ var BattleSystem = {
 
   handleSpellInput: function(game, key) {
     var b = game.battle;
-    var spells = this.getAvailableSpells(game.party[b.currentChar]);
+    var spells = this.getAvailableSpells(game.party[b.currentChar], game);
     if (key === 'up') {
       b.spellIndex = (b.spellIndex - 1 + spells.length) % spells.length;
       SoundSystem.cursor();
@@ -530,17 +531,51 @@ var BattleSystem = {
       m.hpMark = m.hp;
       if (was < 100 && m.limit >= 100) { m.limitFullAt = Date.now(); ready.push(m.name); }
     }
+    var pairReady = false;                                      // two full gauges at once: a combo is available
+    for (var ci = 0; ci < COMBOS.length && !pairReady; ci++) {
+      var cA = null, cB = null;
+      for (var cj = 0; cj < game.party.length; cj++) { if (game.party[cj].classId === COMBOS[ci].pair[0]) cA = game.party[cj]; if (game.party[cj].classId === COMBOS[ci].pair[1]) cB = game.party[cj]; }
+      if (cA && cB && cA.alive && cB.alive && cA.limit >= 100 && cB.limit >= 100 && (ready.indexOf(cA.name) >= 0 || ready.indexOf(cB.name) >= 0)) pairReady = true;
+    }
+    if (pairReady) HintSystem.show(game, 'combo');
     if (ready.length) {
       b.messages = [ready.join('・') + 'の ひっさつ ゲージが たまった！'];
+      if (pairReady) b.messages.push('ふたりの ゲージが まんたん！ れんけいわざが つかえる！');
       b.messageTimer = 50;
       SoundSystem.limitReady();
       HintSystem.show(game, 'limit');
     }
   },
 
-  getAvailableSpells: function(char) {
+  // The other member of a combo, given the caster's index (-1 when the spell is not a combo of that member)
+  comboPartner: function(game, spellId, casterIdx) {
+    var cb = null, cid = game.party[casterIdx].classId;
+    for (var i = 0; i < COMBOS.length; i++) if (COMBOS[i].spell === spellId) cb = COMBOS[i];
+    if (!cb || cb.pair.indexOf(cid) < 0) return -1;
+    var other = cb.pair[0] === cid ? cb.pair[1] : cb.pair[0];
+    for (var j = 0; j < game.party.length; j++) if (game.party[j].classId === other) return j;
+    return -1;
+  },
+
+  // Combos a member can start now: both gauges full, both alive, and this member comes first in the party order
+  availableCombos: function(game, idx) {
+    var me = game.party[idx], out = [];
+    if (!me.alive || (me.limit || 0) < 100) return out;
+    for (var i = 0; i < COMBOS.length; i++) {
+      var cb = COMBOS[i];
+      if (cb.pair.indexOf(me.classId) < 0) continue;
+      var pIdx = this.comboPartner(game, cb.spell, idx);
+      if (pIdx <= idx) continue;
+      var pm = game.party[pIdx];
+      if (pm.alive && (pm.limit || 0) >= 100 && !(game.battle && game.battle.comboSkip && game.battle.comboSkip[pIdx])) out.push({ id: cb.spell, learnLevel: 0 });
+    }
+    return out;
+  },
+
+  getAvailableSpells: function(char, game) {
     var charDef = CHARACTERS[char.classId];
     var available = [];
+    if (game) available = available.concat(this.availableCombos(game, game.party.indexOf(char)));   // combos top the list
     if (char.alive && (char.limit || 0) >= 100 && charDef.limit) available.push({ id: charDef.limit, learnLevel: 0 });   // the limit skill tops the list
     for (var i = 0; i < charDef.spells.length; i++) {
       if (char.level >= charDef.spells[i].learnLevel) {
@@ -552,13 +587,24 @@ var BattleSystem = {
 
   skipDeadChars: function(game) {
     var b = game.battle;
-    while (b.currentChar < game.party.length && !game.party[b.currentChar].alive) {
+    while (b.currentChar < game.party.length && (!game.party[b.currentChar].alive || (b.comboSkip && b.comboSkip[b.currentChar]))) {
       b.currentChar++;
     }
   },
 
   nextCharCommand: function(game) {
     var b = game.battle;
+    // A combo spends the partner's turn too: they defend this round and are skipped in the command order
+    var last = b.commands[b.commands.length - 1];
+    if (last && last.actor === b.currentChar && last.action === 'spell' && SPELLS[last.spellId] && SPELLS[last.spellId].combo && last.partner === undefined) {
+      var pIdx = this.comboPartner(game, last.spellId, b.currentChar);
+      if (pIdx >= 0) {
+        last.partner = pIdx;
+        b.commands.push({ actor: pIdx, actorType: 'party', action: 'defend' });
+        b.comboSkip = b.comboSkip || {};
+        b.comboSkip[pIdx] = true;
+      }
+    }
     b.currentChar++;
     b.commandIndex = 0;
     this.skipDeadChars(game);
@@ -667,6 +713,7 @@ var BattleSystem = {
       // Decrease buff durations
       this.tickBuffs(game);
       this.chargeLimit(game);
+      b.comboSkip = {};
       b.phase = 'command';
       b.currentChar = 0;
       b.commandIndex = 0;
@@ -902,6 +949,19 @@ var BattleSystem = {
       b.limitCut = { name: spell.name, who: caster.name, t0: Date.now(), dur: 1200 };
       SoundSystem.limitCut();
     }
+    if (spell.combo && cmd.actorType === 'party') {
+      // Both gauges are spent; if either member is gone or empty by now the combo fizzles and nothing is lost
+      var cp = game.party[cmd.partner];
+      if (!cp || !cp.alive || (cp.limit || 0) < 100 || (caster.limit || 0) < 100) {
+        b.messages = ['れんけいは しっぱいした…'];
+        b.messageTimer = 40;
+        return;
+      }
+      caster.limit = 0; cp.limit = 0;
+      b.messages = [caster.name + '＆' + cp.name + 'の れんけいわざ！', spell.name + '！'];
+      b.limitCut = { name: spell.name, who: caster.name + '＆' + cp.name, label: 'れんけいわざ', t0: Date.now(), dur: 1200 };
+      SoundSystem.limitCut();
+    }
     if (cmd.charged) {
       caster.charging = false;
       b.messages = ['ためていた 力が 解き放たれた！', caster.name + 'の 全力の ' + spell.name + '！'];
@@ -913,14 +973,14 @@ var BattleSystem = {
     var tint = this.ENEMY_CAST_TINT[cmd.spellId] || '200,200,255';
     var pKind = cmd.actorType === 'party' ? this.EFFECT_KINDS[cmd.spellId] : null;
     var pd = pKind ? (this.PARTY_CAST_DELAY[pKind] || 0) : 0;   // party casting time (effect, numbers, shake wait for it)
-    if (spell.limit && cmd.actorType === 'party') pd += 650;     // a limit skill takes longer: its cut-in plays first
+    if ((spell.limit || spell.combo) && cmd.actorType === 'party') pd += 650;     // a limit skill takes longer: its cut-in plays first
     var fd = ed || pd;
     if (ed) b.enemyCast = { idx: cmd.actor, t0: Date.now(), dur: ed + 350, tint: tint, spellId: cmd.spellId, ed: ed, boss: !!caster.boss };
 
     // 呪文のビジュアルエフェクト
     var fxSide = 'enemy', fxIdx = -1;
     if (cmd.actorType === 'party') {
-      if (spell.type === 'buff' || spell.type === 'limitHeal') { fxSide = 'party'; fxIdx = -1; }
+      if (spell.type === 'buff' || spell.type === 'limitHeal' || spell.type === 'comboGuard') { fxSide = 'party'; fxIdx = -1; }
       else if (spell.type === 'heal') { fxSide = 'party'; fxIdx = (cmd.target >= 0 ? cmd.target : this.findHealTarget(game)); }
       else if (spell.target === 'allEnemy') { fxSide = 'enemy'; fxIdx = -1; }
       else { fxSide = 'enemy'; fxIdx = cmd.target; }
@@ -1050,6 +1110,59 @@ var BattleSystem = {
         if (fd) healTarget.hpBarUntil = Date.now() + fd + 2000;
         b.messages.push(healTarget.name + 'の HPが ' + heal + ' かいふくした！');
       }
+    } else if (spell.type === 'comboAttack') {
+      // Damage from both members' stats; the holy one also heals the party a little
+      var cbDef = COMBOS.filter(function(c) { return c.spell === cmd.spellId; })[0];
+      var cPart = game.party[cmd.partner];
+      var statSum = this.getEffectiveStat(caster, cbDef.stats[caster.classId] || 'atk') + this.getEffectiveStat(cPart, cbDef.stats[cPart.classId] || 'atk');
+      var cTargets = [];
+      if (spell.target === 'allEnemy') {
+        for (var ce = 0; ce < b.enemies.length; ce++) if (b.enemies[ce].alive) cTargets.push(b.enemies[ce]);
+      } else {
+        var ct0 = b.enemies[cmd.target];
+        if (!ct0 || !ct0.alive) { for (var ck = 0; ck < b.enemies.length; ck++) if (b.enemies[ck].alive) { ct0 = b.enemies[ck]; break; } }
+        if (ct0 && ct0.alive) cTargets.push(ct0);
+      }
+      var cShake = function() { BattleSystem.shake(game, 16, 650); };
+      if (fd) setTimeout(function() { if (game.battle === b) cShake(); }, fd); else cShake();
+      for (var cx = 0; cx < cTargets.length; cx++) {
+        var ctg = cTargets[cx];
+        var cdmg = Math.max(1, Math.floor(spell.power + spell.k * statSum - this.getEffectiveStat(ctg, 'def') / 6 + (Math.random() * 8 - 4)));
+        ctg.hp = Math.max(0, ctg.hp - cdmg);
+        this.pop(game, ctg, cdmg, 'dmg', fd);
+        b.messages.push(ctg.name + 'に ' + cdmg + 'の ダメージ！');
+        if (ctg.hp <= 0) { ctg.alive = false; ctg.hp = 0; b.messages.push(ctg.name + 'を たおした！'); }
+      }
+      if (spell.heal) {
+        for (var ch = 0; ch < game.party.length; ch++) {
+          var cm = game.party[ch];
+          if (!cm.alive) continue;
+          var chh = Math.min(cm.maxHp - cm.hp, Math.ceil(cm.maxHp * spell.heal));
+          cm.hp += chh; cm.hpMark = cm.hp;
+          if (chh > 0) this.pop(game, cm, chh, 'heal', fd);
+          cm.hpBarUntil = Date.now() + fd + 2000;
+        }
+        b.messages.push('みんなの きずが いえていく…');
+      }
+    } else if (spell.type === 'comboGuard') {
+      for (var cg = 0; cg < game.party.length; cg++) {
+        var gm = game.party[cg];
+        if (!gm.alive) {
+          gm.alive = true; gm.hp = Math.max(1, Math.ceil(gm.maxHp * spell.revive));
+          this.pop(game, gm, gm.hp, 'heal', fd);
+          b.messages.push(gm.name + 'が ふっかつした！');
+        } else {
+          var gh = Math.min(gm.maxHp - gm.hp, Math.ceil(gm.maxHp * spell.heal));
+          gm.hp += gh;
+          if (gh > 0) this.pop(game, gm, gh, 'heal', fd);
+        }
+        gm.poisoned = false; gm.hpMark = gm.hp;
+        gm.buffs = gm.buffs || {};
+        gm.buffs.def = { mult: 1.4, turns: 3 };
+        gm.buffs.atk = { mult: 1.25, turns: 3 };
+        gm.hpBarUntil = Date.now() + fd + 2000;
+      }
+      b.messages.push('みんなの 守りと 攻めが あがった！');
     } else if (spell.type === 'limitHeal') {
       // Everyone is healed, the fallen are raised and poison is gone
       for (var lh = 0; lh < game.party.length; lh++) {
