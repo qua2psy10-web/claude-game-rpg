@@ -521,29 +521,35 @@ var BattleSystem = {
 
   // Limit gauge: at the end of every round each living member gains 2 + 0.4 x (HP lost this round, in % of max HP)
   chargeLimit: function(game) {
-    var b = game.battle, ready = [];
+    var b = game.battle, ready = [], was0 = [];
     for (var i = 0; i < game.party.length; i++) {
       var m = game.party[i];
+      was0[i] = m.limit || 0;
       if (!m.alive) { m.hpMark = m.hp; continue; }
       var lost = Math.max(0, (m.hpMark === undefined ? m.hp : m.hpMark) - m.hp);
-      var was = m.limit || 0;
-      m.limit = Math.min(100, was + 2 + 0.4 * (lost / m.maxHp * 100));
+      m.limit = Math.min(100, was0[i] + 2 + 0.4 * (lost / m.maxHp * 100));
       m.hpMark = m.hp;
-      if (was < 100 && m.limit >= 100) { m.limitFullAt = Date.now(); ready.push(m.name); }
+    }
+    for (var fi = 0; fi < game.party.length; fi++) {
+      if (game.party[fi].alive && was0[fi] < 100 && game.party[fi].limit >= 100) { game.party[fi].limitFullAt = Date.now(); ready.push(game.party[fi].name); }
     }
     var pairReady = false;                                      // two full gauges at once: a combo is available
     for (var ci = 0; ci < COMBOS.length && !pairReady; ci++) {
       var cA = null, cB = null;
       for (var cj = 0; cj < game.party.length; cj++) { if (game.party[cj].classId === COMBOS[ci].pair[0]) cA = game.party[cj]; if (game.party[cj].classId === COMBOS[ci].pair[1]) cB = game.party[cj]; }
-      if (cA && cB && cA.alive && cB.alive && cA.limit >= 100 && cB.limit >= 100 && (ready.indexOf(cA.name) >= 0 || ready.indexOf(cB.name) >= 0)) pairReady = true;
+      if (cA && cB && cA.alive && cB.alive && cA.limit >= COMBO_GAUGE && cB.limit >= COMBO_GAUGE && (was0[game.party.indexOf(cA)] < COMBO_GAUGE || was0[game.party.indexOf(cB)] < COMBO_GAUGE)) pairReady = true;   // newly available
     }
     if (pairReady) HintSystem.show(game, 'combo');
     if (ready.length) {
       b.messages = [ready.join('・') + 'の ひっさつ ゲージが たまった！'];
-      if (pairReady) b.messages.push('ふたりの ゲージが まんたん！ れんけいわざが つかえる！');
       b.messageTimer = 50;
       SoundSystem.limitReady();
       HintSystem.show(game, 'limit');
+    }
+    if (pairReady) {
+      b.messages = (ready.length ? b.messages : []).concat(['ふたりの ゲージが たまった！ れんけいわざが つかえる！']);
+      b.messageTimer = 50;
+      if (!ready.length) SoundSystem.limitReady();
     }
   },
 
@@ -560,14 +566,14 @@ var BattleSystem = {
   // Combos a member can start now: both gauges full, both alive, and this member comes first in the party order
   availableCombos: function(game, idx) {
     var me = game.party[idx], out = [];
-    if (!me.alive || (me.limit || 0) < 100) return out;
+    if (!me.alive || (me.limit || 0) < COMBO_GAUGE) return out;
     for (var i = 0; i < COMBOS.length; i++) {
       var cb = COMBOS[i];
       if (cb.pair.indexOf(me.classId) < 0) continue;
       var pIdx = this.comboPartner(game, cb.spell, idx);
       if (pIdx <= idx) continue;
       var pm = game.party[pIdx];
-      if (pm.alive && (pm.limit || 0) >= 100 && !(game.battle && game.battle.comboSkip && game.battle.comboSkip[pIdx])) out.push({ id: cb.spell, learnLevel: 0 });
+      if (pm.alive && (pm.limit || 0) >= COMBO_GAUGE && !(game.battle && game.battle.comboSkip && game.battle.comboSkip[pIdx])) out.push({ id: cb.spell, learnLevel: 0 });
     }
     return out;
   },
@@ -952,7 +958,7 @@ var BattleSystem = {
     if (spell.combo && cmd.actorType === 'party') {
       // Both gauges are spent; if either member is gone or empty by now the combo fizzles and nothing is lost
       var cp = game.party[cmd.partner];
-      if (!cp || !cp.alive || (cp.limit || 0) < 100 || (caster.limit || 0) < 100) {
+      if (!cp || !cp.alive || (cp.limit || 0) < COMBO_GAUGE || (caster.limit || 0) < COMBO_GAUGE) {
         b.messages = ['れんけいは しっぱいした…'];
         b.messageTimer = 40;
         return;
