@@ -88,12 +88,13 @@ var UI = {
   // Draw character status (name, HP, MP)
   drawCharStatus: function(ctx, char, x, y, compact) {
     if (compact) {
-      var nameW = 80;
+      // Fits 234 px: name (4 chars), "HP 999/999", "MP 999/999" (the values used to start 202 px in and ran off the screen from 2-digit MP up)
+      var nameW = 60;
       this.drawText(ctx, char.name, x, y, char.alive ? '#fff' : '#888', this.FONT_SMALL);
       this.drawText(ctx, 'HP', x + nameW, y, '#ff8', this.FONT_SMALL);
       this.drawText(ctx, char.hp + '/' + char.maxHp, x + nameW + 22, y, char.hp <= char.maxHp * 0.25 ? '#f44' : '#fff', this.FONT_SMALL);
-      this.drawText(ctx, 'MP', x + nameW + 100, y, '#8cf', this.FONT_SMALL);
-      this.drawText(ctx, char.mp + '/' + char.maxMp, x + nameW + 122, y, '#fff', this.FONT_SMALL);
+      this.drawText(ctx, 'MP', x + nameW + 98, y, '#8cf', this.FONT_SMALL);
+      this.drawText(ctx, char.mp + '/' + char.maxMp, x + nameW + 120, y, '#fff', this.FONT_SMALL);
     } else {
       this.drawText(ctx, char.name + ' Lv.' + char.level, x, y);
       this.drawText(ctx, 'HP', x, y + 22, '#ff8');

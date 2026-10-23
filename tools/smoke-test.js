@@ -638,6 +638,58 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(cb.flame && cb.holy && cb.guard, 'the three combos hit, heal and buff as designed and spend both gauges', JSON.stringify(cb));
   ok(cb.fizzle, 'a combo fizzles without spending anything when the partner has fallen', JSON.stringify(cb));
 
+  console.log('\n[screen edges]');
+  var edge = await ev(function() {
+    // Every text and window must stay inside the 640x480 canvas: the map HUD at its largest values, battle screens (every enemy group, every phase),
+    // every dialogue line, every shop. (The HUD used to push 2-digit MP off the right edge on every map.)
+    var flagged = {}, label = '', n = 0;
+    var P = CanvasRenderingContext2D.prototype, origText = P.fillText, origWin = UI.drawWindow, T = 5000000, realNow = Date.now;
+    P.fillText = function(s, x, y) {
+      var w = this.measureText(String(s)).width, al = this.textAlign, x0 = al === 'center' ? x - w / 2 : (al === 'right' || al === 'end') ? x - w : x;
+      if ((x0 < -1 || x0 + w > 641 || y > 481) && !flagged[label + s]) flagged[label + s] = label + ': ' + String(s).slice(0, 30);
+      return origText.apply(this, arguments);
+    };
+    UI.drawWindow = function(c, x, y, w, h) { if ((x < 0 || y < 0 || x + w > 641 || y + h > 481) && !flagged[label + 'win' + x + y]) flagged[label + 'win' + x + y] = label + ': window ' + [x, y, w, h]; return origWin.apply(UI, arguments); };
+    Date.now = function() { return T; };
+    var frame = function(l) { label = l; n++; game.banner = null; game.bannerMap = game.currentMap; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, 640, 480); render(); };
+    try {
+      newGame(); game.state = 'map'; game.hints = {}; game.gold = 999999; game.cycle = 3;
+      game.party.forEach(function(c) { c.level = 50; c.maxHp = c.hp = 999; c.maxMp = c.mp = 199; });
+      frame('map HUD');
+      var groups = [];
+      ['world', 'forest', 'castle', 'abyss', 'crystalCave'].forEach(function(m) { var e = MAPS[m].encounters; Object.keys(e).forEach(function(k) { e[k].forEach(function(g) { groups.push(g.enemies); }); }); });
+      ['demonKing', 'zelgios', 'crystalGuardian'].forEach(function(id) { groups.push([id]); });
+      ARENA.courses.forEach(function(c) { c.rounds.forEach(function(r) { groups.push(r); }); });
+      groups.forEach(function(g) {
+        BattleSystem.startBattle(game, g); game.state = 'battle'; var b = game.battle;
+        b.introStart = T - 20000; b.bossIntro = false;                       // past the slide-in banners (they start off screen on purpose)
+        game.party.forEach(function(c) { c.limit = 100; }); game.party[2].poisoned = true; game.party[1].buffs = { atk: { mult: 1.2, turns: 2 }, int: { mult: 1.5, turns: 3 }, def: { mult: 1.2, turns: 1 } };
+        ['command', 'spellSelect', 'itemSelect', 'targeting', 'execute', 'win', 'lose'].forEach(function(ph) {
+          b.phase = ph; b.spellIndex = 0; b.itemIndex = 0; b.targetIndex = 0; b.messages = ['メッセージ', 'ライン', 'ダメージ']; b.messageTimer = 60;
+          [0, 1, 2].forEach(function(ci) { b.currentChar = ci; T += 400; frame('battle ' + g.join('+') + ' ' + ph); });
+        });
+        game.battle = null;
+      });
+      game.state = 'map'; game.gold = 999999;
+      Object.keys(SHOPS).forEach(function(sid) { openShop(sid); for (var i = 0; i < SHOPS[sid].items.length; i++) { game.shopState.index = i; frame('shop ' + sid + ' ' + i); } });
+      // the equipment picker with a full bag (twelve weapons Sam can use): the list scrolls instead of leaving the screen
+      game.state = 'menu'; game.equipInventory = [];
+      Object.keys(WEAPONS).filter(function(k) { return WEAPONS[k].equip.indexOf('sam') >= 0; }).slice(0, 12).forEach(function(k) { game.equipInventory.push({ id: k, type: 'weapon' }); });
+      var nWeap = game.equipInventory.length;
+      [0, 5, nWeap - 1].forEach(function(idx) { game.menuState = { index: 0, subState: 'equipSelect', charIndex: 0, equipIndex: 0, subIndex: idx }; frame('equip picker ' + idx + '/' + nWeap); });
+      game.state = 'dialogue';
+      var dlg = function(lines, l) { game.dialogue = lines; for (var i = 0; i < lines.length; i++) { game.dialogueIndex = i; frame('dialogue ' + l); } };
+      Object.keys(MAPS).forEach(function(m) {
+        game.currentMap = m;
+        (MAPS[m].npcs || []).forEach(function(npc) { dlg(npc.dialogue || [], m + ' ' + npc.name); (npc.talk || []).forEach(function(tk) { dlg(tk.lines, m + ' ' + npc.name); }); });
+        Object.keys(MAPS[m].events || {}).forEach(function(k) { var e = MAPS[m].events[k]; if (e.msg) dlg([e.msg], m + ' chest'); if (e.preBattle) dlg(e.preBattle, m + ' pre'); if (e.postBattle) dlg(e.postBattle, m + ' post'); });
+      });
+      Object.keys(QUESTS).forEach(function(q) { ['offer', 'active', 'done'].forEach(function(k) { dlg(QUESTS[q].lines[k], 'quest ' + q); }); });
+    } finally { P.fillText = origText; UI.drawWindow = origWin; Date.now = realNow; game.state = 'map'; game.battle = null; game.dialogue = null; }
+    return { frames: n, flagged: Object.keys(flagged).map(function(k) { return flagged[k]; }) };
+  });
+  ok(edge.frames > 300 && edge.flagged.length === 0, 'no text or window runs off the screen (map HUD, every battle group and phase, shops, the equipment picker, dialogues)', edge.frames + ' frames; ' + edge.flagged.slice(0, 4).join(' | '));
+
   console.log('\n[arena]');
   var ar = await ev(function() {
     newGame(); game.state = 'map'; var o = {};
