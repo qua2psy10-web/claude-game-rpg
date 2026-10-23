@@ -73,7 +73,9 @@ var HintSystem = (function() {
     if (t > TOAST_MS) { cur = null; return; }
     var lines = cur.lines || TEXT[cur.id]();
     var a = Math.min(1, t / 250, (TOAST_MS - t) / 400);
-    var w = 400, h = 22 + lines.length * 20;
+    ctx.font = UI.FONT_SMALL;
+    var w = 52, h = 22 + lines.length * 20;                    // as wide as its longest line, so it stays clear of the party window on the map
+    for (var li = 0; li < lines.length; li++) w = Math.max(w, Math.ceil(ctx.measureText(lines[li]).width) + 52);
     ctx.save();
     ctx.globalAlpha = a;
     UI.drawWindow(ctx, 4, 38, w, h);

@@ -440,12 +440,12 @@ var MapSystem = {
   // Render HUD overlay on map
   renderHUD: function(ctx, game) {
     // Party status window (top-right)
-    UI.drawWindow(ctx, 400, 4, 234, 96);
+    UI.drawWindow(ctx, 376, 4, 260, 96);
     for (var i = 0; i < game.party.length; i++) {
-      UI.drawCharStatus(ctx, game.party[i], 414, 14 + i * 22, true);
+      UI.drawCharStatus(ctx, game.party[i], 390, 14 + i * 22, true);
     }
     // Gold display
-    UI.drawText(ctx, game.gold + 'G', 414, 82, '#ffd700', UI.FONT_SMALL);
+    UI.drawText(ctx, game.gold + 'G', 390, 82, '#ffd700', UI.FONT_SMALL);
     // Location name
     var map = MAPS[game.currentMap];
     if (map) {

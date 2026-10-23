@@ -244,16 +244,23 @@ function renderMenu(ctx) {
   if (ms.subState === 'equipSelect') {
     var slotType = ['weapon', 'armor', 'accessory'][ms.equipIndex];
     var available = getEquipableItems(game, ms.charIndex, slotType);
-    UI.drawWindow(ctx, 180, 360, 440, 100);
+    // A tall window with a scrolling list (it used to be a 100 px box that held three rows, so the fourth bag item ran off the screen)
+    UI.drawWindow(ctx, 180, 200, 440, 260);
+    UI.drawText(ctx, '【どれを そうびする？】', 196, 210, '#ffd700');
     if (available.length === 0) {
-      UI.drawText(ctx, '装備できるものがない', 200, 375);
+      UI.drawText(ctx, '装備できるものがない', 200, 244);
     } else {
-      for (var q = 0; q < available.length; q++) {
-        var table = slotType === 'weapon' ? WEAPONS : slotType === 'armor' ? ARMORS : ACCESSORIES;
-        var qy = 375 + q * 24;
+      var table = slotType === 'weapon' ? WEAPONS : slotType === 'armor' ? ARMORS : ACCESSORIES;
+      var EQ_ROWS = 8;
+      var eqTop = Math.max(0, Math.min(ms.subIndex - EQ_ROWS + 1, available.length - EQ_ROWS));
+      if (ms.subIndex < eqTop) eqTop = ms.subIndex;
+      for (var q = eqTop; q < Math.min(available.length, eqTop + EQ_ROWS); q++) {
+        var qy = 238 + (q - eqTop) * 26;
         if (q === ms.subIndex) UI.drawText(ctx, UI.CURSOR, 196, qy);
         UI.drawText(ctx, slotType === 'accessory' ? table[available[q].id].name : SmithSystem.bagLabel(available[q]), 220, qy);
       }
+      if (eqTop > 0) UI.drawText(ctx, '▲', 592, 214, '#ffd700', UI.FONT_SMALL);
+      if (eqTop + EQ_ROWS < available.length) UI.drawText(ctx, '▼', 592, 440, '#ffd700', UI.FONT_SMALL);
     }
   }
 }
