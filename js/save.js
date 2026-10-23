@@ -73,6 +73,7 @@ function saveGame(manual) {
       hints: game.hints,
       achieved: game.achieved,
       quests: game.quests,
+      tower: game.tower,
       cycle: game.cycle,
       playTime: gameScore.playTime,
       savedAt: Date.now(),
@@ -143,6 +144,8 @@ function loadGame(slot) {
     HintSystem.reset();
     game.achieved = RecordsSystem.sanitize(data.achieved);
     game.quests = QuestSystem.sanitize(data.quests);
+    game.tower = TowerSystem.sanitize(data.tower);   // saves from before the tower have no progress
+    game.towerRun = null; game.towerFloorScale = 0;
     game.cycle = Math.max(1, Math.min(99, Math.floor(data.cycle) || 1));
     game.bestiary = BestiarySystem.sanitize(data.bestiary);   // saves from before the ずかん have none
     if (typeof data.playTime === 'number') gameScore.playTime = Math.max(gameScore.playTime, data.playTime);

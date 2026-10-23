@@ -60,6 +60,7 @@ function initGame() {
     bestiary: {},
     hints: {},
     quests: {},
+    tower: { best: 0, claimed: {} },
     cycle: 1,
     slot: 1,
     slotPick: null,
@@ -100,6 +101,8 @@ function newGame(slot) {
   game.bestiary = {};
   game.hints = {};
   game.quests = {};
+  game.tower = TowerSystem.fresh();
+  game.towerRun = null; game.towerFloorScale = 0; game.arena = null;
   game.achieved = {};
   game.cycle = 1;
   HintSystem.reset();
@@ -245,7 +248,7 @@ function partyBuffed() {
 function updateBgm() {
   var s = game.state;
   // Area ambience (wind, crickets, castle drone) under the BGM while exploring
-  var onMap = s === 'map' || s === 'menu' || s === 'dialogue' || s === 'shop' || s === 'smith' || s === 'dice' || s === 'arena' || s === 'mapTransition' || (s === 'inn' && !(game.innState && game.innState.phase === 'sleep'));
+  var onMap = s === 'map' || s === 'menu' || s === 'dialogue' || s === 'shop' || s === 'smith' || s === 'dice' || s === 'arena' || s === 'tower' || s === 'mapTransition' || (s === 'inn' && !(game.innState && game.innState.phase === 'sleep'));
   SoundSystem.setAmbience(onMap ? (game.currentMap === 'abyss' ? 'castle' : game.currentMap === 'haruka' ? 'millhaven' : game.currentMap) : null);
   if (game.encounterFx) return setBgm(null);   // the field music fades out as the encounter hits
   MusicSystem.setIntensity(battleIntensity());
@@ -257,7 +260,7 @@ function updateBgm() {
   if (s === 'ending')                                         return setBgm(null);
   if (s === 'inn' && game.innState && game.innState.phase === 'sleep') return setBgm(null);   // the night is quiet except for its own sounds
   if (s === 'map' || s === 'menu'     || s === 'dialogue' ||
-      s === 'shop' || s === 'smith' || s === 'dice' || s === 'arena' || s === 'inn'     || s === 'mapTransition') {
+      s === 'shop' || s === 'smith' || s === 'dice' || s === 'arena' || s === 'tower' || s === 'inn'     || s === 'mapTransition') {
     return setBgm(getMapBgm(game.currentMap));
   }
 }
@@ -344,6 +347,9 @@ function update(dt) {
     case 'arena':
       ArenaSystem.update(game, getInput());
       break;
+    case 'tower':
+      TowerSystem.update(game, getInput());
+      break;
     case 'inn':
       updateInn();
       break;
@@ -426,6 +432,11 @@ function updateDialogue() {
       if (game.currentNPC) {
         if (game.currentNPC.shop) {
           openShop(game.currentNPC.shop);
+          game.currentNPC = null;
+          return;
+        }
+        if (game.currentNPC.tower) {
+          TowerSystem.open(game);
           game.currentNPC = null;
           return;
         }
@@ -539,6 +550,11 @@ function renderScene() {
       MapSystem.renderHUD(ctx, game);
       ArenaSystem.render(ctx, game);
       break;
+    case 'tower':
+      MapSystem.render(ctx, game);
+      MapSystem.renderHUD(ctx, game);
+      TowerSystem.render(ctx, game);
+      break;
     case 'inn':
       MapSystem.render(ctx, game);
       MapSystem.renderHUD(ctx, game);
@@ -562,7 +578,7 @@ function endGameAndSave() {
   saveScore();
 
   // Save game position when in a safe state (not mid-battle)
-  var safeStates = ['map', 'menu', 'dialogue', 'inn', 'shop', 'smith', 'dice', 'arena', 'mapTransition'];
+  var safeStates = ['map', 'menu', 'dialogue', 'inn', 'shop', 'smith', 'dice', 'arena', 'tower', 'mapTransition'];
   if (game && safeStates.indexOf(game.state) >= 0) saveGame();
 
   // Return to title screen

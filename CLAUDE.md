@@ -103,7 +103,7 @@ This file provides guidance for Claude and human developers working on this proj
 
 ### Bestiary (ずかん)
 
-- **Where:** the in-game menu's ずかん: a list of all enemies (17 entries; the post-game ones come after the Demon King) and a detail panel with a portrait. Unmet enemies show as ？？？？.
+- **Where:** the in-game menu's ずかん: a list of all enemies (18 entries; the post-game ones come after the Demon King) and a detail panel with a portrait. Unmet enemies show as ？？？？.
 - **Records:** `game.bestiary = { enemyId: { seen, defeated } }`. `seen` goes up once per battle that includes the enemy; `defeated` per enemy killed (counted on a win, not when fleeing or losing). Stored in the save file as `bestiary` without a version bump; saves that lack it load as an empty bestiary (`BestiarySystem.sanitize`).
 - **Unlocks:** seen -> portrait, description, habitat (`desc`/`area` in `data.js`); 1 defeat -> HP / EXP / gold; 3 defeats -> ATK / DEF / SPD, poison chance and skills.
 - **Announcement:** enemies met for the first time are listed in the win messages ("…を ずかんに とうろくした！").
@@ -130,7 +130,7 @@ This file provides guidance for Claude and human developers working on this proj
 - **Flow:** beating the Demon King sets `demonKingDefeated`, moves the party to the field just outside the castle and **saves** before the ending screen, so 「つづきから」 resumes the post-game world. The ending's Enter still returns to the title.
 - **Unlocked:** a new gate on the continent's south-west grass (a gold marker, hidden and inert until the flag is set) leads to the **深淵の迷宮** (`abyss`, 16x16, dark floor and lava). Its encounters are three stronger enemies (亡霊 / 混沌の騎士 / 虚空の魔導師); four chests hold new gear (ドラゴンスレイヤー, 終焉の杖, 深淵のローブ, 深淵の鎧) and revival feathers; at the far end waits the secret boss **終焉の魔神ゼルギオス** (`abyssBossDefeated`).
 - **Secret boss:** a `boss` with the Demon King's mechanics (forms at 66% / 33%, telegraphed big attack that Defend halves, self-heal) but its own big skill `終焉の波動` (`bigSkill` on the enemy; default is `enemyDark`) and no ending: the victory gives big EXP / gold, a closing line, and play continues. Boss events may set `ending: false` and `postBattle` lines; `finale: true` (Demon King only) triggers the white fade and the ending.
-- **Bestiary:** the new enemies are appended after the Demon King, so the ずかん ends at 17 entries (the post-game ones come last).
+- **Bestiary:** the new enemies are appended after the Demon King, so the ずかん ends at 18 entries (the post-game ones come last; the 18th is the Tower of the Abyss' ヴァルザードの幻影).
 - **Balance:** the 深淵 enemies are meant for Lv 14+ (sim policy with shop gear only: wipe ~18% at Lv14, ~5% at Lv18; HP lost per battle 24% -> 12%); the secret boss is ~75% wipe at Lv20 and ~40% at Lv21 *without* the abyss chests (their gear makes it noticeably easier). `UNTIL=24 node tools/balance-sim.js 12 1 matrix` shows the 深淵 / ゼル columns up to Lv24.
 - **Code:** data in `js/data.js` (`MAPS.abyss`, enemies, `SPELLS.enemyDoom`, gear); `map.js` `handleEvent` honours `requires`; `battle.js` `afterBossWin` is shared by both win paths; `main.js` stores the cleared state.
 
@@ -202,6 +202,17 @@ This file provides guidance for Claude and human developers working on this proj
 - **Balance** (`UNTIL=24 node tools/balance-sim.js 12 1 arena`: chance to win all three in a row with shop gear only, HP / MP carried over, the 30% recovery between rounds, no items bought): ひよっこ ~46% at Lv6 and ~99% from Lv7; つわもの ~16% at Lv9, ~81% at Lv10, ~97% at Lv11; でんせつ ~23% at Lv16, ~44% at Lv18, ~84% at Lv20 and ~100% from Lv22 (the party also has the abyss gear by then, so it is easier in play). Every run pays about 1.5-2x what the same three fights would earn normally, so the arena is a gentle gold source, never a way around the shop economy (the ひよっこ prize is only +100G net). The sim's EXP leaks into its chain (it does not set `game.arena`), so its "HP left" column is slightly high.
 - **Side effects:** arena kills still count for the ずかん, kill requests and the battle counters. Nothing is saved in the middle of a run (the per-round save is skipped and leaving the page only saves in safe states, which a battle is not), so quitting mid-run brings back the save from before the run.
 - **Code:** `js/arena.js` (`ArenaSystem`: `open`, `update`, `begin`, `afterRound`, `afterLose`, `recover`, `render`), loaded after `dice.js`; hooks in `battle.js` (`checkWin`, `afterWin`, the `lose` phase, run), `battle-render.js` (the "闘技場 ... 1/3" tag), `main.js` (dialogue end, state switch); the NPC and `ARENA` in `data.js`.
+
+### Tower of the Abyss (深淵の塔)
+
+- **What:** a post-game endurance challenge: thirty floors, one battle each, the enemies getting stronger with every floor. It is meant to make long fights (limit skills, combos) the normal thing, and to give a New Game+ party somewhere to level and earn gold.
+- **Where:** the 塔の番人 NPC just inside the Abyss (`tower: true`, at (6,13)); only reachable after the Demon King (the abyss gate). Talking to them shows a line of dialogue and then opens the tower screen (`state = 'tower'`).
+- **Floors** (`TOWER` in `data.js`): 1-9 pairs of abyss enemies, **10** a guard of three elite abyss enemies, 11-19 pairs and triples, **20** the Demon King's shade (`valzardShade`, the Demon King without `finale`, so no ending), 21-29 triples, **30** Zelgios. Every floor scales the enemies by `TowerSystem.scale(f)`: HP / ATK / INT x(1 + 0.025 (f-1)), DEF x(1 + 0.012 (f-1)), EXP and gold x(1 + 0.03 (f-1)); `startBattle` applies it when `game.towerFloorScale` is set (on top of the New Game+ scale). Unlike the arena, the battles pay their EXP and gold.
+- **Rules:** no fleeing; after a floor the living members regain 20% HP / MP (`TowerSystem.RECOVER`), the limit gauges carry over to the next floor. Every fifth floor is a **checkpoint**: the party is fully healed and the fallen revived, any reward for that floor is paid (once per save), and the player chooses to go on or to leave. A wipe is not a game over: the party is patched up to full at the entrance, the best floor stays.
+- **Progress:** `game.tower = { best, claimed }` in the save (`tower`, no version bump; old saves load as `best 0`). A run may start at floor 1 or at any checkpoint already cleared (6, 11, 16, ...). New Game+ resets it, so the rewards can be earned again each cycle.
+- **Rewards** (`TOWER.rewards`, each once): 5F 魔法の聖水x3, 10F フェニックスの羽x3 + 2,000G, 15F 爆裂石x5, 20F **塔の指輪**, 25F 魔法の聖水x10 + 5,000G, 30F **覇者の指輪** + 20,000G. 
+- **Balance** (`UNTIL=34 node tools/balance-sim.js 8 1 tower`: floors in a row, 20% recovery, a full heal at every checkpoint, shop gear only, no items; the real party also has the abyss chests' gear, which is worth two or three levels): the share of runs that reach floor 5 / 10 / 20 / 30: Lv16 23% / 0 / 0 / 0, Lv18 46% / 4% / 0 / 0, Lv20 73% / 25% / 0 / 0, Lv22 88% / 48% / 4% / 0, Lv24 96% / 56% / 17% / 2%, Lv26 100% / 90% / 52% / 10%, Lv28 100% / 96% / 56% / 23%, Lv30 100% / 100% / 85% / 35%, Lv34 100% / 98% / 96% / 67%. So the first checkpoint arrives around Lv16-18, floor 10 around Lv20-22, floor 20 around Lv26 and the top is for Lv30+ with the best gear and the limit skills and combos. A party that has just cleared the game (Lv ~13) cannot get through the first floors, which is intended: the tower follows the abyss.
+- **Code:** `js/tower.js` (`TowerSystem`: `open`, `update`, `render`, `begin`, `afterFloor`, `afterLose`, `scale`, `groupFor`, `recover`), loaded after `arena.js`; hooks in `battle.js` (`startBattle`, `afterWin`, the `lose` phase, run), `battle-render.js` (the "塔 12F" tag), `main.js` (dialogue end, state switch), `save.js` / `title.js` (the save field and the New Game+ reset), `records.js` (a row), the NPC and `TOWER` in `data.js`.
 
 ### Requests (いらい)
 
@@ -283,7 +294,7 @@ Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~4
 - **Run:** `node tools/smoke-test.js` (about 20 s; exit code 0 = all passed). It serves the repo itself and drives the real game in headless Chromium through Playwright (found in `node_modules`, or in `npm root -g`; set `PW_CHROMIUM` to point at a browser if `/opt/pw-browsers/chromium` is absent). Run it before every PR.
 - **Data checks:** every map is rectangular with events and NPCs on walkable tiles and known targets; enemies have `desc` / `area` (and bosses an `EYE_TABLE` entry); every character spell exists *and has an `EFFECT_KINDS` entry*; shops, chests and achievement rewards reference real items.
 - **Flows with real keys:** title -> new game -> opening -> dialogue -> walking, every menu screen, shop purchase, both inns (the full night scene), winning a battle, the ずかん record.
-- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the requests (accept, count, deliver, fetch, save), the blacksmith (enhance, +5 cap, the level travelling with the item, save), the arena (locked / unaffordable courses, three chained rounds with no EXP / gold and the recovery, the prize and the one-off reward, no fleeing, a wipe without a game over), the music (loop lengths, track per map, the new tracks start), the Crystal Caverns (entry, reachability, the guardian, its sprites), the limit skills and combos (gauge, list, effects, fizzling, nothing saved), the battle message window and the error guard, the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
+- **Direct checks:** Sweep / Sleep / Magic Boost / Light / Mega Bomb in battle, the abyss gate before and after the clear, Haruka entry, chests giving items once, save / load round trips, a pre-hints save and a corrupt save, the achievement grant, the requests (accept, count, deliver, fetch, save), the blacksmith (enhance, +5 cap, the level travelling with the item, save), the Tower of the Abyss (floor scaling, recovery and carried gauges, checkpoints and rewards paid once, no fleeing, a wipe, saved progress, the top), the arena (locked / unaffordable courses, three chained rounds with no EXP / gold and the recovery, the prize and the one-off reward, no fleeing, a wipe without a game over), the music (loop lengths, track per map, the new tracks start), the Crystal Caverns (entry, reachability, the guardian, its sprites), the limit skills and combos (gauge, list, effects, fizzling, nothing saved), the battle message window and the error guard, the Demon King's defeat (saved outside the castle, ending, back to the title), the secret boss (no ending), touch mode, and `balance-sim` running.
 - **Adding to it:** a new screen, map or mechanic should get a line in the matching section; keep it fast and deterministic (it forces random rolls where it must).
 - **History:** its first run found four world-map rows that were one tile short (fixed with it).
 
@@ -291,7 +302,7 @@ Known gaps: the party's damage is still Dario-heavy early on (Sam ~43%, Dario ~4
 
 - **Currency:** Gold (G)
 - **Shops:** Weapons, Armor, Items in Millhaven; the roadShop in Haruka Waystation
-- **Gold sinks / sources:** the dice stall (a sink, RTP 91.7%), the blacksmith (a sink), the arena (a gentle source, see Arena)
+- **Gold sinks / sources:** the dice stall (a sink, RTP 91.7%), the blacksmith (a sink), the arena (a gentle source, see Arena), the tower (battle gold grows 3% a floor, plus 27,000G of one-off rewards, see Tower of the Abyss)
 - **Requests:** nine villager errands pay gold and consumables (see Requests); ~1,070G of it comes before the castle
 - **Inn:** Full HP/MP restore for gold
 - **Items:** 薬草 (HP35) / 上薬草 (HP100, 45G) / 魔法の水 (MP20) / 魔法の聖水 (MP60, 90G) / 毒消し草 / フェニックスの羽 / 爆弾石 (35 dmg) / 爆裂石 (90 dmg, 150G). An item may set `fx` to borrow another item's battle visuals and sound (上薬草 -> herb, 魔法の聖水 -> magicWater, 爆裂石 -> bomb), so new items of the existing types (`heal`, `healMp`, `cure`, `revive`, `damage`) are data-only.
@@ -353,6 +364,7 @@ python3 -m http.server 8000
 /js/smith.js        # Blacksmith: weapon / armor enhancement (+0 to +5) and its forge screen
 /js/dice.js         # The dice stall (サイコロ屋) in Haruka Waystation
 /js/arena.js        # The arena (闘技場) in Haruka Waystation: three battles in a row for a prize
+/js/tower.js        # The Tower of the Abyss (深淵の塔): thirty floors, checkpoints, saved progress
 /js/slots.js        # The three save slots and the title's slot picker
 /js/touch.js        # On-screen D-pad and A/B buttons for touch devices
 /js/save.js         # Save / load (three slots), score record, the "saved" overlay
@@ -363,7 +375,7 @@ python3 -m http.server 8000
 /js/main.js         # Globals, input, BGM choice, the game loop, the state machine's update / render, map and dialogue
 ```
 
-Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → battle-fx.js → battle-render.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → smith.js → dice.js → arena.js → slots.js → touch.js → save.js → title.js → menu.js → shop.js → endings.js → main.js
+Script load order matters: data.js → ui.js → settings.js → sound.js → music.js → map.js → battle.js → battle-fx.js → battle-render.js → opening.js → town.js → ambience.js → bestiary.js → hints.js → records.js → quests.js → smith.js → dice.js → arena.js → tower.js → slots.js → touch.js → save.js → title.js → menu.js → shop.js → endings.js → main.js
 
 The battle files extend one object: `battle.js` defines `var BattleSystem = {...}` and the two `battle-*.js` files add their methods with `Object.assign(BattleSystem, {...})`, so they must load right after it. The files split out of `main.js` hold plain global functions that are only called at run time (`window.onload` in `main.js` starts everything), so they only need to load before it. `tools/balance-sim.js` keeps its own module list and must include the `battle-*` files.
 

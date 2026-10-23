@@ -12,9 +12,12 @@ var BattleSystem = {
       game.party[pi].hpShown = 0; game.party[pi].hpGhost = 0; game.party[pi].mpShown = 0;   // gauges fill up as the panel slides in
       game.party[pi].hpLast = game.party[pi].hp;
       game.party[pi].hpMark = game.party[pi].hp;   // for the limit gauge: HP lost since the round began
-      if (!(game.arena && game.arena.round > 0)) game.party[pi].limit = 0;   // the gauge starts empty (an arena run carries it between rounds)
+      var carried = (game.arena && game.arena.round > 0) || (game.towerRun && game.towerRun.floor > game.towerRun.start);
+      if (!carried) game.party[pi].limit = 0;   // the gauge starts empty (an arena round or a tower floor after the first carries it over)
     }
     var cs = cycleScale(game.cycle);
+    var tw = game.towerFloorScale ? TowerSystem.scale(game.towerFloorScale) : { stat: 1, def: 1, reward: 1 };   // the Tower of the Abyss strengthens every floor
+    cs = { stat: cs.stat * tw.stat, def: cs.def * tw.def, reward: cs.reward * tw.reward };
     for (var i = 0; i < enemyIds.length; i++) {
       var template = ENEMIES[enemyIds[i]];
       enemies.push({
@@ -281,6 +284,7 @@ var BattleSystem = {
       case 'lose':
         if (key === 'confirm') {
           if (game.arena) ArenaSystem.afterLose(game);   // the arena patches the party up instead of a game over
+          else if (game.towerRun) TowerSystem.afterLose(game);
           else game.state = 'gameover';
         }
         break;
@@ -760,9 +764,9 @@ var BattleSystem = {
     // Handle run
     if (cmd.action === 'run') {
       b.escapeAttempts++;
-      var anyBoss = b.enemies.some(function(e) { return e.boss && e.alive; }) || !!game.arena;   // no fleeing from the arena
+      var anyBoss = b.enemies.some(function(e) { return e.boss && e.alive; }) || !!game.arena || !!game.towerRun;   // no fleeing from the arena or the tower
       if (anyBoss) {
-        b.messages = [game.arena ? 'とうぎじょうでは 逃げられない！' : 'しかし 逃げられない！'];
+        b.messages = [game.arena ? 'とうぎじょうでは 逃げられない！' : game.towerRun ? 'とうでは 逃げられない！' : 'しかし 逃げられない！'];
         b.messageTimer = 40;
         this.alertEnemies(game);
         this.escapeFailFx(game, true);
@@ -1445,6 +1449,7 @@ var BattleSystem = {
   afterWin: function(game) {
     RecordsSystem.check(game);
     if (game.arena) { ArenaSystem.afterRound(game); return; }   // a run goes on to the next round or pays out
+    if (game.towerRun) { TowerSystem.afterFloor(game); return; }   // the tower goes on to the next floor, a checkpoint or the top
     var pb = game.pendingBoss;
     game.state = 'map';
     game.battle = null;
