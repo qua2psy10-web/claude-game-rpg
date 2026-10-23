@@ -538,7 +538,7 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   ok(cc.reach && cc.rows && cc.guarded, 'every chest and both guardian tiles are reachable; the treasure room lies behind the guardian', JSON.stringify(cc));
   ok(cc.table && cc.bgm, 'the cave has its own encounter table and BGM', JSON.stringify(cc));
   ok(await ev(function() { return game.flags.crystalGuardianDefeated === true && game.state !== 'ending'; }), 'the guardian ends without the ending screen');
-  ok(await ev(function() { return Object.keys(ENEMIES).filter(function(k) { return !ENEMIES[k].boss || true; }).length === 17 && RecordsSystem.stats(game).chests === 20; }), 'the ずかん has 17 entries and the きろく counts 20 chests');
+  ok(await ev(function() { return Object.keys(ENEMIES).filter(function(k) { return !ENEMIES[k].boss || true; }).length === 18 && RecordsSystem.stats(game).chests === 20; }), 'the ずかん has 18 entries and the きろく counts 20 chests');
 
   console.log('\n[limit skills]');
   var lm = await ev(function() {
@@ -677,6 +677,13 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
       Object.keys(WEAPONS).filter(function(k) { return WEAPONS[k].equip.indexOf('sam') >= 0; }).slice(0, 12).forEach(function(k) { game.equipInventory.push({ id: k, type: 'weapon' }); });
       var nWeap = game.equipInventory.length;
       [0, 5, nWeap - 1].forEach(function(idx) { game.menuState = { index: 0, subState: 'equipSelect', charIndex: 0, equipIndex: 0, subIndex: idx }; frame('equip picker ' + idx + '/' + nWeap); });
+      // the tower: its menu (every checkpoint start), the checkpoint screen with a long reward line, and a tower battle with its floor tag
+      game.state = 'map'; game.tower = { best: 29, claimed: { 5: true, 10: true, 15: true, 20: true, 25: true } };
+      TowerSystem.open(game); frame('tower menu');
+      game.towerState = { phase: 'checkpoint', index: 1, floor: 30, msg: ['30F を とっぱ！ HPと MPが ぜんかいふくした。', 'ほうしゅう: ' + TowerSystem.pay(game, 30)], msgColor: '#ffd700' }; game.state = 'tower'; frame('tower checkpoint');
+      game.towerState = null; game.towerRun = { floor: 30, start: 1 }; game.towerFloorScale = 30;
+      BattleSystem.startBattle(game, ['zelgios']); game.battle.introStart = T - 20000; game.battle.bossIntro = false; game.battle.phase = 'command'; frame('tower battle');
+      game.battle = null; game.towerRun = null; game.towerFloorScale = 0; game.tower = TowerSystem.fresh();
       game.state = 'dialogue';
       var dlg = function(lines, l) { game.dialogue = lines; for (var i = 0; i < lines.length; i++) { game.dialogueIndex = i; frame('dialogue ' + l); } };
       Object.keys(MAPS).forEach(function(m) {
@@ -689,6 +696,64 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
     return { frames: n, flagged: Object.keys(flagged).map(function(k) { return flagged[k]; }) };
   });
   ok(edge.frames > 300 && edge.flagged.length === 0, 'no text or window runs off the screen (map HUD, every battle group and phase, shops, the equipment picker, dialogues)', edge.frames + ' frames; ' + edge.flagged.slice(0, 4).join(' | '));
+
+  console.log('\n[tower]');
+  var tw = await ev(function() {
+    newGame(); game.state = 'map'; game.hints = {}; var o = {};
+    game.party.forEach(function(c) { c.level = 30; c.hp = c.maxHp = 400; c.mp = c.maxMp = 100; c.atk = 150; c.int = 150; });
+    var npc = MAPS.abyss.npcs.filter(function(n) { return n.tower; })[0];
+    o.npc = !!npc && TILES[MAPS.abyss.tiles[npc.y][npc.x]].passable;
+    function win() { game.battle.enemies.forEach(function(e) { e.hp = 0; e.alive = false; }); BattleSystem.checkWin(game); BattleSystem.handleWin(game); }
+    // scaling: the floor strengthens the enemies, and the world's New Game+ scale stacks with it
+    o.scale = TowerSystem.scale(1).stat === 1 && Math.abs(TowerSystem.scale(21).stat - 1.5) < 1e-9 && TowerSystem.scale(31).reward > TowerSystem.scale(2).reward;
+    TowerSystem.open(game); o.open = game.state === 'tower' && game.towerState.starts.length === 1;
+    var g0 = game.gold; TowerSystem.update(game, 'confirm');
+    var e1 = game.battle.enemies[0], base1 = ENEMIES[e1.id];
+    o.start = game.state === 'battle' && game.towerRun.floor === 1 && e1.hp === base1.hp;
+    BattleSystem.startBattle(game, ['chaosKnight']); game.towerFloorScale = 21;
+    BattleSystem.startBattle(game, ['chaosKnight']); o.scaled = game.battle.enemies[0].hp === Math.round(ENEMIES.chaosKnight.hp * 1.5);
+    game.towerFloorScale = 1; BattleSystem.startBattle(game, ['abyssWraith']);
+    // the floors in order: recovery, carried gauges, then a checkpoint at 5F with its reward
+    game.towerRun = { floor: 1, start: 1 }; game.towerFloorScale = 1; BattleSystem.startBattle(game, ['abyssWraith']);
+    game.party[0].hp = 100; game.party[1].limit = 55;
+    win(); o.next = game.state === 'battle' && game.towerRun.floor === 2 && game.party[0].hp === 100 + Math.ceil(400 * TowerSystem.RECOVER) && game.party[1].limit === 55 && game.gold > g0;
+    for (var f = 2; f <= 5; f++) win();
+    o.check = game.state === 'tower' && game.towerState.phase === 'checkpoint' && game.towerState.floor === 5 && game.tower.best === 5 && game.party.every(function(c) { return c.hp === c.maxHp; });
+    o.reward = game.tower.claimed[5] === true && game.inventory.some(function(i) { return i.id === 'elixir' && i.count >= 3; });
+    // going on: floor 6; the checkpoint reward is paid only once
+    TowerSystem.update(game, 'confirm');
+    o.go = game.state === 'battle' && game.towerRun.floor === 6;
+    var elix = game.inventory.filter(function(i) { return i.id === 'elixir'; })[0].count;
+    o.once = TowerSystem.pay(game, 5) === null && game.inventory.filter(function(i) { return i.id === 'elixir'; })[0].count === elix;
+    // no fleeing
+    var b = game.battle; b.phase = 'execute'; b.turnQueue = [{ action: 'run', actor: 0, actorType: 'party' }]; b.currentAction = 0;
+    BattleSystem.executeNextAction(game); o.noRun = b.phase !== 'run';
+    // a wipe: healed at the entrance, the best floor stays
+    game.party.forEach(function(c) { c.hp = 0; c.alive = false; }); BattleSystem.checkLose(game); game.battle.messageTimer = 0; BattleSystem.handleInput(game, 'confirm');
+    o.lose = game.state === 'dialogue' && !game.towerRun && game.tower.best === 5 && game.party.every(function(c) { return c.alive && c.hp === c.maxHp; });
+    // the next run may start at the cleared checkpoint, and the floor-20 boss never ends the game
+    o.starts = TowerSystem.starts(game).join() === '1,6';
+    game.tower.best = 19; o.starts2 = TowerSystem.starts(game).join() === '1,6,11,16';
+    o.shade = ENEMIES.valzardShade.boss && !ENEMIES.valzardShade.finale && TOWER.special[20][0] === 'valzardShade' && TOWER.special[30][0] === 'zelgios';
+    // progress is saved, an old save has none, and a new game starts clean
+    game.tower = { best: 12, claimed: { 5: true, 10: true } }; saveGame();
+    var back = TowerSystem.sanitize(JSON.parse(localStorage.getItem('eldrasia_save')).tower);
+    o.saved = back.best === 12 && back.claimed[10] === true && !back.claimed[15];
+    o.old = TowerSystem.sanitize(undefined).best === 0 && TowerSystem.sanitize({ best: 99, claimed: { 7: true } }).best === 30 && !TowerSystem.sanitize({ claimed: { 7: true } }).claimed[7];
+    newGame(); o.fresh = game.tower.best === 0;
+    // the top: the last reward and the end of the run
+    game.state = 'map'; game.tower = TowerSystem.fresh(); game.gold = 0; game.towerRun = { floor: 30, start: 30 }; game.towerFloorScale = 30;
+    BattleSystem.startBattle(game, ['zelgios']); win(); if (game.battle) BattleSystem.afterWin(game);   // (the big EXP may start level-ups first)
+    o.top = game.state === 'dialogue' && !game.towerRun && game.tower.best === 30 && game.gold >= 20000 && game.equipInventory.some(function(e) { return e.id === 'conquerRing'; });
+    // the tag and screens draw
+    TowerSystem.open(game); TowerSystem.update(game, 'cancel'); game.towerRun = { floor: 7, start: 1 }; BattleSystem.startBattle(game, ['abyssWraith']); game.battle.phase = 'command'; BattleSystem.render(ctx, game, 640, 480);
+    game.towerRun = null; game.battle = null; game.towerFloorScale = 0; game.state = 'map';
+    return o;
+  });
+  ok(tw.npc && tw.scale && tw.open && tw.start && tw.scaled, 'the tower opens from its NPC, starts at floor 1 and scales the enemies by floor', JSON.stringify(tw));
+  ok(tw.next && tw.check && tw.reward && tw.go && tw.once, 'floors recover a little, carry the gauges, checkpoint every fifth floor with a reward paid once', JSON.stringify(tw));
+  ok(tw.noRun && tw.lose && tw.starts && tw.starts2, 'no fleeing; a wipe heals at the entrance and keeps the best floor; runs may start at checkpoints', JSON.stringify(tw));
+  ok(tw.shade && tw.saved && tw.old && tw.fresh && tw.top, 'the floor-20 boss has no ending, progress is saved (old saves clean), the top pays the last reward', JSON.stringify(tw));
 
   console.log('\n[arena]');
   var ar = await ev(function() {

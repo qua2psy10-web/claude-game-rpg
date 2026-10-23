@@ -1158,6 +1158,10 @@ Object.assign(BattleSystem, {
       UI.drawWindow(ctx, canvasW / 2 - 130, 6, 260, 30);
       UI.drawText(ctx, '闘技場  ' + ac.name + '  ' + Math.min(game.arena.round + 1, ArenaSystem.ROUNDS) + '/' + ArenaSystem.ROUNDS, canvasW / 2 - 116, 12, '#ffd700', UI.FONT_SMALL);
     }
+    if (game.towerRun) {                                                // which floor of the tower this is
+      UI.drawWindow(ctx, canvasW / 2 - 90, 6, 180, 30);
+      UI.drawText(ctx, '深淵の塔  ' + game.towerRun.floor + 'F / ' + TOWER.floors + 'F', canvasW / 2 - 76, 12, '#ffd700', UI.FONT_SMALL);
+    }
     this.renderBossVictory(ctx, game, canvasW, canvasH, Date.now());
   },
 });

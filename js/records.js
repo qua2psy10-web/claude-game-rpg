@@ -102,6 +102,7 @@ var RecordsSystem = (function() {
       ['さいだい おかね', gameScore.highGold + ' G'],
       ['まおう', game.flags.demonKingDefeated ? 'たおした' : '—'],
       ['ゼルギオス', game.flags.abyssBossDefeated ? 'たおした' : '—'],
+      ['深淵の塔', game.tower && game.tower.best ? game.tower.best + 'F / ' + TOWER.floors + 'F' : '—'],
     ];
     for (var i = 0; i < rows.length; i++) {
       UI.drawText(ctx, rows[i][0], 38, 74 + i * 42, '#9bd', UI.FONT_SMALL);

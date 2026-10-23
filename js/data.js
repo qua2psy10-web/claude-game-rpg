@@ -138,6 +138,8 @@ var ENEMIES = {
   abyssWraith:  { name: '深淵の亡霊', hp: 480, atk: 130, def: 24, spd: 15, int: 20, exp: 140, gold: 110, color: '#66e0d0', shape: 'skeleton', skills: [], desc: ['深淵に とらわれた 戦士の 魂。', '冷たい 刃が 音もなく せまる。'], area: '深淵の迷宮' },
   chaosKnight:  { name: '混沌の騎士', hp: 620, atk: 155, def: 36, spd: 10, int: 6, exp: 180, gold: 140, color: '#a04020', shape: 'knight', skills: [], desc: ['魔王すら 従えなかった 狂える 騎士。', '鎧は 魔王軍より はるかに 厚い。'], area: '深淵の迷宮' },
   voidMage:     { name: '虚空の魔導師', hp: 420, atk: 80, def: 20, spd: 16, int: 85, exp: 160, gold: 130, color: '#2a7ab0', shape: 'mage', skills: ['enemyFire'], desc: ['虚空から 力を 引き出す 魔導師。', '炎の 魔法が 恐ろしく 強い。'], area: '深淵の迷宮' },
+  // The Tower of the Abyss' floor 20 boss: the Demon King without the ending (finale)
+  valzardShade: { name: 'ヴァルザードの幻影', hp: 1600, atk: 158, def: 28, spd: 16, int: 25, exp: 900, gold: 700, color: '#6a3a9a', shape: 'demonKing', boss: true, skills: ['enemyDark', 'enemyHeal'], desc: ['塔が うつしだす 魔王の 影。', '本物に おとらぬ 闇の力を もつ。'], area: '深淵の塔' },
   zelgios:      { name: '終焉の魔神ゼルギオス', hp: 3000, atk: 170, def: 34, spd: 18, int: 30, exp: 2500, gold: 3000, color: '#2a8aa8', shape: 'abyssLord', boss: true, skills: ['enemyDoom', 'enemyHeal'], bigSkill: 'enemyDoom', desc: ['魔王が 生まれる はるか前から', '深淵に ねむる 終焉の 魔神。'], area: '深淵の迷宮の おく' },
 };
 
@@ -198,6 +200,8 @@ var ACCESSORIES = {
   guardRing: { name: '守りの指輪', def: 8, price: 600 },
   sageRing:  { name: '賢者の指輪', int: 12, price: 1400 },
   crystalRing: { name: '水晶の指輪', def: 3, int: 5, hp: 10, price: 800 },
+  towerRing:  { name: '塔の指輪', atk: 6, def: 6, int: 8, spd: 3, hp: 40, price: 9999 },
+  conquerRing: { name: '覇者の指輪', atk: 10, def: 10, int: 14, spd: 5, hp: 60, price: 9999 },
   heroRing:  { name: '勇者の指輪', atk: 9, def: 5, price: 1500 },
 };
 
@@ -438,7 +442,7 @@ var MAPS = {
           '旅の装備も 買えるらしい。」',
         ],
         talk: [
-          { flag: 'abyssBossDefeated', lines: ['旅人「あの深淵の魔神を 倒したのか！', '俺は 長く 旅をしてきたが', 'こんな 話は 初めて 聞いたぞ。」'] },
+          { flag: 'abyssBossDefeated', lines: ['旅人「あの深淵の魔神を 倒したのか！', '深淵の入口に 塔の番人が いるそうだ。', '30階の 塔に 挑む者を 待っているとか。」'] },
           { flag: 'demonKingDefeated', lines: ['旅人「魔王を 倒すとは 大したもんだ！', '噂じゃ 大陸の南西に 新しい 門が', 'できたらしい。力試しに ちょうどいいぞ。」'] },
           { flag: 'visited_castle', lines: ['旅人「城まで 行ったのか！', '中の 魔物は 森とは 桁違いだろう。', 'レベルを 上げてから 行った方が いいぞ。」'] },
           { flag: 'crystalGuardianDefeated', lines: ['旅人「水晶の洞窟の 番人を 倒したのか！', '奥の 宝は 見事だったろう。', '城へ 挑む 準備は 万端だな。」'] },
@@ -594,7 +598,11 @@ var MAPS = {
                  preBattle: ['終焉の魔神ゼルギオス「…魔王を 倒した 者たちか。', '深淵の底で 待っていたぞ。', '我が 終焉の波動を 受けてみよ！」'],
                  postBattle: ['ゼルギオスは 深淵の闇に とけていった…', '勇者たちは 本当の 平和を 手に入れた！'] },
     },
-    npcs: [],
+    npcs: [
+      { x: 6, y: 13, name: '塔の番人', color: '#44bbcc', dir: 'down', tower: true,
+        dialogue: ['塔の番人「ここは 深淵の塔の ふもとだ。', '30の階を 登りきった者は いない。', '腕試しを したいなら 案内しよう。」'],
+        talk: [{ flag: 'abyssBossDefeated', lines: ['塔の番人「深淵の魔神を 倒した 者か…', '塔の 頂には その 魔神の 影が 待っている。」'] }] },
+    ],
     encounters: {
       dark: [
         { enemies: ['abyssWraith'], weight: 25 },
@@ -714,6 +722,26 @@ var MAPS = {
     ],
     encounters: {},
     encounterRate: 0,
+  },
+};
+
+// ===== TOWER OF THE ABYSS (深淵の塔) =====
+// Thirty floors, one battle each (see TowerSystem in tower.js): `special` floors are fixed, the rest draw from `pools`
+var TOWER = {
+  floors: 30,
+  pools: [
+    [['abyssWraith', 'voidMage'], ['chaosKnight', 'abyssWraith'], ['voidMage', 'voidMage'], ['abyssWraith', 'abyssWraith'], ['chaosKnight']],
+    [['abyssWraith', 'chaosKnight', 'voidMage'], ['chaosKnight', 'chaosKnight'], ['abyssWraith', 'abyssWraith', 'voidMage'], ['voidMage', 'voidMage', 'chaosKnight']],
+    [['chaosKnight', 'chaosKnight', 'voidMage'], ['abyssWraith', 'chaosKnight', 'voidMage'], ['chaosKnight', 'chaosKnight', 'abyssWraith'], ['voidMage', 'voidMage', 'chaosKnight']],
+  ],
+  special: { 10: ['chaosKnight', 'chaosKnight', 'voidMage'], 20: ['valzardShade'], 30: ['zelgios'] },
+  rewards: {
+    5:  { item: 'elixir', count: 3 },
+    10: { item: 'phoenix', count: 3, gold: 2000 },
+    15: { item: 'bigBomb', count: 5 },
+    20: { accessory: 'towerRing' },
+    25: { item: 'elixir', count: 10, gold: 5000 },
+    30: { accessory: 'conquerRing', gold: 20000 },
   },
 };
 

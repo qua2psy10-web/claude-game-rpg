@@ -6,7 +6,7 @@ var stub = new Proxy(function() {}, { get: function(t, k) { return k === 'getCon
 global.window = global;
 global.document = { getElementById: function() { return stub; }, createElement: function() { return stub; } };
 global.setTimeout = function() {};
-['data', 'ui', 'settings', 'sound', 'music', 'map', 'battle', 'battle-fx', 'battle-render', 'bestiary', 'hints', 'records', 'smith', 'arena'].forEach(function(f) {
+['data', 'ui', 'settings', 'sound', 'music', 'map', 'battle', 'battle-fx', 'battle-render', 'bestiary', 'hints', 'records', 'smith', 'arena', 'tower'].forEach(function(f) {
   vm.runInThisContext(fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8'), { filename: f });
 });
 Object.keys(SoundSystem).forEach(function(k) { if (typeof SoundSystem[k] === 'function') SoundSystem[k] = function() {}; });
@@ -278,6 +278,37 @@ if (process.argv[4] === 'ng') {
   }
   tables.forEach(function(t, ti) { var r3 = res[ti]; console.log((t[0] + '    ').slice(0, 5) + ' wipe ' + (r3.wipes / r3.n * 100).toFixed(0).padStart(3) + '%  hpLost ' + (r3.loss / r3.n * 100).toFixed(0).padStart(3) + '%  rounds ' + (r3.rounds / r3.n).toFixed(1)); });
   var lastp = JSON.parse(snap0); console.log('sample party: ' + lastp.party.map(function(c) { return c.name + ' Lv' + c.level + ' ATK' + c.atk + ' DEF' + c.def + ' HP' + c.maxHp; }).join(' | '));
+  return;
+}
+if (process.argv[4] === 'tower') {
+  // Tower of the Abyss: how far a party of each level gets (floors in a row, TowerSystem.RECOVER between floors, a full heal at every checkpoint, shop gear only, no items bought)
+  var snapTw = {};
+  for (var ti = 0; ti < Math.min(runs, 12); ti++) {
+    var tr = playthrough(base + ti);
+    Object.keys(tr.snaps).forEach(function(L) { (snapTw[L] = snapTw[L] || []).push(tr.snaps[L]); });
+  }
+  var marks = [5, 10, 15, 20, 25, 30];
+  console.log('Lv   reach floor: ' + marks.map(function(m) { return String(m).padStart(4); }).join('') + '    avg best');
+  Object.keys(snapTw).sort(function(a, b) { return a - b; }).forEach(function(L) {
+    if (+L < 14) return;
+    var n = 0, hit = marks.map(function() { return 0; }), sum = 0;
+    snapTw[L].forEach(function(sn, si4) {
+      for (var f0 = 0; f0 < 6; f0++) {
+        seedRng(9000 + si4 * 211 + f0);
+        var gg = JSON.parse(sn); gg.battle = null; inn(gg); gg.cycle = 1;
+        var best = 0;
+        for (var fl = 1; fl <= TOWER.floors; fl++) {
+          gg.towerFloorScale = fl;
+          var rs = fight(gg, TowerSystem.groupFor(fl));
+          if (!rs.won) break;
+          best = fl;
+          if (fl % TowerSystem.CHECK_EVERY === 0) TowerSystem.healAll(gg.party); else TowerSystem.recover(gg.party);
+        }
+        n++; sum += best; marks.forEach(function(m, k) { if (best >= m) hit[k]++; });
+      }
+    });
+    console.log(String(L).padStart(2) + '                ' + hit.map(function(h) { return String(Math.round(h / n * 100)).padStart(4); }).join('') + '    ' + (sum / n).toFixed(1));
+  });
   return;
 }
 if (process.argv[4] === 'arena') {
